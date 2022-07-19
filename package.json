@@ -1,0 +1,41 @@
+{
+  "name": "pirex-gmx",
+  "version": "1.0.0",
+  "description": "GMX derivatives",
+  "contributors": [
+    {
+      "name": "kp",
+      "email": "kpcrypto69@gmail.com",
+      "url": "https://twitter.com/ppmoon69"
+    }
+  ],
+  "scripts": {
+    "lint-sol": "solhint \"contracts/*.sol\"",
+    "lint-ts": "eslint \"./test/**/*.ts\"",
+    "lint": "npm run lint-sol && npm run lint-ts",
+    "prepare": "husky install"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/redacted-cartel/pirex-gmx.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/redacted-cartel/pirex-gmx/issues"
+  },
+  "homepage": "https://github.com/redacted-cartel/pirex-gmx#readme",
+  "devDependencies": {
+    "eslint": "^8.9.0",
+    "husky": "^7.0.4",
+    "prettier": "^2.5.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.19"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^4.4.2",
+    "@openzeppelin/contracts-upgradeable": "^4.4.2",
+    "@rari-capital/solmate": "github:Rari-Capital/solmate#e7deddf",
+    "solhint": "^3.3.7"
+  }
+}
