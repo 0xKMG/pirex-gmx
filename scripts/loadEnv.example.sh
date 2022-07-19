@@ -1,0 +1,5 @@
+#!/bin/bash
+
+FORK_URL=""
+ETHERSCAN_API_KEY=""
+BLOCK_NUMBER=""

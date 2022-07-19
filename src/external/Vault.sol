@@ -1,14 +1,4 @@
-// https://arbiscan.io/address/0x489ee077994B6658eAfA855C308275EAd8097C4A#code
-/**
- *Submitted for verification at Arbiscan on 2021-08-31
-*/
-
-// Sources flattened with hardhat v2.6.1 https://hardhat.org
-
-// File contracts/libraries/math/SafeMath.sol
-
 // SPDX-License-Identifier: MIT
-
 pragma solidity 0.8.13;
 
 /**
