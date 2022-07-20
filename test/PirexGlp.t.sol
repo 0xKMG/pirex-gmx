@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import "forge-std/Test.sol";
+import {PirexGlp} from "src/PirexGlp.sol";
 import {IRewardRouterV2} from "src/interface/IRewardRouterV2.sol";
 import {IVaultReader} from "src/interface/IVaultReader.sol";
 import {IGlpManager} from "src/interface/IGlpManager.sol";
@@ -18,13 +19,15 @@ contract PirexGlpTest is Test {
         IGlpManager(0x321F653eED006AD1C29D174e17d96351BDe22649);
     IReader internal constant READER =
         IReader(0x22199a49A999c351eF7927602CFB187ec3cae489);
-    IERC20 internal constant REWARD_TRACKER =
-        IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     Vault internal constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    IERC20 internal constant REWARD_TRACKER =
+        IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     IERC20 internal constant USDG =
         IERC20(0x45096e7aA921f27590f8F19e457794EB09678141);
     IERC20 FEE_STAKED_GLP = IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
+
+    PirexGlp internal immutable pirexGlp;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -36,6 +39,10 @@ contract PirexGlpTest is Test {
     uint256 internal constant PRECISION = 1e30;
     uint256 internal constant EXPANDED_GLP_DECIMALS = 1e18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
+
+    constructor() {
+        pirexGlp = new PirexGlp();
+    }
 
     /**
         @notice Get minimum price for whitelisted token ETH
@@ -113,6 +120,10 @@ contract PirexGlpTest is Test {
 
         return FEE_BPS + taxBps;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        GMX-related TESTS
+    //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test for verifying correctness of GLP buy minimum calculation
