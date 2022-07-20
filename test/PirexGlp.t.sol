@@ -40,6 +40,13 @@ contract PirexGlpTest is Test {
     uint256 internal constant EXPANDED_GLP_DECIMALS = 1e18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
 
+    event Mint(
+        address indexed caller,
+        uint256 indexed minShares,
+        address indexed receiver,
+        uint256 assets
+    );
+
     constructor() {
         pirexGlp = new PirexGlp();
     }
@@ -116,9 +123,24 @@ contract PirexGlpTest is Test {
             averageDiff = targetAmount;
         }
 
-        uint256 taxBps = (TAX_BPS * averageDiff) / targetAmount;
+        return FEE_BPS + (TAX_BPS * averageDiff) / targetAmount;
+    }
 
-        return FEE_BPS + taxBps;
+    /**
+        @notice Calculate the minimum amount of GLP received for ETH
+        @param  etherAmount  uint256  Amount of ether in wei units
+     */
+    function _calculateMinGlpAmount(uint256 etherAmount)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256[] memory info = _getVaultTokenInfoETH();
+        uint256 glpAmount = (etherAmount * info[10]) / _getGlpPrice();
+        uint256 minGlp = (glpAmount *
+            (BPS_DIVISOR - _getFees(etherAmount, info))) / BPS_DIVISOR;
+
+        return (minGlp * (BPS_DIVISOR - SLIPPAGE)) / BPS_DIVISOR;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -137,19 +159,88 @@ contract PirexGlpTest is Test {
         assertEq(address(this).balance, etherAmount);
         assertEq(FEE_STAKED_GLP.balanceOf(address(this)), 0);
 
-        uint256[] memory info = _getVaultTokenInfoETH();
-        uint256 glpAmount = (etherAmount * info[10]) / _getGlpPrice();
-        uint256 minGlp = (glpAmount *
-            (BPS_DIVISOR - _getFees(etherAmount, info))) / BPS_DIVISOR;
-        uint256 minGlpWithSlippage = (minGlp * (BPS_DIVISOR - SLIPPAGE)) /
-            BPS_DIVISOR;
-
-        REWARD_ROUTER_V2.mintAndStakeGlpETH{value: etherAmount}(
-            0,
-            minGlpWithSlippage
-        );
+        uint256 minGlpWithSlippage = _calculateMinGlpAmount(etherAmount);
+        uint256 glpAmount = REWARD_ROUTER_V2.mintAndStakeGlpETH{
+            value: etherAmount
+        }(0, minGlpWithSlippage);
 
         assertEq(address(this).balance, 0);
-        assertGt(FEE_STAKED_GLP.balanceOf(address(this)), minGlpWithSlippage);
+        assertGt(minGlpWithSlippage, 0);
+        assertGt(glpAmount, minGlpWithSlippage);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        mintWithETH TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to msg.value being zero
+     */
+    function testCannotMintWithETHZeroValue() external {
+        uint256 minShares = 1;
+        address receiver = address(this);
+
+        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+
+        pirexGlp.mintWithETH{value: 0}(minShares, receiver);
+    }
+
+    /**
+        @notice Test tx reversion due to minShares being zero
+     */
+    function testCannotMintWithETHZeroMinShares() external {
+        uint256 etherAmount = 1 ether;
+        uint256 invalidMinShares = 0;
+        address receiver = address(this);
+
+        vm.deal(address(this), etherAmount);
+        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+
+        pirexGlp.mintWithETH{value: etherAmount}(invalidMinShares, receiver);
+    }
+
+    /**
+        @notice Test tx reversion due to receiver being the zero address
+     */
+    function testCannotMintWithETHZeroReceiver() external {
+        uint256 etherAmount = 1 ether;
+        uint256 minShares = 1;
+        address invalidReceiver = address(0);
+
+        vm.deal(address(this), etherAmount);
+        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+
+        pirexGlp.mintWithETH{value: etherAmount}(minShares, invalidReceiver);
+    }
+
+    /**
+        @notice Test minting pxGLP with ETH
+        @param  etherAmount  uint256  Amount of ether in wei units
+     */
+    function testMintWithETH(uint256 etherAmount) external {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.deal(address(this), etherAmount);
+
+        uint256 minShares = 1;
+        address receiver = address(this);
+        uint256 minGlpAmount = _calculateMinGlpAmount(etherAmount);
+        uint256 premintETHBalance = address(this).balance;
+        uint256 premintPxGlp = pirexGlp.balanceOf(receiver);
+        uint256 premintTotalAssets = pirexGlp.totalAssets();
+
+        assertEq(premintETHBalance, etherAmount);
+
+        uint256 assets = pirexGlp.mintWithETH{value: etherAmount}(minShares, receiver);
+        uint256 pxGlpReceived = pirexGlp.balanceOf(receiver) - premintPxGlp;
+        uint256 totalAssetsIncrease = pirexGlp.totalAssets() -
+            premintTotalAssets;
+
+        assertEq(address(this).balance, premintETHBalance - etherAmount);
+        assertGt(pxGlpReceived, 0);
+        assertEq(pxGlpReceived, totalAssetsIncrease);
+        assertEq(totalAssetsIncrease, assets);
+        assertGe(pxGlpReceived, minGlpAmount);
+        assertGe(totalAssetsIncrease, minGlpAmount);
     }
 }
