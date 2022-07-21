@@ -1,22 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {ERC4626} from "solmate/mixins/ERC4626.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IRewardRouterV2} from "./interface/IRewardRouterV2.sol";
 import {Vault} from "./external/Vault.sol";
+import {PxGlp} from "./PxGlp.sol";
 
-contract PirexGlp is ReentrancyGuard, ERC4626 {
+contract PirexGlp is ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
-    IRewardRouterV2 constant REWARD_ROUTER_V2 =
+    IRewardRouterV2 public constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
-    ERC20 constant FS_GLP = ERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
-    Vault constant VAULT = Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    ERC20 public constant FS_GLP =
+        ERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
+    Vault public constant VAULT =
+        Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
 
-    address constant GLP_MANAGER = 0x321F653eED006AD1C29D174e17d96351BDe22649;
+    address public constant GLP_MANAGER =
+        0x321F653eED006AD1C29D174e17d96351BDe22649;
+
+    PxGlp public immutable pxGlp;
 
     event Mint(
         address indexed caller,
@@ -31,14 +36,10 @@ contract PirexGlp is ReentrancyGuard, ERC4626 {
     error ZeroAddress();
     error InvalidToken(address token);
 
-    constructor() ERC4626(FS_GLP, "PirexGLP", "pxGLP") {}
+    constructor(address _pxGlp) {
+        if (_pxGlp == address(0)) revert ZeroAddress();
 
-    /**
-        @notice Total underlying GLP assets managed by Pirex
-        @return uint256  Contract GLP balance
-     */
-    function totalAssets() public view override returns (uint256) {
-        return FS_GLP.balanceOf(address(this));
+        pxGlp = PxGlp(_pxGlp);
     }
 
     /**
@@ -64,7 +65,7 @@ contract PirexGlp is ReentrancyGuard, ERC4626 {
         );
 
         // Mint pxGLP based on the actual amount of GLP minted
-        _mint(receiver, assets);
+        pxGlp.mint(receiver, assets);
 
         emit Mint(
             msg.sender,
@@ -109,7 +110,7 @@ contract PirexGlp is ReentrancyGuard, ERC4626 {
             minShares
         );
 
-        _mint(receiver, assets);
+        pxGlp.mint(receiver, assets);
 
         emit Mint(msg.sender, minShares, receiver, token, tokenAmount, assets);
     }
