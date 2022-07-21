@@ -214,6 +214,20 @@ contract PirexGlpTest is Test {
     }
 
     /**
+        @notice Test tx reversion due to minShares being GT than actual GLP amount
+     */
+    function testCannotMintWithETHExcessiveMinShares() external {
+        uint256 etherAmount = 1 ether;
+        uint256 invalidMinShares = _calculateMinGlpAmount(etherAmount) * 2;
+        address receiver = address(this);
+
+        vm.deal(address(this), etherAmount);
+        vm.expectRevert(bytes("GlpManager: insufficient GLP output"));
+
+        pirexGlp.mintWithETH{value: etherAmount}(invalidMinShares, receiver);
+    }
+
+    /**
         @notice Test minting pxGLP with ETH
         @param  etherAmount  uint256  Amount of ether in wei units
      */
@@ -230,6 +244,11 @@ contract PirexGlpTest is Test {
         uint256 premintTotalAssets = pirexGlp.totalAssets();
 
         assertEq(premintETHBalance, etherAmount);
+
+        vm.expectEmit(true, true, true, false, address(pirexGlp));
+
+        // Cannot test the `asset` member of the event since it's not known until after
+        emit Mint(address(this), minShares, receiver, 0);
 
         uint256 assets = pirexGlp.mintWithETH{value: etherAmount}(minShares, receiver);
         uint256 pxGlpReceived = pirexGlp.balanceOf(receiver) - premintPxGlp;
