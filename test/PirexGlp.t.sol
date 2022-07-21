@@ -40,7 +40,7 @@ contract PirexGlpTest is Test {
     uint256 internal constant BPS_DIVISOR = 10_000;
     uint256 internal constant SLIPPAGE = 30;
     uint256 internal constant PRECISION = 1e30;
-    uint256 internal constant EXPANDED_GLP_DECIMALS = 1e18;
+    uint256 internal constant EXPANDED_GLP_DECIMALS = 18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
 
     event Mint(
@@ -58,8 +58,8 @@ contract PirexGlpTest is Test {
 
     /**
         @notice Get minimum price for whitelisted token
-        @param  token  address  Token
-        @return uint256[]  Vault token info for ETH
+        @param  token  address    Token
+        @return        uint256[]  Vault token info for token
      */
     function _getVaultTokenInfo(address token)
         internal
@@ -92,21 +92,23 @@ contract PirexGlpTest is Test {
             tokens
         )[1];
 
-        return (aum * EXPANDED_GLP_DECIMALS) / glpSupply;
+        return (aum * 10**EXPANDED_GLP_DECIMALS) / glpSupply;
     }
 
     /**
         @notice Get GLP buying fees
-        @return uint256  GLP buying fees
+        @param  tokenAmount  uint256    Token amount
+        @param  info         uint256[]  Token info
+        @return              uint256    GLP buying fees
      */
-    function _getFees(uint256 etherAmount, uint256[] memory info)
+    function _getFees(uint256 tokenAmount, uint256[] memory info)
         internal
         view
         returns (uint256)
     {
         uint256 initialAmount = info[2];
         uint256 nextAmount = initialAmount +
-            ((etherAmount * info[10]) / PRECISION);
+            ((tokenAmount * info[10]) / PRECISION);
         uint256 targetAmount = (info[4] * USDG.totalSupply()) /
             VAULT.totalTokenWeights();
 
@@ -141,6 +143,7 @@ contract PirexGlpTest is Test {
         @param  token     address  Token address
         @param  amount    uint256  Amount of tokens
         @param  decimals  uint256  Token decimals for expansion purposes
+        @return           uint256  Minimum GLP amount with slippage and decimal expansion
      */
     function _calculateMinGlpAmount(
         address token,
@@ -156,9 +159,9 @@ contract PirexGlpTest is Test {
 
         // Expand min GLP amount decimals based on the input token's decimals
         return
-            decimals == 18
+            decimals == EXPANDED_GLP_DECIMALS
                 ? minGlpWithSlippage
-                : 10**(18 - decimals) * minGlpWithSlippage;
+                : 10**(EXPANDED_GLP_DECIMALS - decimals) * minGlpWithSlippage;
     }
 
     /**
@@ -387,7 +390,9 @@ contract PirexGlpTest is Test {
         uint256 minShares = 1;
         address receiver = address(this);
 
-        vm.expectRevert(abi.encodeWithSelector(PirexGlp.InvalidToken.selector, invalidToken));
+        vm.expectRevert(
+            abi.encodeWithSelector(PirexGlp.InvalidToken.selector, invalidToken)
+        );
 
         pirexGlp.mintWithERC20(invalidToken, tokenAmount, minShares, receiver);
     }
@@ -416,6 +421,7 @@ contract PirexGlpTest is Test {
 
     /**
         @notice Test tx reversion due to receiver being the zero address
+        @param  tokenAmount  uint256  Token amount
      */
     function testMintWithERC20(uint256 tokenAmount) external {
         vm.assume(tokenAmount > 1e5);

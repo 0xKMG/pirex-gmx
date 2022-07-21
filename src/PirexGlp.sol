@@ -45,7 +45,7 @@ contract PirexGlp is ReentrancyGuard, ERC4626 {
         @notice Deposit ETH for pxGLP
         @param  minShares  uint256  Minimum amount of pxGLP
         @param  receiver   address  Recipient of pxGLP
-        @return assets     uint256  Amount of GLP minted and staked
+        @return assets     uint256  Amount of pxGLP
      */
     function mintWithETH(uint256 minShares, address receiver)
         external
@@ -82,7 +82,7 @@ contract PirexGlp is ReentrancyGuard, ERC4626 {
         @param  tokenAmount  uint256  Whitelisted token amount
         @param  minShares    uint256  Minimum amount of pxGLP
         @param  receiver     address  Recipient of pxGLP
-        @return assets       uint256  Amount of GLP minted and staked
+        @return assets       uint256  Amount of pxGLP
      */
     function mintWithERC20(
         address token,
