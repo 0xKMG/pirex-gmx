@@ -379,6 +379,20 @@ contract PirexGlpTest is Test {
     }
 
     /**
+        @notice Test tx reversion due to token not being whitelisted by GMX
+     */
+    function testCannotMintWithERC20InvalidToken() external {
+        address invalidToken = address(this);
+        uint256 tokenAmount = 1;
+        uint256 minShares = 1;
+        address receiver = address(this);
+
+        vm.expectRevert(abi.encodeWithSelector(PirexGlp.InvalidToken.selector, invalidToken));
+
+        pirexGlp.mintWithERC20(invalidToken, tokenAmount, minShares, receiver);
+    }
+
+    /**
         @notice Test tx reversion due to minShares being GT than actual GLP amount
      */
     function testCannotMintWithERC20ExcessiveMinShares() external {
