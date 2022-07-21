@@ -148,7 +148,7 @@ contract PirexGlpTest is Test, Helper {
         @notice Test for verifying correctness of GLP buy minimum calculation
         @param  etherAmount  uint256  Amount of ether in wei units
      */
-    function testMintAndStakeGlpETH(uint256 etherAmount) public {
+    function testMintAndStakeGlpETH(uint256 etherAmount) external {
         vm.assume(etherAmount > 0.001 ether);
         vm.assume(etherAmount < 1_000 ether);
         vm.deal(address(this), etherAmount);
@@ -249,8 +249,8 @@ contract PirexGlpTest is Test, Helper {
             18
         );
         uint256 premintETHBalance = address(this).balance;
-        uint256 premintPxGlp = pxGlp.balanceOf(receiver);
-        uint256 premintTotalAssets = FEE_STAKED_GLP.balanceOf(
+        uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
+        uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
             address(pirexGlp)
         );
 
@@ -272,17 +272,18 @@ contract PirexGlpTest is Test, Helper {
             minShares,
             receiver
         );
-        uint256 pxGlpReceived = pxGlp.balanceOf(receiver) - premintPxGlp;
-        uint256 totalAssetsIncrease = FEE_STAKED_GLP.balanceOf(
+        uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
+            premintPxGlpUserBalance;
+        uint256 glpReceivedByPirex = FEE_STAKED_GLP.balanceOf(
             address(pirexGlp)
-        ) - premintTotalAssets;
+        ) - premintGlpPirexBalance;
 
         assertEq(address(this).balance, premintETHBalance - etherAmount);
-        assertGt(pxGlpReceived, 0);
-        assertEq(pxGlpReceived, totalAssetsIncrease);
-        assertEq(totalAssetsIncrease, assets);
-        assertGe(pxGlpReceived, minGlpAmount);
-        assertGe(totalAssetsIncrease, minGlpAmount);
+        assertGt(pxGlpReceivedByUser, 0);
+        assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
+        assertEq(glpReceivedByPirex, assets);
+        assertGe(pxGlpReceivedByUser, minGlpAmount);
+        assertGe(glpReceivedByPirex, minGlpAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -366,7 +367,6 @@ contract PirexGlpTest is Test, Helper {
      */
     function testCannotMintWithERC20ExcessiveMinShares() external {
         uint256 tokenAmount = 1e8;
-
         address token = address(WBTC);
         uint256 invalidMinShares = _calculateMinGlpAmount(
             token,
@@ -398,8 +398,8 @@ contract PirexGlpTest is Test, Helper {
         address receiver = address(this);
         uint256 minGlpAmount = _calculateMinGlpAmount(token, tokenAmount, 8);
         uint256 premintWBTCBalance = WBTC.balanceOf(address(this));
-        uint256 premintPxGlp = pxGlp.balanceOf(receiver);
-        uint256 premintTotalAssets = FEE_STAKED_GLP.balanceOf(
+        uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
+        uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
             address(pirexGlp)
         );
 
@@ -418,19 +418,20 @@ contract PirexGlpTest is Test, Helper {
             minShares,
             receiver
         );
-        uint256 pxGlpReceived = pxGlp.balanceOf(receiver) - premintPxGlp;
-        uint256 totalAssetsIncrease = FEE_STAKED_GLP.balanceOf(
+        uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
+            premintPxGlpUserBalance;
+        uint256 glpReceivedByPirex = FEE_STAKED_GLP.balanceOf(
             address(pirexGlp)
-        ) - premintTotalAssets;
+        ) - premintGlpPirexBalance;
 
         assertEq(
             WBTC.balanceOf(address(this)),
             premintWBTCBalance - tokenAmount
         );
-        assertGt(pxGlpReceived, 0);
-        assertEq(pxGlpReceived, totalAssetsIncrease);
-        assertEq(totalAssetsIncrease, assets);
-        assertGe(pxGlpReceived, minGlpAmount);
-        assertGe(totalAssetsIncrease, minGlpAmount);
+        assertGt(pxGlpReceivedByUser, 0);
+        assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
+        assertEq(glpReceivedByPirex, assets);
+        assertGe(pxGlpReceivedByUser, minGlpAmount);
+        assertGe(glpReceivedByPirex, minGlpAmount);
     }
 }

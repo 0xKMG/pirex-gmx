@@ -36,6 +36,9 @@ contract PirexGlp is ReentrancyGuard {
     error ZeroAddress();
     error InvalidToken(address token);
 
+    /**
+        @param  _pxGlp  address  PxGlp contract address
+    */
     constructor(address _pxGlp) {
         if (_pxGlp == address(0)) revert ZeroAddress();
 

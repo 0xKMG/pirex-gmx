@@ -9,6 +9,9 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
     error ZeroAddress();
 
+    /**
+        @param  owner  address  Pirex-GMX multisig
+    */
     constructor(address owner) {
         if (owner == address(0)) revert ZeroAddress();
 
