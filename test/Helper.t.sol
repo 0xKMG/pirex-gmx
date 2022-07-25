@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
+import {FlywheelCore} from "src/rewards/FlywheelCore.sol";
+import {FlywheelStaticRewards} from "src/rewards/FlywheelStaticRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
@@ -32,6 +35,8 @@ contract Helper {
 
     PirexGlp internal immutable pirexGlp;
     PxGlp internal immutable pxGlp;
+    FlywheelCore internal immutable flywheelCore;
+    FlywheelStaticRewards internal immutable flywheelRewards;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -47,6 +52,11 @@ contract Helper {
     constructor() {
         pxGlp = new PxGlp(address(this));
         pirexGlp = new PirexGlp(address(pxGlp));
+        flywheelCore = new FlywheelCore(ERC20(WETH), address(this));
+        flywheelRewards = new FlywheelStaticRewards(
+            flywheelCore,
+            address(this)
+        );
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
     }

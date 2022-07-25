@@ -2,9 +2,9 @@
 pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {Auth, Authority} from "solmate/auth/Auth.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
+import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {IFlywheelRewards} from "./IFlywheelRewards.sol";
 
 /**
@@ -19,14 +19,13 @@ import {IFlywheelRewards} from "./IFlywheelRewards.sol";
     - Modify code formatting and comment descriptions to be consistent with Pirex
     - Consolidate addStrategyForRewards and _addStrategyForRewards
 */
-contract FlywheelCore is Auth {
+contract FlywheelCore is AccessControl {
     using SafeTransferLib for ERC20;
     using SafeCastLib for uint256;
 
     struct RewardsState {
         // The strategy's last updated index
         uint224 index;
-
         // The timestamp the index was last updated at
         uint32 lastUpdatedTimestamp;
     }
@@ -85,20 +84,19 @@ contract FlywheelCore is Auth {
     */
     event FlywheelRewardsUpdate(address indexed newFlywheelRewards);
 
+    error ZeroAddress();
+
     /**
         @param  _rewardToken      ERC20             Rewards token
-        @param  _flywheelRewards  IFlywheelRewards  FlywheelRewards contract
         @param  _owner            address           Contract owner
-        @param  _authority        Authority         Authority contract
     */
-    constructor(
-        ERC20 _rewardToken,
-        IFlywheelRewards _flywheelRewards,
-        address _owner,
-        Authority _authority
-    ) Auth(_owner, _authority) {
+    constructor(ERC20 _rewardToken, address _owner) {
+        if (address(_rewardToken) == address(0)) revert ZeroAddress();
+        if (_owner == address(0)) revert ZeroAddress();
+
         rewardToken = _rewardToken;
-        flywheelRewards = _flywheelRewards;
+
+        _setupRole(DEFAULT_ADMIN_ROLE, _owner);
     }
 
     /**
@@ -166,7 +164,10 @@ contract FlywheelCore is Auth {
         @notice Initialize a new strategy
         @param  strategy  ERC20  New strategy
     */
-    function addStrategyForRewards(ERC20 strategy) external requiresAuth {
+    function addStrategyForRewards(ERC20 strategy)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         require(strategyState[strategy].index == 0, "strategy");
 
         strategyState[strategy] = RewardsState({
@@ -193,7 +194,7 @@ contract FlywheelCore is Auth {
     */
     function setFlywheelRewards(IFlywheelRewards newFlywheelRewards)
         external
-        requiresAuth
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         uint256 oldRewardBalance = rewardToken.balanceOf(
             address(flywheelRewards)

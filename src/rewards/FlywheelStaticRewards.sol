@@ -2,7 +2,7 @@
 pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {Auth, Authority} from "solmate/auth/Auth.sol";
+import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {BaseFlywheelRewards} from "./BaseFlywheelRewards.sol";
 import {FlywheelCore} from "./FlywheelCore.sol";
 
@@ -14,7 +14,7 @@ import {FlywheelCore} from "./FlywheelCore.sol";
     - Pin pragma to 0.8.13
     - Modify code formatting and comment descriptions to be consistent with Pirex
 */
-contract FlywheelStaticRewards is Auth, BaseFlywheelRewards {
+contract FlywheelStaticRewards is AccessControl, BaseFlywheelRewards {
     struct RewardsInfo {
         // Rewards per second
         uint224 rewardsPerSecond;
@@ -31,16 +31,20 @@ contract FlywheelStaticRewards is Auth, BaseFlywheelRewards {
         uint32 rewardsEndTimestamp
     );
 
+    error ZeroAddress();
+
     /**
-    @param  _flywheel   FlywheelCore  FlywheelCore contract
-    @param  _owner      address       Owner address
-    @param  _authority  Authority     Authority contract
- */
-    constructor(
-        FlywheelCore _flywheel,
-        address _owner,
-        Authority _authority
-    ) Auth(_owner, _authority) BaseFlywheelRewards(_flywheel) {}
+        @param  _flywheel   FlywheelCore  FlywheelCore contract
+        @param  _owner      address       Owner address
+    */
+    constructor(FlywheelCore _flywheel, address _owner)
+        BaseFlywheelRewards(_flywheel)
+    {
+        if (address(_flywheel) == address(0)) revert ZeroAddress();
+        if (_owner == address(0)) revert ZeroAddress();
+
+        _setupRole(DEFAULT_ADMIN_ROLE, _owner);
+    }
 
     /**
         @notice Set rewards per second and rewards end time for Fei Rewards
@@ -49,7 +53,7 @@ contract FlywheelStaticRewards is Auth, BaseFlywheelRewards {
      */
     function setRewardsInfo(ERC20 strategy, RewardsInfo calldata rewards)
         external
-        requiresAuth
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         rewardsInfo[strategy] = rewards;
 
