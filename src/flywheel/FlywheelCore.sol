@@ -5,7 +5,6 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {Auth, Authority} from "solmate/auth/Auth.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
-
 import {IFlywheelRewards} from "./IFlywheelRewards.sol";
 
 /**
