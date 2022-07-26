@@ -7,21 +7,24 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IRewardRouterV2} from "./interfaces/IRewardRouterV2.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
+import {FlywheelCore} from "./rewards/FlywheelCore.sol";
 
 contract PirexGlp is ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
+    // GMX contracts and addresses
     IRewardRouterV2 public constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     ERC20 public constant FS_GLP =
         ERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     Vault public constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
-
     address public constant GLP_MANAGER =
         0x321F653eED006AD1C29D174e17d96351BDe22649;
 
+    // Pirex contracts
     PxGlp public immutable pxGlp;
+    FlywheelCore public immutable flywheelCore;
 
     event Deposit(
         address indexed caller,
@@ -46,12 +49,15 @@ contract PirexGlp is ReentrancyGuard {
     error InvalidToken(address token);
 
     /**
-        @param  _pxGlp  address  PxGlp contract address
+        @param  _pxGlp         address  PxGlp contract address
+        @param  _flywheelCore  address  FlywheelCore contract address
     */
-    constructor(address _pxGlp) {
+    constructor(address _pxGlp, address _flywheelCore) {
         if (_pxGlp == address(0)) revert ZeroAddress();
+        if (_flywheelCore == address(0)) revert ZeroAddress();
 
         pxGlp = PxGlp(_pxGlp);
+        flywheelCore = FlywheelCore(_flywheelCore);
     }
 
     /**

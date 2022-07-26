@@ -50,15 +50,16 @@ contract Helper {
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
 
     constructor() {
-        pxGlp = new PxGlp(address(this));
-        pirexGlp = new PirexGlp(address(pxGlp));
         flywheelCore = new FlywheelCore(ERC20(WETH), address(this));
         flywheelRewards = new FlywheelStaticRewards(
             flywheelCore,
             address(this)
         );
+        pxGlp = new PxGlp(address(this));
+        pirexGlp = new PirexGlp(address(pxGlp), address(flywheelCore));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
+        flywheelCore.addStrategyForRewards(pxGlp);
     }
 
     // For testing ETH transfers
