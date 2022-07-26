@@ -60,6 +60,11 @@ contract Helper {
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         flywheelCore.addStrategyForRewards(pxGlp);
+        flywheelCore.setFlywheelRewards(flywheelRewards);
+        flywheelRewards.setRewardsInfo(
+            pxGlp,
+            FlywheelStaticRewards.RewardsInfo(uint224(1), uint32(0))
+        );
     }
 
     // For testing ETH transfers

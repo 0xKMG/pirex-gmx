@@ -93,6 +93,9 @@ contract PirexGlp is ReentrancyGuard {
             msg.value,
             assets
         );
+
+        // Accrue rewards for pxGLP receiver
+        flywheelCore.accrue(pxGlp, receiver);
     }
 
     /**

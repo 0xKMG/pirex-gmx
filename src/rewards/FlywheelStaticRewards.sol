@@ -65,10 +65,10 @@ contract FlywheelStaticRewards is AccessControl, BaseFlywheelRewards {
     }
 
     /**
-     @notice Calculate and transfer accrued rewards to flywheel core
-     @param  strategy              ERC20    The strategy to accrue rewards for
-     @param  lastUpdatedTimestamp  uint32   The last updated time for strategy
-     @return amount                uint256  Amount of tokens accrued and transferred
+        @notice Calculate and transfer accrued rewards to flywheel core
+        @param  strategy              ERC20    The strategy to accrue rewards for
+        @param  lastUpdatedTimestamp  uint32   The last updated time for strategy
+        @return amount                uint256  Amount of tokens accrued and transferred
      */
     function getAccruedRewards(ERC20 strategy, uint32 lastUpdatedTimestamp)
         external
