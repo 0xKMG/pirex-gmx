@@ -61,8 +61,8 @@ contract Helper {
             flywheelCore,
             address(this)
         );
-        pxGlp = new PxGlp(address(this));
-        pirexGlp = new PirexGlp(address(pxGlp), address(flywheelCore));
+        pxGlp = new PxGlp(address(this), flywheelCore);
+        pirexGlp = new PirexGlp(address(pxGlp));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         flywheelCore.addStrategyForRewards(pxGlp);

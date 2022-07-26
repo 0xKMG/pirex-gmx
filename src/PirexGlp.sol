@@ -7,7 +7,6 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IRewardRouterV2} from "./interfaces/IRewardRouterV2.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
-import {FlywheelCore} from "./rewards/FlywheelCore.sol";
 
 contract PirexGlp is ReentrancyGuard {
     using SafeTransferLib for ERC20;
@@ -24,7 +23,6 @@ contract PirexGlp is ReentrancyGuard {
 
     // Pirex contracts
     PxGlp public immutable pxGlp;
-    FlywheelCore public immutable flywheelCore;
 
     event Deposit(
         address indexed caller,
@@ -49,15 +47,12 @@ contract PirexGlp is ReentrancyGuard {
     error InvalidToken(address token);
 
     /**
-        @param  _pxGlp         address  PxGlp contract address
-        @param  _flywheelCore  address  FlywheelCore contract address
+        @param  _pxGlp  address  PxGlp contract address
     */
-    constructor(address _pxGlp, address _flywheelCore) {
+    constructor(address _pxGlp) {
         if (_pxGlp == address(0)) revert ZeroAddress();
-        if (_flywheelCore == address(0)) revert ZeroAddress();
 
         pxGlp = PxGlp(_pxGlp);
-        flywheelCore = FlywheelCore(_flywheelCore);
     }
 
     /**
@@ -93,9 +88,6 @@ contract PirexGlp is ReentrancyGuard {
             msg.value,
             assets
         );
-
-        // Accrue rewards for pxGLP receiver
-        flywheelCore.accrue(pxGlp, receiver);
     }
 
     /**
