@@ -4,11 +4,11 @@ pragma solidity 0.8.13;
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
-import {IRewardRouterV2} from "src/interface/IRewardRouterV2.sol";
-import {IVaultReader} from "src/interface/IVaultReader.sol";
-import {IGlpManager} from "src/interface/IGlpManager.sol";
-import {IReader} from "src/interface/IReader.sol";
-import {IWBTC} from "src/interface/IWBTC.sol";
+import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
+import {IVaultReader} from "src/interfaces/IVaultReader.sol";
+import {IGlpManager} from "src/interfaces/IGlpManager.sol";
+import {IReader} from "src/interfaces/IReader.sol";
+import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
 
 contract Helper {

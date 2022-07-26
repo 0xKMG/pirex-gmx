@@ -7,12 +7,15 @@
       "name": "kp",
       "email": "kpcrypto69@gmail.com",
       "url": "https://twitter.com/ppmoon69"
+    },
+    {
+      "name": "drahrealm",
+      "email": "366129+drahrealm@users.noreply.github.com"
     }
   ],
   "scripts": {
-    "lint-sol": "solhint \"contracts/*.sol\"",
-    "lint-ts": "eslint \"./test/**/*.ts\"",
-    "lint": "npm run lint-sol && npm run lint-ts",
+    "lint-sol": "solhint \"src/**/*.sol\"",
+    "lint": "npm run lint-sol",
     "prepare": "husky install"
   },
   "repository": {
