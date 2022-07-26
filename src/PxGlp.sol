@@ -51,4 +51,62 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
         _burn(from, amount);
     }
+
+    /**
+        @notice Called by the balancer holder to transfer to another account
+        @param  to      address  Account receiving pxGLP
+        @param  amount  uint256  Amount of pxGLP
+    */
+    function transfer(address to, uint256 amount)
+        public
+        override
+        returns (bool)
+    {
+        balanceOf[msg.sender] -= amount;
+
+        // Cannot overflow because the sum of all user
+        // balances can't exceed the max uint256 value.
+        unchecked {
+            balanceOf[to] += amount;
+        }
+
+        emit Transfer(msg.sender, to, amount);
+
+        // Accrue rewards on both the sender and recipient
+        flywheelCore.accrue(this, msg.sender, to);
+
+        return true;
+    }
+
+    /**
+        @notice Called by an account with a spending allowance to transfer to another account
+        @param  from    address  Account sending pxGLP
+        @param  to      address  Account receiving pxGLP
+        @param  amount  uint256  Amount of pxGLP
+    */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public override returns (bool) {
+        uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
+
+        if (allowed != type(uint256).max)
+            allowance[from][msg.sender] = allowed - amount;
+
+        balanceOf[from] -= amount;
+
+        // Cannot overflow because the sum of all user
+        // balances can't exceed the max uint256 value.
+        unchecked {
+            balanceOf[to] += amount;
+        }
+
+        emit Transfer(from, to, amount);
+
+        // Accrue rewards on both the sender and recipient
+        flywheelCore.accrue(this, from, to);
+
+        return true;
+    }
 }
