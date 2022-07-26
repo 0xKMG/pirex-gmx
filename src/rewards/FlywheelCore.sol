@@ -18,6 +18,7 @@ import {IFlywheelRewards} from "./IFlywheelRewards.sol";
     - Move variables and even declarations to the top of the contract
     - Modify code formatting and comment descriptions to be consistent with Pirex
     - Consolidate addStrategyForRewards and _addStrategyForRewards
+    - Update accrueStrategy and accrueUser to use rewards accrued/s when calculating delta
 */
 contract FlywheelCore is AccessControl {
     using SafeTransferLib for ERC20;
@@ -30,8 +31,7 @@ contract FlywheelCore is AccessControl {
         uint32 lastUpdatedTimestamp;
     }
 
-    // The fixed point factor of flywheel
-    uint224 public constant ONE = 1e18;
+    uint224 STARTING_INDEX = 1;
 
     // The token to reward
     ERC20 public immutable rewardToken;
@@ -171,7 +171,7 @@ contract FlywheelCore is AccessControl {
         require(strategyState[strategy].index == 0, "strategy");
 
         strategyState[strategy] = RewardsState({
-            index: ONE,
+            index: STARTING_INDEX,
             lastUpdatedTimestamp: block.timestamp.safeCastTo32()
         });
 
@@ -232,17 +232,9 @@ contract FlywheelCore is AccessControl {
         rewardsState = state;
 
         if (strategyRewardsAccrued > 0) {
-            uint256 supplyTokens = strategy.totalSupply();
-
-            uint224 deltaIndex;
-
-            if (supplyTokens != 0)
-                deltaIndex = ((strategyRewardsAccrued * ONE) / supplyTokens)
-                    .safeCastTo224();
-
-            // Accumulate rewards per token onto the index, multiplied by fixed-point factor
+            // Update rewardState based on amount of rewards/s accrued since last update
             rewardsState = RewardsState({
-                index: state.index + deltaIndex,
+                index: state.index + strategyRewardsAccrued.safeCastTo224(),
                 lastUpdatedTimestamp: block.timestamp.safeCastTo32()
             });
 
@@ -266,20 +258,18 @@ contract FlywheelCore is AccessControl {
         uint224 strategyIndex = state.index;
         uint224 supplierIndex = userIndex[strategy][user];
 
-        // Sync user index to global
-        userIndex[strategy][user] = strategyIndex;
-
-        // If user hasn't yet accrued rewards, grant them interest from the strategy beginning if they have a balance
-        // Zero balances will have no effect other than syncing to global index
         if (supplierIndex == 0) {
-            supplierIndex = ONE;
+            supplierIndex = STARTING_INDEX;
         }
 
+        // Sync user index to global
+        userIndex[strategy][user] = strategyIndex;
         uint224 deltaIndex = strategyIndex - supplierIndex;
         uint256 supplierTokens = strategy.balanceOf(user);
 
         // Accumulate rewards by multiplying user tokens by rewardsPerToken index and adding on unclaimed
-        uint256 supplierDelta = (supplierTokens * deltaIndex) / ONE;
+        uint256 supplierDelta = (supplierTokens * deltaIndex) /
+            strategy.totalSupply();
         uint256 supplierAccrued = rewardsAccrued[user] + supplierDelta;
 
         rewardsAccrued[user] = supplierAccrued;

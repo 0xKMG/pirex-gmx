@@ -49,6 +49,12 @@ contract Helper {
     uint256 internal constant EXPANDED_GLP_DECIMALS = 18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
 
+    address[3] internal testAccounts = [
+        0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
+        0xE36Ea790bc9d7AB70C55260C66D52b1eca985f84,
+        0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
+    ];
+
     constructor() {
         flywheelCore = new FlywheelCore(ERC20(WETH), address(this));
         flywheelRewards = new FlywheelStaticRewards(
