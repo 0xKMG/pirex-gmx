@@ -4,7 +4,7 @@ pragma solidity 0.8.13;
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import {IRewardRouterV2} from "./interface/IRewardRouterV2.sol";
+import {IRewardRouterV2} from "./interfaces/IRewardRouterV2.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
 
