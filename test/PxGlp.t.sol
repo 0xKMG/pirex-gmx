@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import "forge-std/Test.sol";
-
 import {PxGlp} from "src/PxGlp.sol";
 import {Helper} from "./Helper.t.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-contract PxGlpTest is Test, Helper {
+contract PxGlpTest is Helper {
     /*//////////////////////////////////////////////////////////////
                         mint TESTS
     //////////////////////////////////////////////////////////////*/

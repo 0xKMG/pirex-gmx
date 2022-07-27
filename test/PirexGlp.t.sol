@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import "forge-std/Test.sol";
-
 import {PirexGlp} from "src/PirexGlp.sol";
 import {Vault} from "src/external/Vault.sol";
 import {Helper} from "./Helper.t.sol";
 
-contract PirexGlpTest is Test, Helper {
+contract PirexGlpTest is Helper {
     event Deposit(
         address indexed caller,
         address indexed receiver,
@@ -162,21 +160,6 @@ contract PirexGlpTest is Test, Helper {
             BPS_DIVISOR;
 
         return minTokenWithSlippage;
-    }
-
-    /**
-        @notice Mint WBTC for testing ERC20 GLP minting
-        @param  amount  uint256  Amount of WBTC
-     */
-    function _mintWbtc(uint256 amount) internal {
-        // Set self to l2Gateway
-        vm.store(
-            address(WBTC),
-            bytes32(uint256(204)),
-            bytes32(uint256(uint160(address(this))))
-        );
-
-        WBTC.bridgeMint(address(this), amount);
     }
 
     /**

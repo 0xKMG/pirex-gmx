@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "forge-std/Test.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
@@ -14,7 +16,7 @@ import {IReader} from "src/interfaces/IReader.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
 
-contract Helper {
+contract Helper is Test {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     IVaultReader internal constant VAULT_READER =
@@ -55,6 +57,9 @@ contract Helper {
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
 
+    // For testing ETH transfers
+    receive() external payable {}
+
     constructor() {
         flywheelCore = new FlywheelCore(ERC20(WETH), address(this));
         flywheelRewards = new FlywheelStaticRewards(
@@ -73,6 +78,18 @@ contract Helper {
         );
     }
 
-    // For testing ETH transfers
-    receive() external payable {}
+    /**
+        @notice Mint WBTC for testing ERC20 GLP minting
+        @param  amount  uint256  Amount of WBTC
+     */
+    function _mintWbtc(uint256 amount) internal {
+        // Set self to l2Gateway
+        vm.store(
+            address(WBTC),
+            bytes32(uint256(204)),
+            bytes32(uint256(uint160(address(this))))
+        );
+
+        WBTC.bridgeMint(address(this), amount);
+    }
 }
