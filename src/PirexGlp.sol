@@ -44,7 +44,6 @@ contract PirexGlp is ReentrancyGuard {
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
-    error TransferFailed(address receiver, uint256 amount);
 
     /**
         @param  _pxGlp  address  PxGlp contract address
@@ -162,10 +161,6 @@ contract PirexGlp is ReentrancyGuard {
             amount,
             redeemed
         );
-
-        // Transfer the redeemed ETH to the receiver
-        (bool sent, ) = payable(receiver).call{value: redeemed}("");
-        if (!sent) revert TransferFailed(receiver, redeemed);
     }
 
     /**
@@ -207,8 +202,5 @@ contract PirexGlp is ReentrancyGuard {
             amount,
             redeemed
         );
-
-        // Transfer the redeemed token to the receiver
-        ERC20(token).safeTransfer(receiver, redeemed);
     }
 }

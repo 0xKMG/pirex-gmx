@@ -42,12 +42,13 @@ contract PirexGlpTest is Test, Helper {
 
     /**
         @notice Get GLP price
-        @return uint256  GLP price
+        @param  minPrice  bool     Whether to use minimum or maximum price
+        @return           uint256  GLP price
      */
-    function _getGlpPrice() internal view returns (uint256) {
+    function _getGlpPrice(bool minPrice) internal view returns (uint256) {
         address[] memory tokens = new address[](1);
         tokens[0] = address(FEE_STAKED_GLP);
-        uint256 aum = GLP_MANAGER.getAums()[0];
+        uint256 aum = GLP_MANAGER.getAums()[minPrice ? 0 : 1];
         uint256 glpSupply = READER.getTokenBalancesWithSupplies(
             address(0),
             tokens
@@ -60,16 +61,22 @@ contract PirexGlpTest is Test, Helper {
         @notice Get GLP buying fees
         @param  tokenAmount  uint256    Token amount
         @param  info         uint256[]  Token info
+        @param  incremental  bool       Whether the operation would increase USDG supply
         @return              uint256    GLP buying fees
      */
-    function _getFees(uint256 tokenAmount, uint256[] memory info)
-        internal
-        view
-        returns (uint256)
-    {
+    function _getFees(
+        uint256 tokenAmount,
+        uint256[] memory info,
+        bool incremental
+    ) internal view returns (uint256) {
         uint256 initialAmount = info[2];
-        uint256 nextAmount = initialAmount +
-            ((tokenAmount * info[10]) / PRECISION);
+        uint256 usdgDelta = ((tokenAmount * info[10]) / PRECISION);
+        uint256 nextAmount = initialAmount + usdgDelta;
+        if (!incremental) {
+            nextAmount = usdgDelta > initialAmount
+                ? 0
+                : initialAmount - usdgDelta;
+        }
         uint256 targetAmount = (info[4] * USDG.totalSupply()) /
             VAULT.totalTokenWeights();
 
@@ -100,7 +107,7 @@ contract PirexGlpTest is Test, Helper {
     }
 
     /**
-        @notice Calculate the minimum amount of GLP received for ETH
+        @notice Calculate the minimum amount of GLP received
         @param  token     address  Token address
         @param  amount    uint256  Amount of tokens
         @param  decimals  uint256  Token decimals for expansion purposes
@@ -112,9 +119,9 @@ contract PirexGlpTest is Test, Helper {
         uint256 decimals
     ) internal view returns (uint256) {
         uint256[] memory info = _getVaultTokenInfo(token);
-        uint256 glpAmount = (amount * info[10]) / _getGlpPrice();
-        uint256 minGlp = (glpAmount * (BPS_DIVISOR - _getFees(amount, info))) /
-            BPS_DIVISOR;
+        uint256 glpAmount = (amount * info[10]) / _getGlpPrice(true);
+        uint256 minGlp = (glpAmount *
+            (BPS_DIVISOR - _getFees(amount, info, true))) / BPS_DIVISOR;
         uint256 minGlpWithSlippage = (minGlp * (BPS_DIVISOR - SLIPPAGE)) /
             BPS_DIVISOR;
 
@@ -123,6 +130,29 @@ contract PirexGlpTest is Test, Helper {
             decimals == EXPANDED_GLP_DECIMALS
                 ? minGlpWithSlippage
                 : 10**(EXPANDED_GLP_DECIMALS - decimals) * minGlpWithSlippage;
+    }
+
+    /**
+        @notice Calculate the minimum amount of token to be redeemed from selling GLP
+        @param  token     address  Token address
+        @param  amount    uint256  Amount of tokens
+        @return           uint256  Minimum GLP amount with slippage and decimal expansion
+     */
+    function _calculateMinRedemptionAmount(address token, uint256 amount)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256[] memory info = _getVaultTokenInfo(token);
+        uint256 usdgAmount = (amount * _getGlpPrice(false)) / PRECISION;
+        uint256 redemptionAmount = VAULT.getRedemptionAmount(token, usdgAmount);
+        uint256 minToken = (redemptionAmount *
+            (BPS_DIVISOR - _getFees(redemptionAmount, info, false))) /
+            BPS_DIVISOR;
+        uint256 minTokenWithSlippage = (minToken * (BPS_DIVISOR - SLIPPAGE)) /
+            BPS_DIVISOR;
+
+        return minTokenWithSlippage;
     }
 
     /**
@@ -138,6 +168,26 @@ contract PirexGlpTest is Test, Helper {
         );
 
         WBTC.bridgeMint(address(this), amount);
+    }
+
+    /**
+        @notice Deposit ETH for pxGLP for testing purposes
+        @param  etherAmount  uint256  Amount of ETH
+        @param  receiver     address  Receiver of pxGLP
+        @return              uint256  Amount of pxGLP minted
+     */
+    function _depositGlpWithETH(uint256 etherAmount, address receiver)
+        internal
+        returns (uint256)
+    {
+        vm.deal(address(this), etherAmount);
+
+        uint256 assets = pirexGlp.mintWithETH{value: etherAmount}(1, receiver);
+
+        // Time skip to bypass the cooldown duration
+        vm.warp(block.timestamp + 1 hours);
+
+        return assets;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -433,5 +483,80 @@ contract PirexGlpTest is Test, Helper {
         assertEq(glpReceivedByPirex, assets);
         assertGe(pxGlpReceivedByUser, minGlpAmount);
         assertGe(glpReceivedByPirex, minGlpAmount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        redeemForETH TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to msg.value being zero
+     */
+    function testCannotRedeemForETHZeroValue() external {
+        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+
+        pirexGlp.redeemForETH(0, 1, address(this));
+    }
+
+    /**
+        @notice Test tx reversion due to minRedemption being zero
+     */
+    function testCannotRedeemForETHZeroMinRedemption() external {
+        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+
+        pirexGlp.redeemForETH(1, 0, address(this));
+    }
+
+    /**
+        @notice Test tx reversion due to receiver being the zero address
+     */
+    function testCannotRedeemForETHZeroReceiver() external {
+        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+
+        pirexGlp.redeemForETH(1, 1, address(0));
+    }
+
+    /**
+        @notice Test tx reversion due to minShares being GT than actual GLP amount
+     */
+    function testCannotRedeemForETHExcessiveMinRedemption() external {
+        uint256 etherAmount = 1 ether;
+        address receiver = address(this);
+
+        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 invalidMinRedemption = _calculateMinRedemptionAmount(
+            WETH,
+            assets
+        ) * 2;
+
+        vm.expectRevert(bytes("GlpManager: insufficient output"));
+
+        pirexGlp.redeemForETH(assets, invalidMinRedemption, address(this));
+    }
+
+    /**
+        @notice Test redeeming back ETH from pxGLP
+        @param  etherAmount  uint256  Amount of ether in wei units
+     */
+    function testRedeemForETH(uint256 etherAmount) external {
+        vm.assume(etherAmount > 0.1 ether);
+        vm.assume(etherAmount < 1_000 ether);
+
+        address token = WETH;
+        address receiver = address(this);
+
+        // Mint pxGLP with ETH before attempting to redeem back into ETH
+        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+
+        // Calculate the minimum redemption amount then perform the redemption
+        uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
+        uint256 redeemed = pirexGlp.redeemForETH(
+            assets,
+            minRedemption,
+            receiver
+        );
+
+        assertGt(redeemed, minRedemption);
+        assertEq(address(this).balance, redeemed);
     }
 }
