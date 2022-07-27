@@ -19,6 +19,7 @@ import {IFlywheelRewards} from "./IFlywheelRewards.sol";
     - Modify code formatting and comment descriptions to be consistent with Pirex
     - Consolidate addStrategyForRewards and _addStrategyForRewards
     - Update accrueStrategy and accrueUser to use rewards accrued/s when calculating delta
+    - Add new methods for managing global and user reward accrual state
 */
 contract FlywheelCore is AccessControl {
     using SafeTransferLib for ERC20;
@@ -30,6 +31,23 @@ contract FlywheelCore is AccessControl {
         // The timestamp the index was last updated at
         uint32 lastUpdatedTimestamp;
     }
+
+    struct Global {
+        uint256 lastUpdate;
+        uint256 rewards;
+    }
+
+    struct User {
+        uint256 lastUpdate;
+        uint256 lastBalance;
+        uint256 rewards;
+    }
+
+    // Global state
+    Global public global;
+
+    // User state
+    mapping(address => User) public users;
 
     uint224 STARTING_INDEX = 1;
 
@@ -50,6 +68,9 @@ contract FlywheelCore is AccessControl {
 
     // User index per strategy
     mapping(ERC20 => mapping(address => uint224)) public userIndex;
+
+    // Previous user balance per strategy
+    mapping(ERC20 => mapping(address => uint256)) public previousUserBalance;
 
     /**
         @notice Emitted when a user's rewards accrue to a given strategy
@@ -258,14 +279,20 @@ contract FlywheelCore is AccessControl {
         uint224 strategyIndex = state.index;
         uint224 supplierIndex = userIndex[strategy][user];
 
+        // First-time user who should not have any rewards accrued
         if (supplierIndex == 0) {
-            supplierIndex = STARTING_INDEX;
+            supplierIndex = strategyIndex;
         }
 
         // Sync user index to global
         userIndex[strategy][user] = strategyIndex;
         uint224 deltaIndex = strategyIndex - supplierIndex;
-        uint256 supplierTokens = strategy.balanceOf(user);
+
+        // Use the user's previous balance to calculate rewards accrued to-date
+        uint256 supplierTokens = previousUserBalance[strategy][user];
+
+        // Update the user's previous balance
+        previousUserBalance[strategy][user] = strategy.balanceOf(user);
 
         // Accumulate rewards by multiplying user tokens by rewardsPerToken index and adding on unclaimed
         uint256 supplierDelta = (supplierTokens * deltaIndex) /
@@ -277,5 +304,31 @@ contract FlywheelCore is AccessControl {
         emit AccrueRewards(strategy, user, supplierDelta, strategyIndex);
 
         return supplierAccrued;
+    }
+
+    /**
+        @notice Update global rewards accrual state
+        @param  strategy  ERC20  Strategy contract
+    */
+    function globalAccrue(ERC20 strategy) external {
+        global = Global({
+            lastUpdate: block.timestamp,
+            // Calculate the latest global rewards accrued based on the seconds elapsed * total supply
+            rewards: global.rewards + (block.timestamp - global.lastUpdate) * strategy.totalSupply()
+        });
+    }
+
+    /**
+        @notice Update user rewards accrual state
+        @param  strategy  ERC20    Strategy contract
+        @param  user      address  User
+    */
+    function userAccrue(ERC20 strategy, address user) external {
+        User storage u = users[user];
+
+        // Calculate the amount of rewards accrued by the user up to this call
+        u.rewards = u.rewards + u.lastBalance * (block.timestamp - u.lastUpdate);
+        u.lastUpdate = block.timestamp;
+        u.lastBalance = strategy.balanceOf(user);
     }
 }
