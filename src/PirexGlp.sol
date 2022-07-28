@@ -31,6 +31,9 @@ contract PirexGlp is ReentrancyGuard {
     // Pirex contracts
     PxGlp public immutable pxGlp;
 
+    // Mutability subject to change
+    address public immutable flywheel;
+
     event Deposit(
         address indexed caller,
         address indexed receiver,
@@ -52,18 +55,18 @@ contract PirexGlp is ReentrancyGuard {
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
-    error NotFlywheelRewards();
+    error NotFlywheel();
 
     /**
-        @param  _pxGlp            address  PxGlp contract address
-        @param  _flywheelRewards  address  FlywheelRewards contract address
+        @param  _pxGlp     address  PxGlp contract address
+        @param  _flywheel  address  FlywheelCore contract address
     */
-    constructor(address _pxGlp, address _flywheelRewards) {
+    constructor(address _pxGlp, address _flywheel) {
         if (_pxGlp == address(0)) revert ZeroAddress();
-        if (_flywheelRewards == address(0)) revert ZeroAddress();
+        if (_flywheel == address(0)) revert ZeroAddress();
 
         pxGlp = PxGlp(_pxGlp);
-        flywheelRewards = _flywheelRewards;
+        flywheel = _flywheel;
     }
 
     /**
@@ -225,20 +228,27 @@ contract PirexGlp is ReentrancyGuard {
 
     /**
         @notice Claim WETH rewards
-        @return fromGmx  uint256  Claimable WETH earned from staked esGMX
-        @return fromGlp  uint256  Claimable WETH earned from staked GLP
+        @return fromGmx  uint256  WETH earned from staked esGMX
+        @return fromGlp  uint256  WETH earned from staked GLP
+        @return weth     uint256  WETH transferred
      */
     function claimWETHRewards()
         external
-        returns (uint256 fromGmx, uint256 fromGlp)
+        returns (
+            uint256 fromGmx,
+            uint256 fromGlp,
+            uint256 weth
+        )
     {
-        // Restrict call to flywheelRewards since it is the rewards receiver
+        // Restrict call to flywheel since it is the rewards receiver
         // Additionally, the WETH amount may need to be synced with reward points
-        if (msg.sender != flywheelRewards) revert NotFlywheelRewards();
+        if (msg.sender != flywheel) revert NotFlywheel();
 
         // Retrieve the WETH reward amounts for each reward-producing token
         fromGmx = REWARD_TRACKER_GMX.claimable(address(this));
         fromGlp = REWARD_TRACKER_GLP.claimable(address(this));
+
+        uint256 wethBalanceBefore = WETH.balanceOf(address(this));
 
         // Claim only WETH rewards to keep gas to a minimum
         REWARD_ROUTER_V2.handleRewards(
@@ -251,7 +261,15 @@ contract PirexGlp is ReentrancyGuard {
             false
         );
 
-        // Check above ensures that msg.sender is flywheelRewards
-        WETH.safeTransfer(msg.sender, fromGmx + fromGlp);
+        uint256 fromGmxGlp = fromGmx + fromGlp;
+
+        if (fromGmxGlp != 0) {
+            weth = WETH.balanceOf(address(this)) - wethBalanceBefore;
+            fromGmx = (weth * fromGmx) / fromGmxGlp;
+            fromGlp = (weth * fromGlp) / fromGmxGlp;
+
+            // Check above ensures that msg.sender is flywheel
+            WETH.safeTransfer(msg.sender, weth);
+        }
     }
 }

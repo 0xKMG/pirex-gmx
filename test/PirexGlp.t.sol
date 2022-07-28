@@ -801,10 +801,10 @@ contract PirexGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to the caller not being flywheelRewards
+        @notice Test tx reversion due to the caller not being flywheelCore
      */
-    function testCannotClaimWETHRewardsNotFlywheelRewards() external {
-        vm.expectRevert(PirexGlp.NotFlywheelRewards.selector);
+    function testCannotClaimWETHRewardsNotFlywheel() external {
+        vm.expectRevert(PirexGlp.NotFlywheel.selector);
 
         pirexGlp.claimWETHRewards();
     }
@@ -826,7 +826,7 @@ contract PirexGlpTest is Helper {
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + 10000);
 
-        address f = address(flywheelRewards);
+        address f = address(flywheelCore);
         uint256 claimableFromGmx = REWARD_TRACKER_GMX.claimable(
             address(pirexGlp)
         );
@@ -835,19 +835,21 @@ contract PirexGlpTest is Helper {
         );
         uint256 totalClaimable = claimableFromGmx + claimableFromGlp;
 
-        // Ensure flywheelRewards has a zero WETH balance before testing balance changes
+        // Ensure flywheelCore has a zero WETH balance before testing balance changes
         assertEq(WETH.balanceOf(f), 0);
 
-        // Impersonate flywheelRewards and claim WETH rewards
+        // Impersonate flywheelCore and claim WETH rewards
         vm.prank(f);
 
-        (uint256 fromGmx, uint256 fromGlp) = pirexGlp.claimWETHRewards();
+        (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGlp
+            .claimWETHRewards();
         uint256 totalFromGmxGlp = fromGmx + fromGlp;
 
         // fromGmx should be zero since pirexGlp should not have staked esGMX yet
         assertEq(fromGmx, 0);
 
-        assertEq(WETH.balanceOf(f), totalFromGmxGlp);
+        assertEq(WETH.balanceOf(f), weth);
+        assertEq(totalFromGmxGlp, weth);
         assertEq(claimableFromGmx, fromGmx);
         assertEq(claimableFromGlp, fromGlp);
         assertEq(totalClaimable, totalFromGmxGlp);
@@ -886,7 +888,7 @@ contract PirexGlpTest is Helper {
 
         vm.warp(block.timestamp + 10000);
 
-        address f = address(flywheelRewards);
+        address f = address(flywheelCore);
         uint256 claimableFromGmx = REWARD_TRACKER_GMX.claimable(
             address(pirexGlp)
         );
@@ -895,18 +897,20 @@ contract PirexGlpTest is Helper {
         );
         uint256 totalClaimable = claimableFromGmx + claimableFromGlp;
 
-        // Ensure flywheelRewards has a zero WETH balance before testing balance changes
+        // Ensure flywheelCore has a zero WETH balance before testing balance changes
         assertEq(WETH.balanceOf(f), 0);
 
         vm.prank(f);
 
-        (uint256 fromGmx, uint256 fromGlp) = pirexGlp.claimWETHRewards();
+        (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGlp
+            .claimWETHRewards();
         uint256 totalFromGmxGlp = fromGmx + fromGlp;
 
         // fromGmx should now be non-zero due to WETH rewards from staked esGMX
         assertGt(fromGmx, 0);
 
-        assertEq(WETH.balanceOf(f), totalFromGmxGlp);
+        assertEq(WETH.balanceOf(f), weth);
+        assertEq(totalFromGmxGlp, weth);
         assertEq(claimableFromGmx, fromGmx);
         assertEq(claimableFromGlp, fromGlp);
         assertEq(totalClaimable, totalFromGmxGlp);
