@@ -251,6 +251,7 @@ contract PirexGlp is ReentrancyGuard {
             false
         );
 
-        WETH.safeTransfer(flywheelRewards, fromGmx + fromGlp);
+        // Check above ensures that msg.sender is flywheelRewards
+        WETH.safeTransfer(msg.sender, fromGmx + fromGlp);
     }
 }
