@@ -1,4 +1,4 @@
 #!/bin/bash
 
 FORK_URL=""
-BLOCK_NUMBER=""
+FORK_BLOCK_NUMBER=""

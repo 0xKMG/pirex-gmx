@@ -107,3 +107,6 @@ dist
 cache/
 out/
 scripts/loadEnv.sh
+
+# Local
+.DS_Store
