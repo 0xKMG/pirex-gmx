@@ -190,6 +190,33 @@ contract PirexGlpTest is Test, Helper {
         return assets;
     }
 
+    /**
+        @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
+        @param  tokenAmount  uint256  Amount of token
+        @param  receiver     address  Receiver of pxGLP
+        @return              uint256  Amount of pxGLP minted
+     */
+    function _depositGlpWithERC20(uint256 tokenAmount, address receiver)
+        internal
+        returns (uint256)
+    {
+        _mintWbtc(tokenAmount);
+
+        WBTC.approve(address(pirexGlp), tokenAmount);
+
+        uint256 assets = pirexGlp.mintWithERC20(
+            address(WBTC),
+            tokenAmount,
+            1,
+            receiver
+        );
+
+        // Time skip to bypass the cooldown duration
+        vm.warp(block.timestamp + 1 hours);
+
+        return assets;
+    }
+
     /*//////////////////////////////////////////////////////////////
                         GMX-related TESTS
     //////////////////////////////////////////////////////////////*/
@@ -434,7 +461,7 @@ contract PirexGlpTest is Test, Helper {
     }
 
     /**
-        @notice Test tx reversion due to receiver being the zero address
+        @notice Test minting pxGLP with whitelisted ERC20 tokens
         @param  tokenAmount  uint256  Token amount
      */
     function testMintWithERC20(uint256 tokenAmount) external {
@@ -548,6 +575,9 @@ contract PirexGlpTest is Test, Helper {
         // Mint pxGLP with ETH before attempting to redeem back into ETH
         uint256 assets = _depositGlpWithETH(etherAmount, receiver);
 
+        uint256 previousETHBalance = receiver.balance;
+        uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
+
         // Calculate the minimum redemption amount then perform the redemption
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
         uint256 redeemed = pirexGlp.redeemForETH(
@@ -557,6 +587,115 @@ contract PirexGlpTest is Test, Helper {
         );
 
         assertGt(redeemed, minRedemption);
-        assertEq(address(this).balance, redeemed);
+        assertEq(receiver.balance - previousETHBalance, redeemed);
+        assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        redeemForERC20 TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to token being the zero address
+     */
+    function testCannotRedeemForERC20TokenZeroAddress() external {
+        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+
+        pirexGlp.redeemForERC20(address(0), 1, 1, address(this));
+    }
+
+    /**
+        @notice Test tx reversion due to msg.value being zero
+     */
+    function testCannotRedeemForERC20ZeroValue() external {
+        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+
+        pirexGlp.redeemForERC20(address(WBTC), 0, 1, address(this));
+    }
+
+    /**
+        @notice Test tx reversion due to minRedemption being zero
+     */
+    function testCannotRedeemForERC20ZeroMinRedemption() external {
+        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+
+        pirexGlp.redeemForERC20(address(WBTC), 1, 0, address(this));
+    }
+
+    /**
+        @notice Test tx reversion due to receiver being the zero address
+     */
+    function testCannotRedeemForERC20ZeroReceiver() external {
+        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+
+        pirexGlp.redeemForERC20(address(WBTC), 1, 1, address(0));
+    }
+
+    /**
+        @notice Test tx reversion due to token not being whitelisted by GMX
+     */
+    function testCannotRedeemForERC20InvalidToken() external {
+        address invalidToken = address(this);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(PirexGlp.InvalidToken.selector, invalidToken)
+        );
+
+        pirexGlp.redeemForERC20(invalidToken, 1, 1, address(this));
+    }
+
+    /**
+        @notice Test tx reversion due to minShares being GT than actual GLP amount
+     */
+    function testCannotRedeemForERC20ExcessiveMinRedemption() external {
+        address token = address(WBTC);
+        uint256 tokenAmount = 1e8;
+        address receiver = address(this);
+
+        uint256 assets = _depositGlpWithERC20(tokenAmount, receiver);
+        uint256 invalidMinRedemption = _calculateMinRedemptionAmount(
+            token,
+            assets
+        ) * 2;
+
+        vm.expectRevert(bytes("GlpManager: insufficient output"));
+
+        pirexGlp.redeemForERC20(
+            token,
+            assets,
+            invalidMinRedemption,
+            address(this)
+        );
+    }
+
+    /**
+        @notice Test redeeming back to whitelisted ERC20 tokens from pxGLP
+        @param  tokenAmount  uint256  Token amount
+     */
+    function testRedeemForERC20(uint256 tokenAmount) external {
+        vm.assume(tokenAmount > 1e5);
+        vm.assume(tokenAmount < 100e8);
+
+        address token = address(WBTC);
+        address receiver = address(this);
+
+        // Deposit using ERC20 to receive some pxGLP for redemption tests later
+        uint256 assets = _depositGlpWithERC20(tokenAmount, receiver);
+
+        uint256 previousWBTCBalance = WBTC.balanceOf(receiver);
+        uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
+
+        // Calculate the minimum redemption amount then perform the redemption
+        uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
+        uint256 redeemed = pirexGlp.redeemForERC20(
+            token,
+            assets,
+            minRedemption,
+            receiver
+        );
+
+        assertGt(redeemed, minRedemption);
+        assertEq(WBTC.balanceOf(receiver) - previousWBTCBalance, redeemed);
+        assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
     }
 }

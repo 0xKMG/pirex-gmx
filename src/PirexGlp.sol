@@ -186,7 +186,7 @@ contract PirexGlp is ReentrancyGuard {
         // Burn pxGLP before unstaking the underlying GLP
         pxGlp.burn(receiver, amount);
 
-        // Unstake and redeem the underlying GLP for ETH
+        // Unstake and redeem the underlying GLP for ERC20 token
         redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlp(
             token,
             amount,
