@@ -32,24 +32,25 @@ contract FlywheelCore is AccessControl {
         uint32 lastUpdatedTimestamp;
     }
 
-    struct Global {
+    struct GlobalState {
         uint256 lastUpdate;
         uint256 rewards;
     }
 
-    struct User {
+    struct UserState {
         uint256 lastUpdate;
         uint256 lastBalance;
         uint256 rewards;
     }
 
     // Global state
-    Global public global;
+    GlobalState public globalState;
 
     // User state
-    mapping(address => User) public users;
+    mapping(address => UserState) public userStates;
 
-    uint224 STARTING_INDEX = 1;
+    // Starting strategy index
+    uint224 public constant STARTING_INDEX = 1;
 
     // The token to reward
     ERC20 public immutable rewardToken;
@@ -311,10 +312,10 @@ contract FlywheelCore is AccessControl {
         @param  strategy  ERC20  Strategy contract
     */
     function globalAccrue(ERC20 strategy) external {
-        global = Global({
+        globalState = GlobalState({
             lastUpdate: block.timestamp,
             // Calculate the latest global rewards accrued based on the seconds elapsed * total supply
-            rewards: global.rewards + (block.timestamp - global.lastUpdate) * strategy.totalSupply()
+            rewards: globalState.rewards + (block.timestamp - globalState.lastUpdate) * strategy.totalSupply()
         });
     }
 
@@ -324,7 +325,7 @@ contract FlywheelCore is AccessControl {
         @param  user      address  User
     */
     function userAccrue(ERC20 strategy, address user) external {
-        User storage u = users[user];
+        UserState storage u = userStates[user];
 
         // Calculate the amount of rewards accrued by the user up to this call
         u.rewards = u.rewards + u.lastBalance * (block.timestamp - u.lastUpdate);
