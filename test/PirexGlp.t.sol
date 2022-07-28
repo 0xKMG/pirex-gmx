@@ -653,7 +653,7 @@ contract PirexGlpTest is Test, Helper {
     }
 
     /**
-        @notice Test tx reversion due to minShares being GT than actual GLP amount
+        @notice Test tx reversion due to minRedemption being GT than actual token amount
      */
     function testCannotRedeemForERC20ExcessiveMinRedemption() external {
         address token = address(WBTC);
