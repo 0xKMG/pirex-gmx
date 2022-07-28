@@ -577,6 +577,9 @@ contract PirexGlpTest is Test, Helper {
 
         uint256 previousETHBalance = receiver.balance;
         uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
+        uint256 previousGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
+            address(pirexGlp)
+        );
 
         // Calculate the minimum redemption amount then perform the redemption
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
@@ -589,6 +592,11 @@ contract PirexGlpTest is Test, Helper {
         assertGt(redeemed, minRedemption);
         assertEq(receiver.balance - previousETHBalance, redeemed);
         assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
+        assertEq(
+            previousGlpPirexBalance -
+                FEE_STAKED_GLP.balanceOf(address(pirexGlp)),
+            assets
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -684,6 +692,9 @@ contract PirexGlpTest is Test, Helper {
 
         uint256 previousWBTCBalance = WBTC.balanceOf(receiver);
         uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
+        uint256 previousGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
+            address(pirexGlp)
+        );
 
         // Calculate the minimum redemption amount then perform the redemption
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
@@ -697,5 +708,10 @@ contract PirexGlpTest is Test, Helper {
         assertGt(redeemed, minRedemption);
         assertEq(WBTC.balanceOf(receiver) - previousWBTCBalance, redeemed);
         assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
+        assertEq(
+            previousGlpPirexBalance -
+                FEE_STAKED_GLP.balanceOf(address(pirexGlp)),
+            assets
+        );
     }
 }
