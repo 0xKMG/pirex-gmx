@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.13;
 
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {BaseFlywheelRewards} from "./BaseFlywheelRewards.sol";
 import {FlywheelCore} from "./FlywheelCore.sol";
 
 /**
@@ -13,14 +13,23 @@ import {FlywheelCore} from "./FlywheelCore.sol";
     Modifications:
     - Pin pragma to 0.8.13
     - Modify code formatting and comment descriptions to be consistent with Pirex
+    - Merge FlywheelRewards-related contract logic
 */
-contract FlywheelStaticRewards is AccessControl, BaseFlywheelRewards {
+contract FlywheelRewards is AccessControl {
+    using SafeTransferLib for ERC20;
+
     struct RewardsInfo {
         // Rewards per second
         uint224 rewardsPerSecond;
         // The timestamp the rewards end at (0 = no end)
         uint32 rewardsEndTimestamp;
     }
+
+    // The reward token paid
+    ERC20 public immutable rewardToken;
+
+    // The flywheel core contract
+    FlywheelCore public immutable flywheel;
 
     // Rewards info per strategy
     mapping(ERC20 => RewardsInfo) public rewardsInfo;
@@ -31,19 +40,28 @@ contract FlywheelStaticRewards is AccessControl, BaseFlywheelRewards {
         uint32 rewardsEndTimestamp
     );
 
+    error FlywheelError();
     error ZeroAddress();
 
     /**
-        @param  _flywheel   FlywheelCore  FlywheelCore contract
-        @param  _owner      address       Owner address
+        @param  _flywheel  FlywheelCore  FlywheelCore contract
+        @param  _owner     address       Owner address
     */
-    constructor(FlywheelCore _flywheel, address _owner)
-        BaseFlywheelRewards(_flywheel)
-    {
+    constructor(FlywheelCore _flywheel, address _owner) {
         if (address(_flywheel) == address(0)) revert ZeroAddress();
         if (_owner == address(0)) revert ZeroAddress();
 
+        flywheel = _flywheel;
+        rewardToken = _flywheel.rewardToken();
+
         _setupRole(DEFAULT_ADMIN_ROLE, _owner);
+        rewardToken.safeApprove(address(_flywheel), type(uint256).max);
+    }
+
+    modifier onlyFlywheel() {
+        if (msg.sender != address(flywheel)) revert FlywheelError();
+
+        _;
     }
 
     /**
@@ -73,7 +91,6 @@ contract FlywheelStaticRewards is AccessControl, BaseFlywheelRewards {
     function getAccruedRewards(ERC20 strategy, uint32 lastUpdatedTimestamp)
         external
         view
-        override
         onlyFlywheel
         returns (uint256 amount)
     {

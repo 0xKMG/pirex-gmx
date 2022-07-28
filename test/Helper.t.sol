@@ -8,7 +8,7 @@ import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {FlywheelCore} from "src/rewards/FlywheelCore.sol";
-import {FlywheelStaticRewards} from "src/rewards/FlywheelStaticRewards.sol";
+import {FlywheelRewards} from "src/rewards/FlywheelRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
@@ -38,7 +38,7 @@ contract Helper is Test {
     PirexGlp internal immutable pirexGlp;
     PxGlp internal immutable pxGlp;
     FlywheelCore internal immutable flywheelCore;
-    FlywheelStaticRewards internal immutable flywheelRewards;
+    FlywheelRewards internal immutable flywheelRewards;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -62,7 +62,7 @@ contract Helper is Test {
 
     constructor() {
         flywheelCore = new FlywheelCore(ERC20(WETH), address(this));
-        flywheelRewards = new FlywheelStaticRewards(
+        flywheelRewards = new FlywheelRewards(
             flywheelCore,
             address(this)
         );
@@ -74,7 +74,7 @@ contract Helper is Test {
         flywheelCore.setFlywheelRewards(flywheelRewards);
         flywheelRewards.setRewardsInfo(
             pxGlp,
-            FlywheelStaticRewards.RewardsInfo(uint224(1), uint32(0))
+            FlywheelRewards.RewardsInfo(uint224(1), uint32(0))
         );
     }
 

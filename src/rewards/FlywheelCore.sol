@@ -5,7 +5,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {IFlywheelRewards} from "./IFlywheelRewards.sol";
+import {FlywheelRewards} from "./FlywheelRewards.sol";
 
 /**
     Original source code:
@@ -21,6 +21,7 @@ import {IFlywheelRewards} from "./IFlywheelRewards.sol";
     - Update accrueStrategy and accrueUser to use rewards accrued/s when calculating delta
     - Add new logic for managing global and user reward accrual state
     - Remove logic for supporting multiple strategies
+    - Update to reflect consolidation of pxGLP's FlywheelRewards-related contract
 */
 contract FlywheelCore is AccessControl {
     using SafeTransferLib for ERC20;
@@ -60,7 +61,7 @@ contract FlywheelCore is AccessControl {
     ERC20 public strategy;
 
     // Rewards contract for managing streams
-    IFlywheelRewards public flywheelRewards;
+    FlywheelRewards public flywheelRewards;
 
     // Accrued but not yet transferred rewards for each user
     mapping(address => uint256) public rewardsAccrued;
@@ -203,9 +204,9 @@ contract FlywheelCore is AccessControl {
 
     /**
         @notice Set the FlywheelRewards contract
-        @param  newFlywheelRewards  IFlywheelRewards  New FlywheelRewards contract
+        @param  newFlywheelRewards  FlywheelRewards  New FlywheelRewards contract
     */
-    function setFlywheelRewards(IFlywheelRewards newFlywheelRewards)
+    function setFlywheelRewards(FlywheelRewards newFlywheelRewards)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
