@@ -2,9 +2,9 @@
 pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {Owned} from "solmate/auth/Owned.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {FlywheelRewards} from "./FlywheelRewards.sol";
+import {PirexGlp} from "./PirexGlp.sol";
 
 /**
     Original source code:
@@ -21,14 +21,16 @@ import {FlywheelRewards} from "./FlywheelRewards.sol";
     - Add new logic for managing global and user reward accrual state
     - Remove logic for supporting multiple strategies
     - Update to reflect consolidation of pxGLP's FlywheelRewards-related contract
-    - Replace accrual methods with lightweight alternatives
+    - Replace Flywheel accrual methods with lightweight alternatives
 */
-contract FlywheelCore is AccessControl {
+contract FlywheelCore is Owned {
     using SafeTransferLib for ERC20;
 
     struct GlobalState {
         uint256 lastUpdate;
         uint256 rewards;
+        uint256 wethFromGmx;
+        uint256 wethFromGlp;
     }
 
     struct UserState {
@@ -37,56 +39,37 @@ contract FlywheelCore is AccessControl {
         uint256 rewards;
     }
 
-    // Global state
-    GlobalState public globalState;
-
-    // User state
-    mapping(address => UserState) public userStates;
-
     // Token to reward
     ERC20 public immutable rewardToken;
 
     // Strategy producing rewards
     ERC20 public strategy;
 
-    // Rewards contract for managing streams
-    FlywheelRewards public flywheelRewards;
+    // PirexGlp contract for claiming WETH rewards
+    PirexGlp public pirexGlp;
+
+    // Global state
+    GlobalState public globalState;
+
+    // User state
+    mapping(address => UserState) public userStates;
 
     // Accrued but not yet transferred rewards for each user
     mapping(address => uint256) public rewardsAccrued;
 
-    /**
-        @notice Emitted when a user claims accrued rewards
-        @param  user    address  The user of the rewards
-        @param  amount  uint256  The amount of rewards claimed
-    */
     event ClaimRewards(address indexed user, uint256 amount);
-
-    /**
-        @notice Emitted when a new strategy is added to flywheel by the admin
-        @param  newStrategy  address  The new added strategy
-    */
-    event AddStrategy(address indexed newStrategy);
-
-    /**
-        @notice Emitted when the rewards module changes
-        @param  newFlywheelRewards  address  The new rewards module
-    */
-    event FlywheelRewardsUpdate(address indexed newFlywheelRewards);
+    event SetStrategy(address newStrategy);
+    event SetPirexGlp(address pirexGlp);
 
     error ZeroAddress();
 
     /**
-        @param  _rewardToken      ERC20             Rewards token
-        @param  _owner            address           Contract owner
+        @param  _rewardToken  ERC20  Rewards token
     */
-    constructor(ERC20 _rewardToken, address _owner) {
+    constructor(ERC20 _rewardToken) Owned(msg.sender) {
         if (address(_rewardToken) == address(0)) revert ZeroAddress();
-        if (_owner == address(0)) revert ZeroAddress();
 
         rewardToken = _rewardToken;
-
-        _setupRole(DEFAULT_ADMIN_ROLE, _owner);
     }
 
     /**
@@ -99,8 +82,7 @@ contract FlywheelCore is AccessControl {
         if (accrued != 0) {
             rewardsAccrued[user] = 0;
 
-            rewardToken.safeTransferFrom(
-                address(flywheelRewards),
+            rewardToken.safeTransfer(
                 user,
                 accrued
             );
@@ -115,48 +97,42 @@ contract FlywheelCore is AccessControl {
     */
     function setStrategyForRewards(ERC20 _strategy)
         external
-        onlyRole(DEFAULT_ADMIN_ROLE)
+        onlyOwner
     {
         if (address(_strategy) == address(0)) revert ZeroAddress();
 
         strategy = _strategy;
 
-        emit AddStrategy(address(_strategy));
+        emit SetStrategy(address(_strategy));
     }
 
     /**
-        @notice Set the FlywheelRewards contract
-        @param  newFlywheelRewards  FlywheelRewards  New FlywheelRewards contract
+        @notice Set pirexGlp
+        @param  _pirexGlp  PirexGlp  PirexGlp contract
     */
-    function setFlywheelRewards(FlywheelRewards newFlywheelRewards)
+    function setPirexGlp(PirexGlp _pirexGlp)
         external
-        onlyRole(DEFAULT_ADMIN_ROLE)
+        onlyOwner
     {
-        uint256 oldRewardBalance = rewardToken.balanceOf(
-            address(flywheelRewards)
-        );
+        if (address(_pirexGlp) == address(0)) revert ZeroAddress();
 
-        if (oldRewardBalance > 0) {
-            rewardToken.safeTransferFrom(
-                address(flywheelRewards),
-                address(newFlywheelRewards),
-                oldRewardBalance
-            );
-        }
+        pirexGlp = _pirexGlp;
 
-        flywheelRewards = newFlywheelRewards;
-
-        emit FlywheelRewardsUpdate(address(newFlywheelRewards));
+        emit SetPirexGlp(address(_pirexGlp));
     }
 
     /**
         @notice Update global rewards accrual state
     */
     function globalAccrue() external {
+        (uint256 fromGmx, uint256 fromGlp, ) = pirexGlp.claimWETHRewards();
+
         globalState = GlobalState({
             lastUpdate: block.timestamp,
             // Calculate the latest global rewards accrued based on the seconds elapsed * total supply
-            rewards: globalState.rewards + (block.timestamp - globalState.lastUpdate) * strategy.totalSupply()
+            rewards: globalState.rewards + (block.timestamp - globalState.lastUpdate) * strategy.totalSupply(),
+            wethFromGmx: fromGmx,
+            wethFromGlp: fromGlp
         });
     }
 

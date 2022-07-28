@@ -3,7 +3,7 @@ pragma solidity 0.8.13;
 
 import "forge-std/Test.sol";
 
-import {FlywheelCore} from "src/rewards/FlywheelCore.sol";
+import {FlywheelCore} from "src/FlywheelCore.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract FlywheelCoreTest is Helper {
@@ -79,7 +79,9 @@ contract FlywheelCoreTest is Helper {
 
         (
             uint256 globalLastUpdateBeforeAccrue,
-            uint256 globalRewardsBeforeAccrue
+            uint256 globalRewardsBeforeAccrue,
+            ,
+
         ) = flywheelCore.globalState();
 
         vm.prank(address(flywheelCore));
@@ -93,7 +95,9 @@ contract FlywheelCoreTest is Helper {
 
         (
             uint256 globalLastUpdateAfterAccrue,
-            uint256 globalRewardsAfterAccrue
+            uint256 globalRewardsAfterAccrue,
+            ,
+
         ) = flywheelCore.globalState();
         uint256 totalRewards;
 

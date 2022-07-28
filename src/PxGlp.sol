@@ -3,7 +3,7 @@ pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {FlywheelCore} from "./rewards/FlywheelCore.sol";
+import {FlywheelCore} from "./FlywheelCore.sol";
 
 contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
     FlywheelCore public immutable flywheelCore;

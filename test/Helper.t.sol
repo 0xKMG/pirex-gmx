@@ -7,8 +7,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
-import {FlywheelCore} from "src/rewards/FlywheelCore.sol";
-import {FlywheelRewards} from "src/rewards/FlywheelRewards.sol";
+import {FlywheelCore} from "src/FlywheelCore.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
@@ -45,7 +44,6 @@ contract Helper is Test {
     PirexGlp internal immutable pirexGlp;
     PxGlp internal immutable pxGlp;
     FlywheelCore internal immutable flywheelCore;
-    FlywheelRewards internal immutable flywheelRewards;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -67,14 +65,13 @@ contract Helper is Test {
     receive() external payable {}
 
     constructor() {
-        flywheelCore = new FlywheelCore(ERC20(WETH), address(this));
-        flywheelRewards = new FlywheelRewards(flywheelCore);
+        flywheelCore = new FlywheelCore(ERC20(WETH));
         pxGlp = new PxGlp(address(this), flywheelCore);
-        pirexGlp = new PirexGlp(address(pxGlp), address(flywheelRewards));
+        pirexGlp = new PirexGlp(address(pxGlp), address(flywheelCore));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         flywheelCore.setStrategyForRewards(pxGlp);
-        flywheelCore.setFlywheelRewards(flywheelRewards);
+        flywheelCore.setPirexGlp(pirexGlp);
     }
 
     /**
