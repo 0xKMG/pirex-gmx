@@ -5,6 +5,7 @@ import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IRewardRouterV2} from "./interfaces/IRewardRouterV2.sol";
+import {IRewardTracker} from "./interfaces/IRewardTracker.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
 
@@ -14,12 +15,18 @@ contract PirexGlp is ReentrancyGuard {
     // GMX contracts and addresses
     IRewardRouterV2 public constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
+    IRewardTracker public constant REWARD_TRACKER_GMX =
+        IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
+    IRewardTracker public constant REWARD_TRACKER_GLP =
+        IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
     ERC20 public constant FS_GLP =
         ERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     Vault public constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public constant GLP_MANAGER =
         0x321F653eED006AD1C29D174e17d96351BDe22649;
+    ERC20 internal constant WETH =
+        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     // Pirex contracts
     PxGlp public immutable pxGlp;
@@ -45,14 +52,18 @@ contract PirexGlp is ReentrancyGuard {
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
+    error NotFlywheelRewards();
 
     /**
-        @param  _pxGlp  address  PxGlp contract address
+        @param  _pxGlp            address  PxGlp contract address
+        @param  _flywheelRewards  address  FlywheelRewards contract address
     */
-    constructor(address _pxGlp) {
+    constructor(address _pxGlp, address _flywheelRewards) {
         if (_pxGlp == address(0)) revert ZeroAddress();
+        if (_flywheelRewards == address(0)) revert ZeroAddress();
 
         pxGlp = PxGlp(_pxGlp);
+        flywheelRewards = _flywheelRewards;
     }
 
     /**
@@ -210,5 +221,36 @@ contract PirexGlp is ReentrancyGuard {
             amount,
             redeemed
         );
+    }
+
+    /**
+        @notice Claim WETH rewards
+        @return fromGmx  uint256  Claimable WETH earned from staked esGMX
+        @return fromGlp  uint256  Claimable WETH earned from staked GLP
+     */
+    function claimWETHRewards()
+        external
+        returns (uint256 fromGmx, uint256 fromGlp)
+    {
+        // Restrict call to flywheelRewards since it is the rewards receiver
+        // Additionally, the WETH amount may need to be synced with reward points
+        if (msg.sender != flywheelRewards) revert NotFlywheelRewards();
+
+        // Retrieve the WETH reward amounts for each reward-producing token
+        fromGmx = REWARD_TRACKER_GMX.claimable(address(this));
+        fromGlp = REWARD_TRACKER_GLP.claimable(address(this));
+
+        // Claim only WETH rewards to keep gas to a minimum
+        REWARD_ROUTER_V2.handleRewards(
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+        );
+
+        WETH.safeTransfer(flywheelRewards, fromGmx + fromGlp);
     }
 }

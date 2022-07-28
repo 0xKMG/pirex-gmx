@@ -10,6 +10,7 @@ import {PxGlp} from "src/PxGlp.sol";
 import {FlywheelCore} from "src/rewards/FlywheelCore.sol";
 import {FlywheelRewards} from "src/rewards/FlywheelRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
+import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
 import {IReader} from "src/interfaces/IReader.sol";
@@ -19,6 +20,10 @@ import {Vault} from "src/external/Vault.sol";
 contract Helper is Test {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
+    IRewardTracker public constant REWARD_TRACKER_GMX =
+        IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
+    IRewardTracker public constant REWARD_TRACKER_GLP =
+        IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
     IVaultReader internal constant VAULT_READER =
         IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
     IGlpManager internal constant GLP_MANAGER =
@@ -34,6 +39,8 @@ contract Helper is Test {
     IERC20 FEE_STAKED_GLP = IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     IWBTC internal constant WBTC =
         IWBTC(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
+    ERC20 internal constant WETH =
+        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     PirexGlp internal immutable pirexGlp;
     PxGlp internal immutable pxGlp;
@@ -42,7 +49,6 @@ contract Helper is Test {
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
-    address internal constant WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
     uint256 internal constant FEE_BPS = 25;
     uint256 internal constant TAX_BPS = 50;
     uint256 internal constant BPS_DIVISOR = 10_000;
@@ -64,7 +70,7 @@ contract Helper is Test {
         flywheelCore = new FlywheelCore(ERC20(WETH), address(this));
         flywheelRewards = new FlywheelRewards(flywheelCore);
         pxGlp = new PxGlp(address(this), flywheelCore);
-        pirexGlp = new PirexGlp(address(pxGlp));
+        pirexGlp = new PirexGlp(address(pxGlp), address(flywheelRewards));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         flywheelCore.setStrategyForRewards(pxGlp);
