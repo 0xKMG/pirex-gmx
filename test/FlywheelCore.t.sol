@@ -77,37 +77,53 @@ contract FlywheelCoreTest is Helper {
         // Forward timestamp by X seconds which will determine the total amount of rewards accrued
         vm.warp(block.timestamp + secondsElapsed);
 
-        // Get the total accrued rewards which will enable us to calculate reward accrual amounts per user
-        (, uint32 lastUpdatedTimestamp) = flywheelCore.strategyState();
+        (uint256 globalLastUpdateBeforeAccrue, ) = flywheelCore.globalState();
 
         vm.prank(address(flywheelCore));
 
         uint256 totalRewardsAccrued = flywheelRewards.getAccruedRewards(
-            lastUpdatedTimestamp
+            globalLastUpdateBeforeAccrue
         );
         uint256 totalPxGlpSupply = pxGlp.totalSupply();
         uint256 tLen = testAccounts.length;
 
+        flywheelCore.globalAccrue();
+
+        (uint256 globalLastUpdate, uint256 globalRewards) = flywheelCore
+            .globalState();
+        uint256 totalRewards;
+
         // Iterate over test accounts and check that reward accrual amount is correct for each one
         for (uint256 i; i < tLen; ++i) {
             address testAccount = testAccounts[i];
-            uint256 rewardsAccruedBefore = flywheelCore.rewardsAccrued(
-                testAccount
-            );
-            uint256 expectedRewardsAccrued = (pxGlp.balanceOf(testAccount) *
-                totalRewardsAccrued) / totalPxGlpSupply;
+            (
+                uint256 lastUpdateBeforeAccrue,
+                uint256 lastBalanceBeforeAccrue,
+                uint256 rewardsBeforeAccrue
+            ) = flywheelCore.userStates(testAccount);
+            uint256 balanceBeforeAccrue = pxGlp.balanceOf(testAccount);
+            uint256 timestampBeforeAccrue = block.timestamp;
+            uint256 expectedRewards = rewardsBeforeAccrue +
+                lastBalanceBeforeAccrue *
+                (timestampBeforeAccrue - lastUpdateBeforeAccrue);
 
-            // Call accrue in order to update the amount of rewards user has accrued
-            flywheelCore.accrue(testAccount);
+            assertGt(expectedRewards, 0);
 
-            assertGt(expectedRewardsAccrued, 0);
+            flywheelCore.userAccrue(testAccount);
 
-            // Delta between rewards accrued before and now should be equal to the amonut of seconds elapsed
-            assertTrue(
-                flywheelCore.rewardsAccrued(testAccount) -
-                    rewardsAccruedBefore ==
-                    expectedRewardsAccrued
-            );
+            (
+                uint256 lastUpdateAfterAccrue,
+                uint256 lastBalanceAfterAccrue,
+                uint256 rewardsAfterAccrue
+            ) = flywheelCore.userStates(testAccount);
+
+            totalRewards += rewardsAfterAccrue;
+
+            assertEq(lastUpdateAfterAccrue, timestampBeforeAccrue);
+            assertEq(balanceBeforeAccrue, lastBalanceAfterAccrue);
+            assertEq(expectedRewards, rewardsAfterAccrue);
         }
+
+        assertEq(globalRewards, totalRewards);
     }
 }

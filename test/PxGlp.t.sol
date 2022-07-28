@@ -66,19 +66,11 @@ contract PxGlpTest is Helper {
 
         address to = address(this);
         uint256 premintBalance = pxGlp.balanceOf(address(this));
-        uint224 userIndexBefore = flywheelCore.userIndex(to);
-
-        assertEq(userIndexBefore, 0);
 
         vm.prank(address(pirexGlp));
 
         pxGlp.mint(to, amount);
 
-        // Check whether the user index has updated (i.e. accrue was called)
-        (uint224 index, ) = flywheelCore.strategyState();
-        uint224 userIndexAfter = flywheelCore.userIndex(to);
-
-        assertEq(userIndexAfter, index);
         assertEq(pxGlp.balanceOf(address(this)) - premintBalance, amount);
     }
 }

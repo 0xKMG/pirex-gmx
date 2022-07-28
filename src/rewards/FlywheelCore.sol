@@ -3,7 +3,6 @@ pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {FlywheelRewards} from "./FlywheelRewards.sol";
 
@@ -22,17 +21,10 @@ import {FlywheelRewards} from "./FlywheelRewards.sol";
     - Add new logic for managing global and user reward accrual state
     - Remove logic for supporting multiple strategies
     - Update to reflect consolidation of pxGLP's FlywheelRewards-related contract
+    - Replace accrual methods with lightweight alternatives
 */
 contract FlywheelCore is AccessControl {
     using SafeTransferLib for ERC20;
-    using SafeCastLib for uint256;
-
-    struct RewardsState {
-        // The strategy's last updated index
-        uint224 index;
-        // The timestamp the index was last updated at
-        uint32 lastUpdatedTimestamp;
-    }
 
     struct GlobalState {
         uint256 lastUpdate;
@@ -51,9 +43,6 @@ contract FlywheelCore is AccessControl {
     // User state
     mapping(address => UserState) public userStates;
 
-    // Starting strategy index
-    uint224 public constant STARTING_INDEX = 1;
-
     // Token to reward
     ERC20 public immutable rewardToken;
 
@@ -65,29 +54,6 @@ contract FlywheelCore is AccessControl {
 
     // Accrued but not yet transferred rewards for each user
     mapping(address => uint256) public rewardsAccrued;
-
-    // Strategy state
-    RewardsState public strategyState;
-
-    // User index
-    mapping(address => uint224) public userIndex;
-
-    // Previous user balance
-    mapping(address => uint256) public previousUserBalance;
-
-    /**
-        @notice Emitted when a user's rewards accrue to a given strategy
-        @param  strategy      ERC20    The updated rewards strategy
-        @param  user          address  The user of the rewards
-        @param  rewardsDelta  uint256  How many new rewards accrued to the user
-        @param  rewardsIndex  uint256  The market index for rewards per token accrued
-    */
-    event AccrueRewards(
-        ERC20 indexed strategy,
-        address indexed user,
-        uint256 rewardsDelta,
-        uint256 rewardsIndex
-    );
 
     /**
         @notice Emitted when a user claims accrued rewards
@@ -124,46 +90,6 @@ contract FlywheelCore is AccessControl {
     }
 
     /**
-        @notice Accrue rewards for a single user on a strategy
-        @param  user      address  The user to be accrued
-        @return The cumulative amount of rewards accrued to user (including prior)
-    */
-    function accrue(address user) public returns (uint256) {
-        ERC20 s = strategy;
-        RewardsState memory state = strategyState;
-
-        if (state.index == 0) return 0;
-
-        state = accrueStrategy(state);
-
-        return accrueUser(s, user, state);
-    }
-
-    /**
-        @notice Accrue rewards for a two users on a strategy
-        @param  user        address  The first user to be accrued
-        @param  secondUser  address  The second user to be accrued
-        @return             uint256  The cumulative amount of the first user's rewards accrued
-        @return             uint256  The cumulative amount of the second user's rewards accrued
-    */
-    function accrue(
-        address user,
-        address secondUser
-    ) public returns (uint256, uint256) {
-        ERC20 s = strategy;
-        RewardsState memory state = strategyState;
-
-        if (state.index == 0) return (0, 0);
-
-        state = accrueStrategy(state);
-
-        return (
-            accrueUser(s, user, state),
-            accrueUser(s, secondUser, state)
-        );
-    }
-
-    /**
         @notice Claim rewards for a given user
         @param  user  address  The user claiming rewards
     */
@@ -194,10 +120,6 @@ contract FlywheelCore is AccessControl {
         if (address(_strategy) == address(0)) revert ZeroAddress();
 
         strategy = _strategy;
-        strategyState = RewardsState({
-            index: STARTING_INDEX,
-            lastUpdatedTimestamp: block.timestamp.safeCastTo32()
-        });
 
         emit AddStrategy(address(_strategy));
     }
@@ -228,98 +150,26 @@ contract FlywheelCore is AccessControl {
     }
 
     /**
-        @notice Accrue rewards for the strategy
-        @param  state         RewardsState  Reward state input
-        @return rewardsState  RewardsState  Reward state output
-    */
-    function accrueStrategy(RewardsState memory state)
-        private
-        returns (RewardsState memory rewardsState)
-    {
-        // Calculate accrued rewards through module
-        uint256 strategyRewardsAccrued = flywheelRewards.getAccruedRewards(
-            state.lastUpdatedTimestamp
-        );
-
-        rewardsState = state;
-
-        if (strategyRewardsAccrued > 0) {
-            // Update rewardState based on amount of rewards/s accrued since last update
-            rewardsState = RewardsState({
-                index: state.index + strategyRewardsAccrued.safeCastTo224(),
-                lastUpdatedTimestamp: block.timestamp.safeCastTo32()
-            });
-
-            strategyState = rewardsState;
-        }
-    }
-
-    /**
-        @notice Accrue rewards for a user
-        @param  _strategy  ERC20         Strategy contract
-        @param  user       address       User
-        @param  state      RewardsState  Reward state input
-        @return            uint256       User rewards
-    */
-    function accrueUser(
-        ERC20 _strategy,
-        address user,
-        RewardsState memory state
-    ) private returns (uint256) {
-        // Load indices
-        uint224 strategyIndex = state.index;
-        uint224 supplierIndex = userIndex[user];
-
-        // First-time user who should not have any rewards accrued
-        if (supplierIndex == 0) {
-            supplierIndex = strategyIndex;
-        }
-
-        // Sync user index to global
-        userIndex[user] = strategyIndex;
-        uint224 deltaIndex = strategyIndex - supplierIndex;
-
-        // Use the user's previous balance to calculate rewards accrued to-date
-        uint256 supplierTokens = previousUserBalance[user];
-
-        // Update the user's previous balance
-        previousUserBalance[user] = strategy.balanceOf(user);
-
-        // Accumulate rewards by multiplying user tokens by rewardsPerToken index and adding on unclaimed
-        uint256 supplierDelta = (supplierTokens * deltaIndex) /
-            _strategy.totalSupply();
-        uint256 supplierAccrued = rewardsAccrued[user] + supplierDelta;
-
-        rewardsAccrued[user] = supplierAccrued;
-
-        emit AccrueRewards(_strategy, user, supplierDelta, strategyIndex);
-
-        return supplierAccrued;
-    }
-
-    /**
         @notice Update global rewards accrual state
-        @param  _strategy  ERC20  Strategy
     */
-    function globalAccrue(ERC20 _strategy) external {
+    function globalAccrue() external {
         globalState = GlobalState({
             lastUpdate: block.timestamp,
             // Calculate the latest global rewards accrued based on the seconds elapsed * total supply
-            rewards: globalState.rewards + (block.timestamp - globalState.lastUpdate) * _strategy.totalSupply()
+            rewards: globalState.rewards + (block.timestamp - globalState.lastUpdate) * strategy.totalSupply()
         });
     }
 
     /**
         @notice Update user rewards accrual state
-        @param  _strategy  ERC20    Strategy
-        @param  user       address  User
+        @param  user  address  User
     */
-    function userAccrue(ERC20 _strategy, address user) external {
+    function userAccrue(address user) external {
         UserState storage u = userStates[user];
 
         // Calculate the amount of rewards accrued by the user up to this call
         u.rewards = u.rewards + u.lastBalance * (block.timestamp - u.lastUpdate);
         u.lastUpdate = block.timestamp;
-        u.lastBalance = _strategy.balanceOf(user);
+        u.lastBalance = strategy.balanceOf(user);
     }
 }
