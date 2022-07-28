@@ -3,7 +3,6 @@ pragma solidity 0.8.13;
 
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {FlywheelCore} from "./FlywheelCore.sol";
 
 /**
@@ -14,8 +13,9 @@ import {FlywheelCore} from "./FlywheelCore.sol";
     - Pin pragma to 0.8.13
     - Modify code formatting and comment descriptions to be consistent with Pirex
     - Merge FlywheelRewards-related contract logic
+    - Remove logic for supporting multiple strategies
 */
-contract FlywheelRewards is AccessControl {
+contract FlywheelRewards {
     using SafeTransferLib for ERC20;
 
     struct RewardsInfo {
@@ -32,29 +32,24 @@ contract FlywheelRewards is AccessControl {
     FlywheelCore public immutable flywheel;
 
     // Rewards info per strategy
-    mapping(ERC20 => RewardsInfo) public rewardsInfo;
-
-    event RewardsInfoUpdate(
-        ERC20 indexed strategy,
-        uint224 rewardsPerSecond,
-        uint32 rewardsEndTimestamp
-    );
+    RewardsInfo public rewardsInfo;
 
     error FlywheelError();
     error ZeroAddress();
 
     /**
         @param  _flywheel  FlywheelCore  FlywheelCore contract
-        @param  _owner     address       Owner address
     */
-    constructor(FlywheelCore _flywheel, address _owner) {
+    constructor(FlywheelCore _flywheel) {
         if (address(_flywheel) == address(0)) revert ZeroAddress();
-        if (_owner == address(0)) revert ZeroAddress();
 
         flywheel = _flywheel;
         rewardToken = _flywheel.rewardToken();
+        rewardsInfo = RewardsInfo({
+            rewardsPerSecond: 1,
+            rewardsEndTimestamp: 0
+        });
 
-        _setupRole(DEFAULT_ADMIN_ROLE, _owner);
         rewardToken.safeApprove(address(_flywheel), type(uint256).max);
     }
 
@@ -65,36 +60,17 @@ contract FlywheelRewards is AccessControl {
     }
 
     /**
-        @notice Set rewards per second and rewards end time for Fei Rewards
-        @param  strategy  ERC20        The strategy to accrue rewards for
-        @param  rewards   RewardsInfo  The rewards info for the strategy
-     */
-    function setRewardsInfo(ERC20 strategy, RewardsInfo calldata rewards)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        rewardsInfo[strategy] = rewards;
-
-        emit RewardsInfoUpdate(
-            strategy,
-            rewards.rewardsPerSecond,
-            rewards.rewardsEndTimestamp
-        );
-    }
-
-    /**
         @notice Calculate and transfer accrued rewards to flywheel core
-        @param  strategy              ERC20    The strategy to accrue rewards for
         @param  lastUpdatedTimestamp  uint32   The last updated time for strategy
         @return amount                uint256  Amount of tokens accrued and transferred
      */
-    function getAccruedRewards(ERC20 strategy, uint32 lastUpdatedTimestamp)
+    function getAccruedRewards(uint32 lastUpdatedTimestamp)
         external
         view
         onlyFlywheel
         returns (uint256 amount)
     {
-        RewardsInfo memory rewards = rewardsInfo[strategy];
+        RewardsInfo memory rewards = rewardsInfo;
         uint256 elapsed;
 
         if (

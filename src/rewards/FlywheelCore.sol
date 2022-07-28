@@ -239,7 +239,6 @@ contract FlywheelCore is AccessControl {
     {
         // Calculate accrued rewards through module
         uint256 strategyRewardsAccrued = flywheelRewards.getAccruedRewards(
-            _strategy,
             state.lastUpdatedTimestamp
         );
 

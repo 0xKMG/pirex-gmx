@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "forge-std/Test.sol";
+
 import {FlywheelCore} from "src/rewards/FlywheelCore.sol";
 import {Helper} from "./Helper.t.sol";
 
@@ -65,7 +67,7 @@ contract FlywheelCoreTest is Helper {
         uint256 multiplier,
         bool useETH
     ) external {
-        vm.assume(secondsElapsed > 5);
+        vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 604800);
         vm.assume(multiplier != 0);
         vm.assume(multiplier < 10);
@@ -81,7 +83,6 @@ contract FlywheelCoreTest is Helper {
         vm.prank(address(flywheelCore));
 
         uint256 totalRewardsAccrued = flywheelRewards.getAccruedRewards(
-            pxGlp,
             lastUpdatedTimestamp
         );
         uint256 totalPxGlpSupply = pxGlp.totalSupply();

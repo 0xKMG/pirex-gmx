@@ -62,20 +62,13 @@ contract Helper is Test {
 
     constructor() {
         flywheelCore = new FlywheelCore(ERC20(WETH), address(this));
-        flywheelRewards = new FlywheelRewards(
-            flywheelCore,
-            address(this)
-        );
+        flywheelRewards = new FlywheelRewards(flywheelCore);
         pxGlp = new PxGlp(address(this), flywheelCore);
         pirexGlp = new PirexGlp(address(pxGlp));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         flywheelCore.setStrategyForRewards(pxGlp);
         flywheelCore.setFlywheelRewards(flywheelRewards);
-        flywheelRewards.setRewardsInfo(
-            pxGlp,
-            FlywheelRewards.RewardsInfo(uint224(1), uint32(0))
-        );
     }
 
     /**
