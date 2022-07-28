@@ -134,7 +134,7 @@ contract FlywheelCore is AccessControl {
 
         if (state.index == 0) return 0;
 
-        state = accrueStrategy(s, state);
+        state = accrueStrategy(state);
 
         return accrueUser(s, user, state);
     }
@@ -155,7 +155,7 @@ contract FlywheelCore is AccessControl {
 
         if (state.index == 0) return (0, 0);
 
-        state = accrueStrategy(s, state);
+        state = accrueStrategy(state);
 
         return (
             accrueUser(s, user, state),
@@ -228,12 +228,11 @@ contract FlywheelCore is AccessControl {
     }
 
     /**
-        @notice Accrue rewards for a strategy
-        @param  _strategy      ERC20         Strategy contract
-        @param  state          RewardsState  Reward state input
-        @return rewardsState   RewardsState  Reward state output
+        @notice Accrue rewards for the strategy
+        @param  state         RewardsState  Reward state input
+        @return rewardsState  RewardsState  Reward state output
     */
-    function accrueStrategy(ERC20 _strategy, RewardsState memory state)
+    function accrueStrategy(RewardsState memory state)
         private
         returns (RewardsState memory rewardsState)
     {
