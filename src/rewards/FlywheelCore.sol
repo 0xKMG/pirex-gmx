@@ -19,7 +19,8 @@ import {IFlywheelRewards} from "./IFlywheelRewards.sol";
     - Modify code formatting and comment descriptions to be consistent with Pirex
     - Consolidate addStrategyForRewards and _addStrategyForRewards
     - Update accrueStrategy and accrueUser to use rewards accrued/s when calculating delta
-    - Add new methods for managing global and user reward accrual state
+    - Add new logic for managing global and user reward accrual state
+    - Remove logic for supporting multiple strategies
 */
 contract FlywheelCore is AccessControl {
     using SafeTransferLib for ERC20;
@@ -52,26 +53,26 @@ contract FlywheelCore is AccessControl {
     // Starting strategy index
     uint224 public constant STARTING_INDEX = 1;
 
-    // The token to reward
+    // Token to reward
     ERC20 public immutable rewardToken;
 
-    // Append-only list of strategies added
-    ERC20[] public allStrategies;
+    // Strategy producing rewards
+    ERC20 public strategy;
 
-    // The rewards contract for managing streams
+    // Rewards contract for managing streams
     IFlywheelRewards public flywheelRewards;
 
-    // The accrued but not yet transferred rewards for each user
+    // Accrued but not yet transferred rewards for each user
     mapping(address => uint256) public rewardsAccrued;
 
-    // The strategy index and last updated per strategy
-    mapping(ERC20 => RewardsState) public strategyState;
+    // Strategy state
+    RewardsState public strategyState;
 
-    // User index per strategy
-    mapping(ERC20 => mapping(address => uint224)) public userIndex;
+    // User index
+    mapping(address => uint224) public userIndex;
 
-    // Previous user balance per strategy
-    mapping(ERC20 => mapping(address => uint256)) public previousUserBalance;
+    // Previous user balance
+    mapping(address => uint256) public previousUserBalance;
 
     /**
         @notice Emitted when a user's rewards accrue to a given strategy
@@ -123,42 +124,41 @@ contract FlywheelCore is AccessControl {
 
     /**
         @notice Accrue rewards for a single user on a strategy
-        @param  strategy  ERC20    The strategy to accrue a user's rewards on
         @param  user      address  The user to be accrued
         @return The cumulative amount of rewards accrued to user (including prior)
     */
-    function accrue(ERC20 strategy, address user) public returns (uint256) {
-        RewardsState memory state = strategyState[strategy];
+    function accrue(address user) public returns (uint256) {
+        ERC20 s = strategy;
+        RewardsState memory state = strategyState;
 
         if (state.index == 0) return 0;
 
-        state = accrueStrategy(strategy, state);
+        state = accrueStrategy(s, state);
 
-        return accrueUser(strategy, user, state);
+        return accrueUser(s, user, state);
     }
 
     /**
         @notice Accrue rewards for a two users on a strategy
-        @param  strategy    ERC20    The strategy to accrue a user's rewards on
         @param  user        address  The first user to be accrued
         @param  secondUser  address  The second user to be accrued
         @return             uint256  The cumulative amount of the first user's rewards accrued
         @return             uint256  The cumulative amount of the second user's rewards accrued
     */
     function accrue(
-        ERC20 strategy,
         address user,
         address secondUser
     ) public returns (uint256, uint256) {
-        RewardsState memory state = strategyState[strategy];
+        ERC20 s = strategy;
+        RewardsState memory state = strategyState;
 
         if (state.index == 0) return (0, 0);
 
-        state = accrueStrategy(strategy, state);
+        state = accrueStrategy(s, state);
 
         return (
-            accrueUser(strategy, user, state),
-            accrueUser(strategy, secondUser, state)
+            accrueUser(s, user, state),
+            accrueUser(s, secondUser, state)
         );
     }
 
@@ -183,31 +183,22 @@ contract FlywheelCore is AccessControl {
     }
 
     /**
-        @notice Initialize a new strategy
-        @param  strategy  ERC20  New strategy
+        @notice Set the strategy
+        @param  _strategy  ERC20  Strategy
     */
-    function addStrategyForRewards(ERC20 strategy)
+    function setStrategyForRewards(ERC20 _strategy)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
-        require(strategyState[strategy].index == 0, "strategy");
+        if (address(_strategy) == address(0)) revert ZeroAddress();
 
-        strategyState[strategy] = RewardsState({
+        strategy = _strategy;
+        strategyState = RewardsState({
             index: STARTING_INDEX,
             lastUpdatedTimestamp: block.timestamp.safeCastTo32()
         });
 
-        allStrategies.push(strategy);
-
-        emit AddStrategy(address(strategy));
-    }
-
-    /**
-        @notice Get strategy contracts
-        @return ERC20[]  Strategy contracts
-    */
-    function getAllStrategies() external view returns (ERC20[] memory) {
-        return allStrategies;
+        emit AddStrategy(address(_strategy));
     }
 
     /**
@@ -237,17 +228,17 @@ contract FlywheelCore is AccessControl {
 
     /**
         @notice Accrue rewards for a strategy
-        @param  strategy      ERC20         Strategy contract
-        @param  state         RewardsState  Reward state input
-        @return rewardsState  RewardsState  Reward state output
+        @param  _strategy      ERC20         Strategy contract
+        @param  state          RewardsState  Reward state input
+        @return rewardsState   RewardsState  Reward state output
     */
-    function accrueStrategy(ERC20 strategy, RewardsState memory state)
+    function accrueStrategy(ERC20 _strategy, RewardsState memory state)
         private
         returns (RewardsState memory rewardsState)
     {
         // Calculate accrued rewards through module
         uint256 strategyRewardsAccrued = flywheelRewards.getAccruedRewards(
-            strategy,
+            _strategy,
             state.lastUpdatedTimestamp
         );
 
@@ -260,25 +251,25 @@ contract FlywheelCore is AccessControl {
                 lastUpdatedTimestamp: block.timestamp.safeCastTo32()
             });
 
-            strategyState[strategy] = rewardsState;
+            strategyState = rewardsState;
         }
     }
 
     /**
         @notice Accrue rewards for a user
-        @param  strategy  ERC20         Strategy contract
-        @param  user      address       User
-        @param  state     RewardsState  Reward state input
-        @return           uint256       User rewards
+        @param  _strategy  ERC20         Strategy contract
+        @param  user       address       User
+        @param  state      RewardsState  Reward state input
+        @return            uint256       User rewards
     */
     function accrueUser(
-        ERC20 strategy,
+        ERC20 _strategy,
         address user,
         RewardsState memory state
     ) private returns (uint256) {
         // Load indices
         uint224 strategyIndex = state.index;
-        uint224 supplierIndex = userIndex[strategy][user];
+        uint224 supplierIndex = userIndex[user];
 
         // First-time user who should not have any rewards accrued
         if (supplierIndex == 0) {
@@ -286,50 +277,50 @@ contract FlywheelCore is AccessControl {
         }
 
         // Sync user index to global
-        userIndex[strategy][user] = strategyIndex;
+        userIndex[user] = strategyIndex;
         uint224 deltaIndex = strategyIndex - supplierIndex;
 
         // Use the user's previous balance to calculate rewards accrued to-date
-        uint256 supplierTokens = previousUserBalance[strategy][user];
+        uint256 supplierTokens = previousUserBalance[user];
 
         // Update the user's previous balance
-        previousUserBalance[strategy][user] = strategy.balanceOf(user);
+        previousUserBalance[user] = strategy.balanceOf(user);
 
         // Accumulate rewards by multiplying user tokens by rewardsPerToken index and adding on unclaimed
         uint256 supplierDelta = (supplierTokens * deltaIndex) /
-            strategy.totalSupply();
+            _strategy.totalSupply();
         uint256 supplierAccrued = rewardsAccrued[user] + supplierDelta;
 
         rewardsAccrued[user] = supplierAccrued;
 
-        emit AccrueRewards(strategy, user, supplierDelta, strategyIndex);
+        emit AccrueRewards(_strategy, user, supplierDelta, strategyIndex);
 
         return supplierAccrued;
     }
 
     /**
         @notice Update global rewards accrual state
-        @param  strategy  ERC20  Strategy contract
+        @param  _strategy  ERC20  Strategy
     */
-    function globalAccrue(ERC20 strategy) external {
+    function globalAccrue(ERC20 _strategy) external {
         globalState = GlobalState({
             lastUpdate: block.timestamp,
             // Calculate the latest global rewards accrued based on the seconds elapsed * total supply
-            rewards: globalState.rewards + (block.timestamp - globalState.lastUpdate) * strategy.totalSupply()
+            rewards: globalState.rewards + (block.timestamp - globalState.lastUpdate) * _strategy.totalSupply()
         });
     }
 
     /**
         @notice Update user rewards accrual state
-        @param  strategy  ERC20    Strategy contract
-        @param  user      address  User
+        @param  _strategy  ERC20    Strategy
+        @param  user       address  User
     */
-    function userAccrue(ERC20 strategy, address user) external {
+    function userAccrue(ERC20 _strategy, address user) external {
         UserState storage u = userStates[user];
 
         // Calculate the amount of rewards accrued by the user up to this call
         u.rewards = u.rewards + u.lastBalance * (block.timestamp - u.lastUpdate);
         u.lastUpdate = block.timestamp;
-        u.lastBalance = strategy.balanceOf(user);
+        u.lastBalance = _strategy.balanceOf(user);
     }
 }

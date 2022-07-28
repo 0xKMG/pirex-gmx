@@ -76,7 +76,7 @@ contract FlywheelCoreTest is Helper {
         vm.warp(block.timestamp + secondsElapsed);
 
         // Get the total accrued rewards which will enable us to calculate reward accrual amounts per user
-        (, uint32 lastUpdatedTimestamp) = flywheelCore.strategyState(pxGlp);
+        (, uint32 lastUpdatedTimestamp) = flywheelCore.strategyState();
 
         vm.prank(address(flywheelCore));
 
@@ -97,7 +97,7 @@ contract FlywheelCoreTest is Helper {
                 totalRewardsAccrued) / totalPxGlpSupply;
 
             // Call accrue in order to update the amount of rewards user has accrued
-            flywheelCore.accrue(pxGlp, testAccount);
+            flywheelCore.accrue(testAccount);
 
             assertGt(expectedRewardsAccrued, 0);
 

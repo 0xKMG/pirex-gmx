@@ -38,7 +38,7 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         _mint(to, amount);
 
         // Kick off reward accrual
-        flywheelCore.accrue(this, to);
+        flywheelCore.accrue(to);
     }
 
     /**
@@ -73,7 +73,7 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         emit Transfer(msg.sender, to, amount);
 
         // Accrue rewards on both the sender and recipient
-        flywheelCore.accrue(this, msg.sender, to);
+        flywheelCore.accrue(msg.sender, to);
 
         return true;
     }
@@ -105,7 +105,7 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         emit Transfer(from, to, amount);
 
         // Accrue rewards on both the sender and recipient
-        flywheelCore.accrue(this, from, to);
+        flywheelCore.accrue(from, to);
 
         return true;
     }

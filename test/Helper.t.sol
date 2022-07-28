@@ -70,7 +70,7 @@ contract Helper is Test {
         pirexGlp = new PirexGlp(address(pxGlp));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
-        flywheelCore.addStrategyForRewards(pxGlp);
+        flywheelCore.setStrategyForRewards(pxGlp);
         flywheelCore.setFlywheelRewards(flywheelRewards);
         flywheelRewards.setRewardsInfo(
             pxGlp,
