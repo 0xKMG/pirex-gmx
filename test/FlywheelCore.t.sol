@@ -61,11 +61,13 @@ contract FlywheelCoreTest is Helper {
         @param  secondsElapsed  uint256  Seconds to forward timestamp (equivalent to total rewards accrued)
         @param  multiplier      uint256  Multiplied with fixed token amounts for randomness
         @param  useETH          bool     Whether or not to use ETH as the source asset for minting GLP
+        @param  accrueGlobal    bool     Whether or not to update global reward accrual state
      */
     function testAccrue(
         uint256 secondsElapsed,
         uint256 multiplier,
-        bool useETH
+        bool useETH,
+        bool accrueGlobal
     ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 604800);
@@ -91,18 +93,22 @@ contract FlywheelCoreTest is Helper {
             (timestampBeforeAccrue - globalLastUpdateBeforeAccrue) *
             pxGlp.totalSupply();
 
-        flywheelCore.globalAccrue();
+        if (accrueGlobal) {
+            flywheelCore.globalAccrue();
 
-        (
-            uint256 globalLastUpdateAfterAccrue,
-            uint256 globalRewardsAfterAccrue,
-            ,
+            (
+                uint256 globalLastUpdateAfterAccrue,
+                uint256 globalRewardsAfterAccrue,
+                ,
 
-        ) = flywheelCore.globalState();
+            ) = flywheelCore.globalState();
+
+            assertEq(globalLastUpdateAfterAccrue, timestampBeforeAccrue);
+            assertEq(globalRewardsAfterAccrue, expectedGlobalRewards);
+        }
+
+        // The sum of all user rewards accrued for comparison against the expected global amount
         uint256 totalRewards;
-
-        assertEq(globalLastUpdateAfterAccrue, timestampBeforeAccrue);
-        assertEq(globalRewardsAfterAccrue, expectedGlobalRewards);
 
         // Iterate over test accounts and check that reward accrual amount is correct for each one
         for (uint256 i; i < testAccounts.length; ++i) {
@@ -134,6 +140,6 @@ contract FlywheelCoreTest is Helper {
             assertEq(expectedRewards, rewardsAfterAccrue);
         }
 
-        assertEq(globalRewardsAfterAccrue, totalRewards);
+        assertEq(expectedGlobalRewards, totalRewards);
     }
 }
