@@ -78,7 +78,7 @@ contract FlywheelCoreTest is Helper {
         bool accrueGlobal
     ) external {
         vm.assume(secondsElapsed > 10);
-        vm.assume(secondsElapsed < 604800);
+        vm.assume(secondsElapsed < 365 days);
         vm.assume(multiplier != 0);
         vm.assume(multiplier < 10);
 
@@ -139,5 +139,82 @@ contract FlywheelCoreTest is Helper {
         }
 
         assertEq(expectedGlobalRewards, totalRewards);
+    }
+
+    /**
+        @notice Test minting pxGLP and reward point accrual for multiple users with one who accrues asynchronously
+        @param  rounds               uint256  Number of rounds to fast forward time and accrue rewards
+        @param  multiplier           uint256  Multiplied with fixed token amounts for randomness
+        @param  useETH               bool     Whether or not to use ETH as the source asset for minting GLP
+        @param  delayedAccountIndex  uint256  Test account index that will delay reward accrual until the end
+     */
+    function testAccrueAsync(
+        uint256 rounds,
+        uint256 multiplier,
+        bool useETH,
+        uint256 delayedAccountIndex
+    ) external {
+        vm.assume(rounds != 0);
+        vm.assume(rounds < 10);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+        vm.assume(delayedAccountIndex < 3);
+
+        _mintForTestAccounts(multiplier, useETH);
+
+        // Sum up the rewards accrued - after all rounds - for accounts where accrual is not delayed
+        uint256 nonDelayedTotalRewards;
+
+        uint256 secondsElapsed = 1000;
+        uint256 tLen = testAccounts.length;
+
+        // Iterate over a number of rounds and accrue for non-delayed accounts
+        for (uint256 i; i < rounds; ++i) {
+            uint256 timestampBeforeAccrue = block.timestamp;
+
+            // Forward timestamp by X seconds which will determine the total amount of rewards accrued
+            vm.warp(timestampBeforeAccrue + secondsElapsed);
+
+            for (uint256 j; j < tLen; ++j) {
+                if (j != delayedAccountIndex) {
+                    (, , uint256 rewardsBefore) = flywheelCore.userStates(
+                        testAccounts[j]
+                    );
+
+                    flywheelCore.userAccrue(testAccounts[j]);
+
+                    (, , uint256 rewardsAfter) = flywheelCore.userStates(
+                        testAccounts[j]
+                    );
+
+                    nonDelayedTotalRewards += rewardsAfter - rewardsBefore;
+                }
+            }
+        }
+
+        // Calculate the rewards which should be accrued by the delayed account
+        address delayedAccount = testAccounts[delayedAccountIndex];
+        (
+            uint256 lastUpdateBeforeAccrue,
+            ,
+            uint256 rewardsBeforeAccrue
+        ) = flywheelCore.userStates(delayedAccount);
+        uint256 expectedDelayedRewards = rewardsBeforeAccrue +
+            pxGlp.balanceOf(delayedAccount) *
+            (block.timestamp - lastUpdateBeforeAccrue);
+        uint256 expectedGlobalRewards = _getGlobalRewardsAccrued();
+
+        // Accrue rewards and check that the actual amount matches the expected
+        flywheelCore.userAccrue(delayedAccount);
+
+        (, , uint256 rewardsAfterAccrue) = flywheelCore.userStates(
+            delayedAccount
+        );
+
+        assertEq(rewardsAfterAccrue, expectedDelayedRewards);
+        assertEq(
+            nonDelayedTotalRewards + rewardsAfterAccrue,
+            expectedGlobalRewards
+        );
     }
 }
