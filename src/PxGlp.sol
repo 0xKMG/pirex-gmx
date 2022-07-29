@@ -75,6 +75,10 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
         emit Transfer(msg.sender, to, amount);
 
+        // Accrue rewards for sender, up to their current balance and kick off accrual for receiver
+        flywheelCore.userAccrue(msg.sender);
+        flywheelCore.userAccrue(to);
+
         return true;
     }
 

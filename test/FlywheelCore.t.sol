@@ -217,4 +217,77 @@ contract FlywheelCoreTest is Helper {
             expectedGlobalRewards
         );
     }
+
+    /**
+        @notice Test correctness of reward accruals in the case of pxGLP transfers
+        @param  tokenAmount     uint256  Amount of pxGLP to mint the sender
+        @param  secondsElapsed  uint256  Seconds to forward timestamp (equivalent to total rewards accrued)
+     */
+    function testAccrueTransfer(uint256 tokenAmount, uint256 secondsElapsed)
+        external
+    {
+        vm.assume(tokenAmount > 0.001 ether);
+        vm.assume(tokenAmount < 10000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address sender = testAccounts[0];
+        address receiver = testAccounts[1];
+
+        vm.deal(address(this), tokenAmount);
+
+        pirexGlp.mintWithETH{value: tokenAmount}(1, sender);
+
+        // Forward time in order to accrue rewards for sender
+        vm.warp(block.timestamp + secondsElapsed);
+
+        // Test sender reward accrual before transfer
+        (
+            uint256 senderLastUpdateBeforeTransfer,
+            uint256 senderLastBalanceBeforeTransfer,
+            uint256 senderRewardsBeforeTransfer
+        ) = flywheelCore.userStates(sender);
+        uint256 transferAmount = pxGlp.balanceOf(sender);
+        uint256 expectedSenderRewards = senderRewardsBeforeTransfer +
+            senderLastBalanceBeforeTransfer *
+            (block.timestamp - senderLastUpdateBeforeTransfer);
+
+        vm.prank(sender);
+
+        pxGlp.transfer(receiver, transferAmount);
+
+        (, , uint256 senderRewardsAfterTransfer) = flywheelCore.userStates(
+            sender
+        );
+
+        assertEq(expectedSenderRewards, senderRewardsAfterTransfer);
+
+        // Forward time in order to accrue rewards for receiver
+        vm.warp(block.timestamp + secondsElapsed);
+
+        // Test receiver reward accrual
+        (
+            uint256 receiverLastUpdateBeforeAccrue,
+            uint256 receiverLastBalanceBeforeAccrue,
+            uint256 receiverRewardsBeforeAccrue
+        ) = flywheelCore.userStates(receiver);
+        uint256 expectedReceiverRewards = receiverRewardsBeforeAccrue +
+            receiverLastBalanceBeforeAccrue *
+            (block.timestamp - receiverLastUpdateBeforeAccrue);
+
+        // Accrue rewards for both sender and receiver
+        flywheelCore.userAccrue(sender);
+        flywheelCore.userAccrue(receiver);
+
+        // Test that sender has not accrued any additional rewards
+        (, , uint256 senderRewardsAfterTransferAndWarp) = flywheelCore
+            .userStates(sender);
+
+        // Test that receiver has accrued rewards from their new balance
+        (, , uint256 receiverRewardsAfterTransferAndWarp) = flywheelCore
+            .userStates(receiver);
+
+        assertEq(senderRewardsAfterTransferAndWarp, senderRewardsAfterTransfer);
+        assertEq(expectedReceiverRewards, receiverRewardsAfterTransferAndWarp);
+    }
 }
