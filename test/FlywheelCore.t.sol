@@ -56,6 +56,14 @@ contract FlywheelCoreTest is Helper {
         }
     }
 
+    function _getGlobalRewardsAccrued() internal returns (uint256) {
+        (uint256 lastUpdate, uint256 rewards, , ) = flywheelCore.globalState();
+
+        vm.prank(address(flywheelCore));
+
+        return rewards + (block.timestamp - lastUpdate) * pxGlp.totalSupply();
+    }
+
     /**
         @notice Test minting pxGLP and reward point accrual for multiple users
         @param  secondsElapsed  uint256  Seconds to forward timestamp (equivalent to total rewards accrued)
@@ -79,19 +87,8 @@ contract FlywheelCoreTest is Helper {
         // Forward timestamp by X seconds which will determine the total amount of rewards accrued
         vm.warp(block.timestamp + secondsElapsed);
 
-        (
-            uint256 globalLastUpdateBeforeAccrue,
-            uint256 globalRewardsBeforeAccrue,
-            ,
-
-        ) = flywheelCore.globalState();
-
-        vm.prank(address(flywheelCore));
-
         uint256 timestampBeforeAccrue = block.timestamp;
-        uint256 expectedGlobalRewards = globalRewardsBeforeAccrue +
-            (timestampBeforeAccrue - globalLastUpdateBeforeAccrue) *
-            pxGlp.totalSupply();
+        uint256 expectedGlobalRewards = _getGlobalRewardsAccrued();
 
         if (accrueGlobal) {
             flywheelCore.globalAccrue();
@@ -112,25 +109,26 @@ contract FlywheelCoreTest is Helper {
 
         // Iterate over test accounts and check that reward accrual amount is correct for each one
         for (uint256 i; i < testAccounts.length; ++i) {
+            address testAccount = testAccounts[i];
             (
                 uint256 lastUpdateBeforeAccrue,
                 uint256 lastBalanceBeforeAccrue,
                 uint256 rewardsBeforeAccrue
-            ) = flywheelCore.userStates(testAccounts[i]);
-            uint256 balanceBeforeAccrue = pxGlp.balanceOf(testAccounts[i]);
+            ) = flywheelCore.userStates(testAccount);
+            uint256 balanceBeforeAccrue = pxGlp.balanceOf(testAccount);
             uint256 expectedRewards = rewardsBeforeAccrue +
                 lastBalanceBeforeAccrue *
                 (timestampBeforeAccrue - lastUpdateBeforeAccrue);
 
             assertGt(expectedRewards, 0);
 
-            flywheelCore.userAccrue(testAccounts[i]);
+            flywheelCore.userAccrue(testAccount);
 
             (
                 uint256 lastUpdateAfterAccrue,
                 uint256 lastBalanceAfterAccrue,
                 uint256 rewardsAfterAccrue
-            ) = flywheelCore.userStates(testAccounts[i]);
+            ) = flywheelCore.userStates(testAccount);
 
             // Total rewards accrued by all users should add up to the gloabl rewards
             totalRewards += rewardsAfterAccrue;
