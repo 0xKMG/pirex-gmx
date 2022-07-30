@@ -14,7 +14,7 @@ contract FlywheelCoreTest is Helper {
 
     /**
         @notice Mint pxGLP for test accounts
-        @param  multiplier  uint256  Multiplied with fixed token amounts for randomness
+        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
         @param  useETH      bool     Whether or not to use ETH as the source asset for minting GLP
      */
     function _mintForTestAccounts(uint256 multiplier, bool useETH) internal {
@@ -92,14 +92,14 @@ contract FlywheelCoreTest is Helper {
 
     /**
         @notice Test minting pxGLP and reward point accrual for multiple users
-        @param  secondsElapsed  uint256  Seconds to forward timestamp (equivalent to total rewards accrued)
-        @param  multiplier      uint256  Multiplied with fixed token amounts for randomness
+        @param  secondsElapsed  uint32   Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  multiplier      uint8    Multiplied with fixed token amounts for randomness
         @param  useETH          bool     Whether or not to use ETH as the source asset for minting GLP
         @param  accrueGlobal    bool     Whether or not to update global reward accrual state
      */
     function testAccrue(
-        uint256 secondsElapsed,
-        uint256 multiplier,
+        uint32 secondsElapsed,
+        uint8 multiplier,
         bool useETH,
         bool accrueGlobal
     ) external {
@@ -162,16 +162,16 @@ contract FlywheelCoreTest is Helper {
 
     /**
         @notice Test minting pxGLP and reward point accrual for multiple users with one who accrues asynchronously
-        @param  rounds               uint256  Number of rounds to fast forward time and accrue rewards
-        @param  multiplier           uint256  Multiplied with fixed token amounts for randomness
+        @param  rounds               uint8    Number of rounds to fast forward time and accrue rewards
+        @param  multiplier           uint8    Multiplied with fixed token amounts for randomness
         @param  useETH               bool     Whether or not to use ETH as the source asset for minting GLP
-        @param  delayedAccountIndex  uint256  Test account index that will delay reward accrual until the end
+        @param  delayedAccountIndex  uint8    Test account index that will delay reward accrual until the end
      */
     function testAccrueAsync(
-        uint256 rounds,
-        uint256 multiplier,
+        uint8 rounds,
+        uint8 multiplier,
         bool useETH,
-        uint256 delayedAccountIndex
+        uint8 delayedAccountIndex
     ) external {
         vm.assume(rounds != 0);
         vm.assume(rounds < 10);

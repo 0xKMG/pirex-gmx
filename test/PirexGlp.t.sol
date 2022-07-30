@@ -218,9 +218,9 @@ contract PirexGlpTest is Helper {
 
     /**
         @notice Test for verifying correctness of GLP buy minimum calculation
-        @param  etherAmount  uint256  Amount of ether in wei units
+        @param  etherAmount  uint72  Amount of ether in wei units
      */
-    function testMintAndStakeGlpETH(uint256 etherAmount) external {
+    function testMintAndStakeGlpETH(uint72 etherAmount) external {
         vm.assume(etherAmount > 0.001 ether);
         vm.assume(etherAmount < 1_000 ether);
         vm.deal(address(this), etherAmount);
