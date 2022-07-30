@@ -82,10 +82,7 @@ contract FlywheelCore is Owned {
         if (accrued != 0) {
             rewardsAccrued[user] = 0;
 
-            rewardToken.safeTransfer(
-                user,
-                accrued
-            );
+            rewardToken.safeTransfer(user, accrued);
 
             emit ClaimRewards(user, accrued);
         }
@@ -95,10 +92,7 @@ contract FlywheelCore is Owned {
         @notice Set the strategy
         @param  _strategy  ERC20  Strategy
     */
-    function setStrategyForRewards(ERC20 _strategy)
-        external
-        onlyOwner
-    {
+    function setStrategyForRewards(ERC20 _strategy) external onlyOwner {
         if (address(_strategy) == address(0)) revert ZeroAddress();
 
         strategy = _strategy;
@@ -110,10 +104,7 @@ contract FlywheelCore is Owned {
         @notice Set pirexGlp
         @param  _pirexGlp  PirexGlp  PirexGlp contract
     */
-    function setPirexGlp(PirexGlp _pirexGlp)
-        external
-        onlyOwner
-    {
+    function setPirexGlp(PirexGlp _pirexGlp) external onlyOwner {
         if (address(_pirexGlp) == address(0)) revert ZeroAddress();
 
         pirexGlp = _pirexGlp;
@@ -130,7 +121,9 @@ contract FlywheelCore is Owned {
         globalState = GlobalState({
             lastUpdate: block.timestamp,
             // Calculate the latest global rewards accrued based on the seconds elapsed * total supply
-            rewards: globalState.rewards + (block.timestamp - globalState.lastUpdate) * strategy.totalSupply(),
+            rewards: globalState.rewards +
+                (block.timestamp - globalState.lastUpdate) *
+                strategy.totalSupply(),
             wethFromGmx: fromGmx,
             wethFromGlp: fromGlp
         });
@@ -144,7 +137,10 @@ contract FlywheelCore is Owned {
         UserState storage u = userStates[user];
 
         // Calculate the amount of rewards accrued by the user up to this call
-        u.rewards = u.rewards + u.lastBalance * (block.timestamp - u.lastUpdate);
+        u.rewards =
+            u.rewards +
+            u.lastBalance *
+            (block.timestamp - u.lastUpdate);
         u.lastUpdate = block.timestamp;
         u.lastBalance = strategy.balanceOf(user);
     }

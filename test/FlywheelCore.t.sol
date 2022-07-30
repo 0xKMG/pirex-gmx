@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import "forge-std/Test.sol";
-
 import {FlywheelCore} from "src/FlywheelCore.sol";
 import {Helper} from "./Helper.t.sol";
 
@@ -56,12 +54,33 @@ contract FlywheelCoreTest is Helper {
         }
     }
 
-    function _getGlobalRewardsAccrued() internal returns (uint256) {
+    /**
+        @notice Calculate the global rewards
+        @return uint256  Global rewards
+    */
+    function _calculateGlobalRewards() internal view returns (uint256) {
         (uint256 lastUpdate, uint256 rewards, , ) = flywheelCore.globalState();
 
-        vm.prank(address(flywheelCore));
-
         return rewards + (block.timestamp - lastUpdate) * pxGlp.totalSupply();
+    }
+
+    /**
+        @notice Calculate a user's rewards
+        @param  user  address  User
+        @return       uint256  User rewards
+    */
+    function _calculateUserRewards(address user)
+        internal
+        view
+        returns (uint256)
+    {
+        (
+            uint256 lastUpdate,
+            uint256 lastBalance,
+            uint256 previousRewards
+        ) = flywheelCore.userStates(user);
+
+        return previousRewards + lastBalance * (block.timestamp - lastUpdate);
     }
 
     /**
@@ -88,7 +107,7 @@ contract FlywheelCoreTest is Helper {
         vm.warp(block.timestamp + secondsElapsed);
 
         uint256 timestampBeforeAccrue = block.timestamp;
-        uint256 expectedGlobalRewards = _getGlobalRewardsAccrued();
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
 
         if (accrueGlobal) {
             flywheelCore.globalAccrue();
@@ -110,15 +129,8 @@ contract FlywheelCoreTest is Helper {
         // Iterate over test accounts and check that reward accrual amount is correct for each one
         for (uint256 i; i < testAccounts.length; ++i) {
             address testAccount = testAccounts[i];
-            (
-                uint256 lastUpdateBeforeAccrue,
-                uint256 lastBalanceBeforeAccrue,
-                uint256 rewardsBeforeAccrue
-            ) = flywheelCore.userStates(testAccount);
             uint256 balanceBeforeAccrue = pxGlp.balanceOf(testAccount);
-            uint256 expectedRewards = rewardsBeforeAccrue +
-                lastBalanceBeforeAccrue *
-                (timestampBeforeAccrue - lastUpdateBeforeAccrue);
+            uint256 expectedRewards = _calculateUserRewards(testAccount);
 
             assertGt(expectedRewards, 0);
 
@@ -194,15 +206,8 @@ contract FlywheelCoreTest is Helper {
 
         // Calculate the rewards which should be accrued by the delayed account
         address delayedAccount = testAccounts[delayedAccountIndex];
-        (
-            uint256 lastUpdateBeforeAccrue,
-            ,
-            uint256 rewardsBeforeAccrue
-        ) = flywheelCore.userStates(delayedAccount);
-        uint256 expectedDelayedRewards = rewardsBeforeAccrue +
-            pxGlp.balanceOf(delayedAccount) *
-            (block.timestamp - lastUpdateBeforeAccrue);
-        uint256 expectedGlobalRewards = _getGlobalRewardsAccrued();
+        uint256 expectedDelayedRewards = _calculateUserRewards(delayedAccount);
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
 
         // Accrue rewards and check that the actual amount matches the expected
         flywheelCore.userAccrue(delayedAccount);
@@ -220,16 +225,21 @@ contract FlywheelCoreTest is Helper {
 
     /**
         @notice Test correctness of reward accruals in the case of pxGLP transfers
-        @param  tokenAmount     uint256  Amount of pxGLP to mint the sender
-        @param  secondsElapsed  uint256  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  tokenAmount      uin80   Amount of pxGLP to mint the sender
+        @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  transferPercent  uint8   Percent for testing partial balance transfers
      */
-    function testAccrueTransfer(uint256 tokenAmount, uint256 secondsElapsed)
-        external
-    {
+    function testAccrueTransfer(
+        uint80 tokenAmount,
+        uint32 secondsElapsed,
+        uint8 transferPercent
+    ) external {
         vm.assume(tokenAmount > 0.001 ether);
         vm.assume(tokenAmount < 10000 ether);
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
+        vm.assume(transferPercent != 0);
+        vm.assume(transferPercent <= 100);
 
         address sender = testAccounts[0];
         address receiver = testAccounts[1];
@@ -242,15 +252,11 @@ contract FlywheelCoreTest is Helper {
         vm.warp(block.timestamp + secondsElapsed);
 
         // Test sender reward accrual before transfer
-        (
-            uint256 senderLastUpdateBeforeTransfer,
-            uint256 senderLastBalanceBeforeTransfer,
-            uint256 senderRewardsBeforeTransfer
-        ) = flywheelCore.userStates(sender);
-        uint256 transferAmount = pxGlp.balanceOf(sender);
-        uint256 expectedSenderRewards = senderRewardsBeforeTransfer +
-            senderLastBalanceBeforeTransfer *
-            (block.timestamp - senderLastUpdateBeforeTransfer);
+        uint256 transferAmount = (pxGlp.balanceOf(sender) * transferPercent) /
+            100;
+        uint256 expectedSenderRewardsAfterTransfer = _calculateUserRewards(
+            sender
+        );
 
         vm.prank(sender);
 
@@ -260,34 +266,33 @@ contract FlywheelCoreTest is Helper {
             sender
         );
 
-        assertEq(expectedSenderRewards, senderRewardsAfterTransfer);
+        assertEq(
+            expectedSenderRewardsAfterTransfer,
+            senderRewardsAfterTransfer
+        );
 
         // Forward time in order to accrue rewards for receiver
         vm.warp(block.timestamp + secondsElapsed);
 
-        // Test receiver reward accrual
-        (
-            uint256 receiverLastUpdateBeforeAccrue,
-            uint256 receiverLastBalanceBeforeAccrue,
-            uint256 receiverRewardsBeforeAccrue
-        ) = flywheelCore.userStates(receiver);
-        uint256 expectedReceiverRewards = receiverRewardsBeforeAccrue +
-            receiverLastBalanceBeforeAccrue *
-            (block.timestamp - receiverLastUpdateBeforeAccrue);
+        // Get expected sender and receiver reward accrual states
+        uint256 expectedReceiverRewards = _calculateUserRewards(receiver);
+        uint256 expectedSenderRewardsAfterTransferAndWarp = _calculateUserRewards(
+                sender
+            );
 
         // Accrue rewards for both sender and receiver
         flywheelCore.userAccrue(sender);
         flywheelCore.userAccrue(receiver);
 
-        // Test that sender has not accrued any additional rewards
+        // Retrieve actual user reward accrual states
+        (, , uint256 receiverRewards) = flywheelCore.userStates(receiver);
         (, , uint256 senderRewardsAfterTransferAndWarp) = flywheelCore
             .userStates(sender);
 
-        // Test that receiver has accrued rewards from their new balance
-        (, , uint256 receiverRewardsAfterTransferAndWarp) = flywheelCore
-            .userStates(receiver);
-
-        assertEq(senderRewardsAfterTransferAndWarp, senderRewardsAfterTransfer);
-        assertEq(expectedReceiverRewards, receiverRewardsAfterTransferAndWarp);
+        assertEq(
+            senderRewardsAfterTransferAndWarp,
+            expectedSenderRewardsAfterTransferAndWarp
+        );
+        assertEq(expectedReceiverRewards, receiverRewards);
     }
 }
