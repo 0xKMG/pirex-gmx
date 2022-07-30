@@ -19,8 +19,6 @@ contract PirexGlp is ReentrancyGuard {
         IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
     IRewardTracker public constant REWARD_TRACKER_GLP =
         IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
-    ERC20 public constant FS_GLP =
-        ERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     Vault public constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public constant GLP_MANAGER =
@@ -71,7 +69,7 @@ contract PirexGlp is ReentrancyGuard {
 
     /**
         @notice Deposit ETH for pxGLP
-        @param  minShares  uint256  Minimum amount of pxGLP
+        @param  minGlp     uint256  Minimum amount of GLP
         @param  receiver   address  Recipient of pxGLP
         @return assets     uint256  Amount of pxGLP
      */
@@ -82,13 +80,13 @@ contract PirexGlp is ReentrancyGuard {
         returns (uint256 assets)
     {
         if (msg.value == 0) revert ZeroAmount();
-        if (minShares == 0) revert ZeroAmount();
+        if (minGlp == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
         // Buy GLP with the user's ETH, specifying the minimum amount of GLP
         assets = REWARD_ROUTER_V2.mintAndStakeGlpETH{value: msg.value}(
             0,
-            minShares
+            minGlp
         );
 
         // Mint pxGLP based on the actual amount of GLP minted
@@ -108,19 +106,19 @@ contract PirexGlp is ReentrancyGuard {
         @notice Deposit whitelisted ERC20 token for pxGLP
         @param  token        address  GMX-whitelisted token for buying GLP
         @param  tokenAmount  uint256  Whitelisted token amount
-        @param  minShares    uint256  Minimum amount of pxGLP
+        @param  minGlp       uint256  Minimum amount of GLP
         @param  receiver     address  Recipient of pxGLP
         @return assets       uint256  Amount of pxGLP
      */
     function depositWithERC20(
         address token,
         uint256 tokenAmount,
-        uint256 minShares,
+        uint256 minGlp,
         address receiver
     ) external nonReentrant returns (uint256 assets) {
         if (token == address(0)) revert ZeroAddress();
         if (tokenAmount == 0) revert ZeroAmount();
-        if (minShares == 0) revert ZeroAmount();
+        if (minGlp == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
         if (!VAULT.whitelistedTokens(token)) revert InvalidToken(token);
 
@@ -134,7 +132,7 @@ contract PirexGlp is ReentrancyGuard {
             token,
             tokenAmount,
             0,
-            minShares
+            minGlp
         );
 
         pxGlp.mint(receiver, assets);
@@ -264,6 +262,7 @@ contract PirexGlp is ReentrancyGuard {
         uint256 fromGmxGlp = fromGmx + fromGlp;
 
         if (fromGmxGlp != 0) {
+            // Recalculate fromGmx/Glp since the WETH amount received may differ
             weth = WETH.balanceOf(address(this)) - wethBalanceBefore;
             fromGmx = (weth * fromGmx) / fromGmxGlp;
             fromGlp = (weth * fromGlp) / fromGmxGlp;

@@ -14,16 +14,14 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
     error ZeroAmount();
 
     /**
-        @param  owner          address       Pirex-GMX multisig
-        @param  _flywheelCore  FlywheelCore  FlywheelCore contract address
+        @param  _flywheelCore  address  FlywheelCore contract address
     */
-    constructor(address owner, FlywheelCore _flywheelCore) {
-        if (owner == address(0)) revert ZeroAddress();
-        if (address(_flywheelCore) == address(0)) revert ZeroAddress();
+    constructor(address _flywheelCore) {
+        if (_flywheelCore == address(0)) revert ZeroAddress();
 
-        flywheelCore = _flywheelCore;
+        flywheelCore = FlywheelCore(_flywheelCore);
 
-        _setupRole(DEFAULT_ADMIN_ROLE, owner);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     /**

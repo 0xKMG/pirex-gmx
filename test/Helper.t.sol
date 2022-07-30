@@ -65,8 +65,8 @@ contract Helper is Test {
     receive() external payable {}
 
     constructor() {
-        flywheelCore = new FlywheelCore(ERC20(WETH));
-        pxGlp = new PxGlp(address(this), flywheelCore);
+        flywheelCore = new FlywheelCore(WETH);
+        pxGlp = new PxGlp(address(flywheelCore));
         pirexGlp = new PirexGlp(address(pxGlp), address(flywheelCore));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
