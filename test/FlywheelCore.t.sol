@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "forge-std/Test.sol";
+
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {FlywheelCore} from "src/FlywheelCore.sol";
+import {PirexGlp} from "src/PirexGlp.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract FlywheelCoreTest is Helper {
+    event SetStrategy(address newStrategy);
+    event SetPirexGlp(address pirexGlp);
+
     /**
         @notice Mint pxGLP for test accounts
         @param  multiplier  uint256  Multiplied with fixed token amounts for randomness
@@ -294,5 +301,91 @@ contract FlywheelCoreTest is Helper {
             expectedSenderRewardsAfterTransferAndWarp
         );
         assertEq(expectedReceiverRewards, receiverRewards);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setStrategyForRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being the owner
+     */
+    function testCannotSetStrategyForRewardsNotOwner() external {
+        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
+
+        flywheelCore.setStrategyForRewards(ERC20(address(this)));
+    }
+
+    /**
+        @notice Test tx reversion due to _strategy being the zero address
+     */
+    function testCannotSetStrategyForRewardsStrategyZeroAddress() external {
+        ERC20 invalidStrategy = ERC20(address(0));
+
+        vm.expectRevert(FlywheelCore.ZeroAddress.selector);
+
+        flywheelCore.setStrategyForRewards(invalidStrategy);
+    }
+
+    /**
+        @notice Test setting strategy
+     */
+    function testSetStrategyForRewards() external {
+        ERC20 strategy = ERC20(address(this));
+        address strategyAddr = address(strategy);
+
+        assertTrue(strategyAddr != address(flywheelCore.strategy()));
+
+        vm.expectEmit(false, false, false, true, address(flywheelCore));
+
+        emit SetStrategy(strategyAddr);
+
+        flywheelCore.setStrategyForRewards(strategy);
+
+        assertEq(strategyAddr, address(flywheelCore.strategy()));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setPirexGlp TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being the owner
+     */
+    function testCannotSetPirexGlpNotOwner() external {
+        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
+
+        flywheelCore.setPirexGlp(PirexGlp(address(this)));
+    }
+
+    /**
+        @notice Test tx reversion due to _pirexGlp being the zero address
+     */
+    function testCannotSetPirexGlpPirexGlpZeroAddress() external {
+        PirexGlp invalidPirexGlp = PirexGlp(address(0));
+
+        vm.expectRevert(FlywheelCore.ZeroAddress.selector);
+
+        flywheelCore.setPirexGlp(invalidPirexGlp);
+    }
+
+    /**
+        @notice Test setting pirexGlp
+     */
+    function testSetPirexGlp() external {
+        PirexGlp _pirexGlp = PirexGlp(address(this));
+        address pirexGlpAddr = address(_pirexGlp);
+
+        assertTrue(pirexGlpAddr != address(flywheelCore.pirexGlp()));
+
+        vm.expectEmit(false, false, false, true, address(flywheelCore));
+
+        emit SetPirexGlp(pirexGlpAddr);
+
+        flywheelCore.setPirexGlp(_pirexGlp);
+
+        assertEq(pirexGlpAddr, address(flywheelCore.pirexGlp()));
     }
 }

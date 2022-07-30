@@ -3,7 +3,6 @@ pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {Owned} from "solmate/auth/Owned.sol";
-import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {PirexGlp} from "./PirexGlp.sol";
 
 /**
@@ -22,10 +21,9 @@ import {PirexGlp} from "./PirexGlp.sol";
     - Remove logic for supporting multiple strategies
     - Update to reflect consolidation of pxGLP's FlywheelRewards-related contract
     - Replace Flywheel accrual methods with lightweight alternatives
+    - Remove claimRewards (will be re-added once accrual logic is complete)
 */
 contract FlywheelCore is Owned {
-    using SafeTransferLib for ERC20;
-
     struct GlobalState {
         uint256 lastUpdate;
         uint256 rewards;
@@ -54,10 +52,6 @@ contract FlywheelCore is Owned {
     // User state
     mapping(address => UserState) public userStates;
 
-    // Accrued but not yet transferred rewards for each user
-    mapping(address => uint256) public rewardsAccrued;
-
-    event ClaimRewards(address indexed user, uint256 amount);
     event SetStrategy(address newStrategy);
     event SetPirexGlp(address pirexGlp);
 
@@ -70,22 +64,6 @@ contract FlywheelCore is Owned {
         if (address(_rewardToken) == address(0)) revert ZeroAddress();
 
         rewardToken = _rewardToken;
-    }
-
-    /**
-        @notice Claim rewards for a given user
-        @param  user  address  The user claiming rewards
-    */
-    function claimRewards(address user) external {
-        uint256 accrued = rewardsAccrued[user];
-
-        if (accrued != 0) {
-            rewardsAccrued[user] = 0;
-
-            rewardToken.safeTransfer(user, accrued);
-
-            emit ClaimRewards(user, accrued);
-        }
     }
 
     /**
