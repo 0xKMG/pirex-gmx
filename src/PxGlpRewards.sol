@@ -6,24 +6,10 @@ import {Owned} from "solmate/auth/Owned.sol";
 import {PirexGlp} from "./PirexGlp.sol";
 
 /**
-    Original source code:
+    Originally inspired by Flywheel V2 (thank you Tribe team):
     https://github.com/fei-protocol/flywheel-v2/blob/dbe3cb8/src/FlywheelCore.sol
-
-    Modifications:
-    - Pin pragma to 0.8.13
-    - Remove the Flywheel Booster and related logic
-    - Update IFlywheelRewards file path to current directory
-    - Move variables and even declarations to the top of the contract
-    - Modify code formatting and comment descriptions to be consistent with Pirex
-    - Consolidate addStrategyForRewards and _addStrategyForRewards
-    - Update accrueStrategy and accrueUser to use rewards accrued/s when calculating delta
-    - Add new logic for managing global and user reward accrual state
-    - Remove logic for supporting multiple strategies
-    - Update to reflect consolidation of pxGLP's FlywheelRewards-related contract
-    - Replace Flywheel accrual methods with lightweight alternatives
-    - Remove claimRewards (will be re-added once accrual logic is complete)
 */
-contract FlywheelCore is Owned {
+contract PxGlpRewards is Owned {
     struct GlobalState {
         uint256 lastUpdate;
         uint256 rewards;

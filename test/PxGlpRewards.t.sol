@@ -4,11 +4,11 @@ pragma solidity 0.8.13;
 import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {FlywheelCore} from "src/FlywheelCore.sol";
+import {PxGlpRewards} from "src/PxGlpRewards.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {Helper} from "./Helper.t.sol";
 
-contract FlywheelCoreTest is Helper {
+contract PxGlpRewardsTest is Helper {
     event SetStrategy(address newStrategy);
     event SetPirexGlp(address pirexGlp);
 
@@ -66,7 +66,7 @@ contract FlywheelCoreTest is Helper {
         @return uint256  Global rewards
     */
     function _calculateGlobalRewards() internal view returns (uint256) {
-        (uint256 lastUpdate, uint256 rewards, , ) = flywheelCore.globalState();
+        (uint256 lastUpdate, uint256 rewards, , ) = pxGlpRewards.globalState();
 
         return rewards + (block.timestamp - lastUpdate) * pxGlp.totalSupply();
     }
@@ -85,7 +85,7 @@ contract FlywheelCoreTest is Helper {
             uint256 lastUpdate,
             uint256 lastBalance,
             uint256 previousRewards
-        ) = flywheelCore.userStates(user);
+        ) = pxGlpRewards.userStates(user);
 
         return previousRewards + lastBalance * (block.timestamp - lastUpdate);
     }
@@ -117,14 +117,14 @@ contract FlywheelCoreTest is Helper {
         uint256 expectedGlobalRewards = _calculateGlobalRewards();
 
         if (accrueGlobal) {
-            flywheelCore.globalAccrue();
+            pxGlpRewards.globalAccrue();
 
             (
                 uint256 globalLastUpdateAfterAccrue,
                 uint256 globalRewardsAfterAccrue,
                 ,
 
-            ) = flywheelCore.globalState();
+            ) = pxGlpRewards.globalState();
 
             assertEq(globalLastUpdateAfterAccrue, timestampBeforeAccrue);
             assertEq(globalRewardsAfterAccrue, expectedGlobalRewards);
@@ -141,13 +141,13 @@ contract FlywheelCoreTest is Helper {
 
             assertGt(expectedRewards, 0);
 
-            flywheelCore.userAccrue(testAccount);
+            pxGlpRewards.userAccrue(testAccount);
 
             (
                 uint256 lastUpdateAfterAccrue,
                 uint256 lastBalanceAfterAccrue,
                 uint256 rewardsAfterAccrue
-            ) = flywheelCore.userStates(testAccount);
+            ) = pxGlpRewards.userStates(testAccount);
 
             // Total rewards accrued by all users should add up to the gloabl rewards
             totalRewards += rewardsAfterAccrue;
@@ -196,13 +196,13 @@ contract FlywheelCoreTest is Helper {
 
             for (uint256 j; j < tLen; ++j) {
                 if (j != delayedAccountIndex) {
-                    (, , uint256 rewardsBefore) = flywheelCore.userStates(
+                    (, , uint256 rewardsBefore) = pxGlpRewards.userStates(
                         testAccounts[j]
                     );
 
-                    flywheelCore.userAccrue(testAccounts[j]);
+                    pxGlpRewards.userAccrue(testAccounts[j]);
 
-                    (, , uint256 rewardsAfter) = flywheelCore.userStates(
+                    (, , uint256 rewardsAfter) = pxGlpRewards.userStates(
                         testAccounts[j]
                     );
 
@@ -217,9 +217,9 @@ contract FlywheelCoreTest is Helper {
         uint256 expectedGlobalRewards = _calculateGlobalRewards();
 
         // Accrue rewards and check that the actual amount matches the expected
-        flywheelCore.userAccrue(delayedAccount);
+        pxGlpRewards.userAccrue(delayedAccount);
 
-        (, , uint256 rewardsAfterAccrue) = flywheelCore.userStates(
+        (, , uint256 rewardsAfterAccrue) = pxGlpRewards.userStates(
             delayedAccount
         );
 
@@ -281,7 +281,7 @@ contract FlywheelCoreTest is Helper {
             pxGlp.transferFrom(sender, receiver, transferAmount);
         }
 
-        (, , uint256 senderRewardsAfterTransfer) = flywheelCore.userStates(
+        (, , uint256 senderRewardsAfterTransfer) = pxGlpRewards.userStates(
             sender
         );
 
@@ -300,12 +300,12 @@ contract FlywheelCoreTest is Helper {
             );
 
         // Accrue rewards for both sender and receiver
-        flywheelCore.userAccrue(sender);
-        flywheelCore.userAccrue(receiver);
+        pxGlpRewards.userAccrue(sender);
+        pxGlpRewards.userAccrue(receiver);
 
         // Retrieve actual user reward accrual states
-        (, , uint256 receiverRewards) = flywheelCore.userStates(receiver);
-        (, , uint256 senderRewardsAfterTransferAndWarp) = flywheelCore
+        (, , uint256 receiverRewards) = pxGlpRewards.userStates(receiver);
+        (, , uint256 senderRewardsAfterTransferAndWarp) = pxGlpRewards
             .userStates(sender);
 
         assertEq(
@@ -326,7 +326,7 @@ contract FlywheelCoreTest is Helper {
         vm.expectRevert("UNAUTHORIZED");
         vm.prank(testAccounts[0]);
 
-        flywheelCore.setStrategyForRewards(ERC20(address(this)));
+        pxGlpRewards.setStrategyForRewards(ERC20(address(this)));
     }
 
     /**
@@ -335,9 +335,9 @@ contract FlywheelCoreTest is Helper {
     function testCannotSetStrategyForRewardsStrategyZeroAddress() external {
         ERC20 invalidStrategy = ERC20(address(0));
 
-        vm.expectRevert(FlywheelCore.ZeroAddress.selector);
+        vm.expectRevert(PxGlpRewards.ZeroAddress.selector);
 
-        flywheelCore.setStrategyForRewards(invalidStrategy);
+        pxGlpRewards.setStrategyForRewards(invalidStrategy);
     }
 
     /**
@@ -347,15 +347,15 @@ contract FlywheelCoreTest is Helper {
         ERC20 strategy = ERC20(address(this));
         address strategyAddr = address(strategy);
 
-        assertTrue(strategyAddr != address(flywheelCore.strategy()));
+        assertTrue(strategyAddr != address(pxGlpRewards.strategy()));
 
-        vm.expectEmit(false, false, false, true, address(flywheelCore));
+        vm.expectEmit(false, false, false, true, address(pxGlpRewards));
 
         emit SetStrategy(strategyAddr);
 
-        flywheelCore.setStrategyForRewards(strategy);
+        pxGlpRewards.setStrategyForRewards(strategy);
 
-        assertEq(strategyAddr, address(flywheelCore.strategy()));
+        assertEq(strategyAddr, address(pxGlpRewards.strategy()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -369,7 +369,7 @@ contract FlywheelCoreTest is Helper {
         vm.expectRevert("UNAUTHORIZED");
         vm.prank(testAccounts[0]);
 
-        flywheelCore.setPirexGlp(PirexGlp(address(this)));
+        pxGlpRewards.setPirexGlp(PirexGlp(address(this)));
     }
 
     /**
@@ -378,9 +378,9 @@ contract FlywheelCoreTest is Helper {
     function testCannotSetPirexGlpPirexGlpZeroAddress() external {
         PirexGlp invalidPirexGlp = PirexGlp(address(0));
 
-        vm.expectRevert(FlywheelCore.ZeroAddress.selector);
+        vm.expectRevert(PxGlpRewards.ZeroAddress.selector);
 
-        flywheelCore.setPirexGlp(invalidPirexGlp);
+        pxGlpRewards.setPirexGlp(invalidPirexGlp);
     }
 
     /**
@@ -390,14 +390,14 @@ contract FlywheelCoreTest is Helper {
         PirexGlp _pirexGlp = PirexGlp(address(this));
         address pirexGlpAddr = address(_pirexGlp);
 
-        assertTrue(pirexGlpAddr != address(flywheelCore.pirexGlp()));
+        assertTrue(pirexGlpAddr != address(pxGlpRewards.pirexGlp()));
 
-        vm.expectEmit(false, false, false, true, address(flywheelCore));
+        vm.expectEmit(false, false, false, true, address(pxGlpRewards));
 
         emit SetPirexGlp(pirexGlpAddr);
 
-        flywheelCore.setPirexGlp(_pirexGlp);
+        pxGlpRewards.setPirexGlp(_pirexGlp);
 
-        assertEq(pirexGlpAddr, address(flywheelCore.pirexGlp()));
+        assertEq(pirexGlpAddr, address(pxGlpRewards.pirexGlp()));
     }
 }

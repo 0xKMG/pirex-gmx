@@ -30,7 +30,7 @@ contract PirexGlp is ReentrancyGuard {
     PxGlp public immutable pxGlp;
 
     // Mutability subject to change
-    address public immutable flywheel;
+    address public immutable pxGlpRewards;
 
     event Deposit(
         address indexed caller,
@@ -53,18 +53,18 @@ contract PirexGlp is ReentrancyGuard {
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
-    error NotFlywheel();
+    error NotPxGlpRewards();
 
     /**
-        @param  _pxGlp     address  PxGlp contract address
-        @param  _flywheel  address  FlywheelCore contract address
+        @param  _pxGlp         address  PxGlp contract address
+        @param  _pxGlpRewards  address  PxGlpRewards contract address
     */
-    constructor(address _pxGlp, address _flywheel) {
+    constructor(address _pxGlp, address _pxGlpRewards) {
         if (_pxGlp == address(0)) revert ZeroAddress();
-        if (_flywheel == address(0)) revert ZeroAddress();
+        if (_pxGlpRewards == address(0)) revert ZeroAddress();
 
         pxGlp = PxGlp(_pxGlp);
-        flywheel = _flywheel;
+        pxGlpRewards = _pxGlpRewards;
     }
 
     /**
@@ -238,9 +238,9 @@ contract PirexGlp is ReentrancyGuard {
             uint256 weth
         )
     {
-        // Restrict call to flywheel since it is the rewards receiver
+        // Restrict call to pxGlpRewards since it is the rewards receiver
         // Additionally, the WETH amount may need to be synced with reward points
-        if (msg.sender != flywheel) revert NotFlywheel();
+        if (msg.sender != pxGlpRewards) revert NotPxGlpRewards();
 
         // Retrieve the WETH reward amounts for each reward-producing token
         fromGmx = REWARD_TRACKER_GMX.claimable(address(this));
@@ -267,7 +267,7 @@ contract PirexGlp is ReentrancyGuard {
             fromGmx = (weth * fromGmx) / fromGmxGlp;
             fromGlp = (weth * fromGlp) / fromGmxGlp;
 
-            // Check above ensures that msg.sender is flywheel
+            // Check above ensures that msg.sender is pxGlpRewards
             WETH.safeTransfer(msg.sender, weth);
         }
     }

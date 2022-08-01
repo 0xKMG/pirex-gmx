@@ -799,10 +799,10 @@ contract PirexGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to the caller not being flywheelCore
+        @notice Test tx reversion due to the caller not being pxGlpRewards
      */
-    function testCannotClaimWETHRewardsNotFlywheel() external {
-        vm.expectRevert(PirexGlp.NotFlywheel.selector);
+    function testCannotClaimWETHRewardsNotPxGlpRewards() external {
+        vm.expectRevert(PirexGlp.NotPxGlpRewards.selector);
 
         pirexGlp.claimWETHRewards();
     }
@@ -824,7 +824,7 @@ contract PirexGlpTest is Helper {
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + 10000);
 
-        address f = address(flywheelCore);
+        address f = address(pxGlpRewards);
         uint256 claimableFromGmx = REWARD_TRACKER_GMX.claimable(
             address(pirexGlp)
         );
@@ -833,10 +833,10 @@ contract PirexGlpTest is Helper {
         );
         uint256 totalClaimable = claimableFromGmx + claimableFromGlp;
 
-        // Ensure flywheelCore has a zero WETH balance before testing balance changes
+        // Ensure pxGlpRewards has a zero WETH balance before testing balance changes
         assertEq(WETH.balanceOf(f), 0);
 
-        // Impersonate flywheelCore and claim WETH rewards
+        // Impersonate pxGlpRewards and claim WETH rewards
         vm.prank(f);
 
         (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGlp
@@ -886,7 +886,7 @@ contract PirexGlpTest is Helper {
 
         vm.warp(block.timestamp + 10000);
 
-        address f = address(flywheelCore);
+        address f = address(pxGlpRewards);
         uint256 claimableFromGmx = REWARD_TRACKER_GMX.claimable(
             address(pirexGlp)
         );
@@ -895,7 +895,7 @@ contract PirexGlpTest is Helper {
         );
         uint256 totalClaimable = claimableFromGmx + claimableFromGlp;
 
-        // Ensure flywheelCore has a zero WETH balance before testing balance changes
+        // Ensure pxGlpRewards has a zero WETH balance before testing balance changes
         assertEq(WETH.balanceOf(f), 0);
 
         vm.prank(f);

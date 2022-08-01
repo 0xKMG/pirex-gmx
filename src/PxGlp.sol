@@ -3,10 +3,10 @@ pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {FlywheelCore} from "./FlywheelCore.sol";
+import {PxGlpRewards} from "./PxGlpRewards.sol";
 
 contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
-    FlywheelCore public immutable flywheelCore;
+    PxGlpRewards public immutable pxGlpRewards;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
@@ -14,12 +14,12 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
     error ZeroAmount();
 
     /**
-        @param  _flywheelCore  address  FlywheelCore contract address
+        @param  _pxGlpRewards  address  PxGlpRewards contract address
     */
-    constructor(address _flywheelCore) {
-        if (_flywheelCore == address(0)) revert ZeroAddress();
+    constructor(address _pxGlpRewards) {
+        if (_pxGlpRewards == address(0)) revert ZeroAddress();
 
-        flywheelCore = FlywheelCore(_flywheelCore);
+        pxGlpRewards = PxGlpRewards(_pxGlpRewards);
 
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -34,12 +34,12 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         if (amount == 0) revert ZeroAmount();
 
         // Update global accrued rewards state before new tokens added to supply
-        flywheelCore.globalAccrue();
+        pxGlpRewards.globalAccrue();
 
         _mint(to, amount);
 
         // Kick off reward accrual for user to snapshot post-mint balance
-        flywheelCore.userAccrue(to);
+        pxGlpRewards.userAccrue(to);
     }
 
     /**
@@ -74,8 +74,8 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         emit Transfer(msg.sender, to, amount);
 
         // Accrue rewards for sender, up to their current balance and kick off accrual for receiver
-        flywheelCore.userAccrue(msg.sender);
-        flywheelCore.userAccrue(to);
+        pxGlpRewards.userAccrue(msg.sender);
+        pxGlpRewards.userAccrue(to);
 
         return true;
     }
@@ -106,8 +106,8 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
         emit Transfer(from, to, amount);
 
-        flywheelCore.userAccrue(from);
-        flywheelCore.userAccrue(to);
+        pxGlpRewards.userAccrue(from);
+        pxGlpRewards.userAccrue(to);
 
         return true;
     }
