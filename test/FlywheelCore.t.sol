@@ -235,11 +235,13 @@ contract FlywheelCoreTest is Helper {
         @param  tokenAmount      uin80   Amount of pxGLP to mint the sender
         @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
         @param  transferPercent  uint8   Percent for testing partial balance transfers
+        @param  useTransfer      bool    Whether or not to use the transfer method
      */
     function testAccrueTransfer(
         uint80 tokenAmount,
         uint32 secondsElapsed,
-        uint8 transferPercent
+        uint8 transferPercent,
+        bool useTransfer
     ) external {
         vm.assume(tokenAmount > 0.001 ether);
         vm.assume(tokenAmount < 10000 ether);
@@ -265,9 +267,19 @@ contract FlywheelCoreTest is Helper {
             sender
         );
 
-        vm.prank(sender);
+        // Test both of the ERC20 transfer methods for correctness of reward accrual
+        if (useTransfer) {
+            vm.prank(sender);
 
-        pxGlp.transfer(receiver, transferAmount);
+            pxGlp.transfer(receiver, transferAmount);
+        } else {
+            vm.prank(sender);
+
+            // Need to increase allowance of the caller if using transferFrom
+            pxGlp.approve(address(this), transferAmount);
+
+            pxGlp.transferFrom(sender, receiver, transferAmount);
+        }
 
         (, , uint256 senderRewardsAfterTransfer) = flywheelCore.userStates(
             sender

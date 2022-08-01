@@ -106,6 +106,9 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
         emit Transfer(from, to, amount);
 
+        flywheelCore.userAccrue(from);
+        flywheelCore.userAccrue(to);
+
         return true;
     }
 }
