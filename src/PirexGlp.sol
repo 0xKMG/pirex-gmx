@@ -23,7 +23,7 @@ contract PirexGlp is ReentrancyGuard {
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public constant GLP_MANAGER =
         0x321F653eED006AD1C29D174e17d96351BDe22649;
-    ERC20 internal constant WETH =
+    ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     // Pirex contracts
