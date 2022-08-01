@@ -90,6 +90,148 @@ contract PxGlpRewardsTest is Helper {
         return previousRewards + lastBalance * (block.timestamp - lastUpdate);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        setStrategyForRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being the owner
+     */
+    function testCannotSetStrategyForRewardsNotOwner() external {
+        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
+
+        pxGlpRewards.setStrategyForRewards(ERC20(address(this)));
+    }
+
+    /**
+        @notice Test tx reversion due to _strategy being the zero address
+     */
+    function testCannotSetStrategyForRewardsStrategyZeroAddress() external {
+        ERC20 invalidStrategy = ERC20(address(0));
+
+        vm.expectRevert(PxGlpRewards.ZeroAddress.selector);
+
+        pxGlpRewards.setStrategyForRewards(invalidStrategy);
+    }
+
+    /**
+        @notice Test setting strategy
+     */
+    function testSetStrategyForRewards() external {
+        ERC20 strategy = ERC20(address(this));
+        address strategyAddr = address(strategy);
+
+        assertTrue(strategyAddr != address(pxGlpRewards.strategy()));
+
+        vm.expectEmit(false, false, false, true, address(pxGlpRewards));
+
+        emit SetStrategy(strategyAddr);
+
+        pxGlpRewards.setStrategyForRewards(strategy);
+
+        assertEq(strategyAddr, address(pxGlpRewards.strategy()));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setPirexGlp TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being the owner
+     */
+    function testCannotSetPirexGlpNotOwner() external {
+        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
+
+        pxGlpRewards.setPirexGlp(PirexGlp(address(this)));
+    }
+
+    /**
+        @notice Test tx reversion due to _pirexGlp being the zero address
+     */
+    function testCannotSetPirexGlpPirexGlpZeroAddress() external {
+        PirexGlp invalidPirexGlp = PirexGlp(address(0));
+
+        vm.expectRevert(PxGlpRewards.ZeroAddress.selector);
+
+        pxGlpRewards.setPirexGlp(invalidPirexGlp);
+    }
+
+    /**
+        @notice Test setting pirexGlp
+     */
+    function testSetPirexGlp() external {
+        PirexGlp _pirexGlp = PirexGlp(address(this));
+        address pirexGlpAddr = address(_pirexGlp);
+
+        assertTrue(pirexGlpAddr != address(pxGlpRewards.pirexGlp()));
+
+        vm.expectEmit(false, false, false, true, address(pxGlpRewards));
+
+        emit SetPirexGlp(pirexGlpAddr);
+
+        pxGlpRewards.setPirexGlp(_pirexGlp);
+
+        assertEq(pirexGlpAddr, address(pxGlpRewards.pirexGlp()));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        globalAccrue TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test global rewards accrual
+        @param  secondsElapsed  uint32   Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  multiplier      uint8    Multiplied with fixed token amounts for randomness
+        @param  useETH          bool     Whether or not to use ETH as the source asset for minting GLP
+     */
+    function testGlobalAccrue(
+        uint32 secondsElapsed,
+        uint8 multiplier,
+        bool useETH
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+
+        (
+            uint256 lastUpdateBefore,
+            uint256 rewardsBefore,
+            ,
+            uint256 wethFromGlpBefore
+        ) = pxGlpRewards.globalState();
+        uint256 warpTimestamp = block.timestamp + secondsElapsed;
+
+        assertEq(lastUpdateBefore, 0);
+        assertEq(rewardsBefore, 0);
+        assertEq(wethFromGlpBefore, 0);
+
+        _mintForTestAccounts(multiplier, useETH);
+
+        vm.warp(warpTimestamp);
+
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
+
+        pxGlpRewards.globalAccrue();
+
+        (
+            uint256 lastUpdateAfter,
+            uint256 rewardsAfter,
+            ,
+            uint256 wethFromGlpAfter
+        ) = pxGlpRewards.globalState();
+
+        assertEq(lastUpdateAfter, warpTimestamp);
+        assertEq(rewardsAfter, expectedGlobalRewards);
+        assertGt(wethFromGlpAfter, 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                globalAccrue/userAccrue integration TESTS
+    //////////////////////////////////////////////////////////////*/
+
     /**
         @notice Test minting pxGLP and reward point accrual for multiple users
         @param  secondsElapsed  uint32   Seconds to forward timestamp (equivalent to total rewards accrued)
@@ -313,91 +455,5 @@ contract PxGlpRewardsTest is Helper {
             expectedSenderRewardsAfterTransferAndWarp
         );
         assertEq(expectedReceiverRewards, receiverRewards);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        setStrategyForRewards TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion due to caller not being the owner
-     */
-    function testCannotSetStrategyForRewardsNotOwner() external {
-        vm.expectRevert("UNAUTHORIZED");
-        vm.prank(testAccounts[0]);
-
-        pxGlpRewards.setStrategyForRewards(ERC20(address(this)));
-    }
-
-    /**
-        @notice Test tx reversion due to _strategy being the zero address
-     */
-    function testCannotSetStrategyForRewardsStrategyZeroAddress() external {
-        ERC20 invalidStrategy = ERC20(address(0));
-
-        vm.expectRevert(PxGlpRewards.ZeroAddress.selector);
-
-        pxGlpRewards.setStrategyForRewards(invalidStrategy);
-    }
-
-    /**
-        @notice Test setting strategy
-     */
-    function testSetStrategyForRewards() external {
-        ERC20 strategy = ERC20(address(this));
-        address strategyAddr = address(strategy);
-
-        assertTrue(strategyAddr != address(pxGlpRewards.strategy()));
-
-        vm.expectEmit(false, false, false, true, address(pxGlpRewards));
-
-        emit SetStrategy(strategyAddr);
-
-        pxGlpRewards.setStrategyForRewards(strategy);
-
-        assertEq(strategyAddr, address(pxGlpRewards.strategy()));
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        setPirexGlp TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion due to caller not being the owner
-     */
-    function testCannotSetPirexGlpNotOwner() external {
-        vm.expectRevert("UNAUTHORIZED");
-        vm.prank(testAccounts[0]);
-
-        pxGlpRewards.setPirexGlp(PirexGlp(address(this)));
-    }
-
-    /**
-        @notice Test tx reversion due to _pirexGlp being the zero address
-     */
-    function testCannotSetPirexGlpPirexGlpZeroAddress() external {
-        PirexGlp invalidPirexGlp = PirexGlp(address(0));
-
-        vm.expectRevert(PxGlpRewards.ZeroAddress.selector);
-
-        pxGlpRewards.setPirexGlp(invalidPirexGlp);
-    }
-
-    /**
-        @notice Test setting pirexGlp
-     */
-    function testSetPirexGlp() external {
-        PirexGlp _pirexGlp = PirexGlp(address(this));
-        address pirexGlpAddr = address(_pirexGlp);
-
-        assertTrue(pirexGlpAddr != address(pxGlpRewards.pirexGlp()));
-
-        vm.expectEmit(false, false, false, true, address(pxGlpRewards));
-
-        emit SetPirexGlp(pirexGlpAddr);
-
-        pxGlpRewards.setPirexGlp(_pirexGlp);
-
-        assertEq(pirexGlpAddr, address(pxGlpRewards.pirexGlp()));
     }
 }
