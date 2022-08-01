@@ -229,6 +229,67 @@ contract PxGlpRewardsTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        userAccrue TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test user rewards accrual
+        @param  secondsElapsed    uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  multiplier        uint8   Multiplied with fixed token amounts for randomness
+        @param  useETH            bool    Whether or not to use ETH as the source asset for minting GLP
+        @param  testAccountIndex  uint8   Index of test account
+     */
+    function testUserAccrue(
+        uint32 secondsElapsed,
+        uint8 multiplier,
+        bool useETH,
+        uint8 testAccountIndex
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+        vm.assume(testAccountIndex < 3);
+
+        uint256 timestampBeforeMint = block.timestamp;
+
+        _mintForTestAccounts(multiplier, useETH);
+
+        address user = testAccounts[testAccountIndex];
+        uint256 pxGlpBalance = pxGlp.balanceOf(user);
+        (
+            uint256 lastUpdateBefore,
+            uint256 lastBalanceBefore,
+            uint256 rewardsBefore
+        ) = pxGlpRewards.userStates(user);
+        uint256 warpTimestamp = block.timestamp + secondsElapsed;
+
+        assertEq(lastUpdateBefore, timestampBeforeMint);
+
+        // The recently minted balance amount should be what is stored in state
+        assertEq(lastBalanceBefore, pxGlpBalance);
+
+        // User should not accrue rewards until time has passed
+        assertEq(rewardsBefore, 0);
+
+        vm.warp(warpTimestamp);
+
+        uint256 expectedUserRewards = _calculateUserRewards(user);
+
+        pxGlpRewards.userAccrue(user);
+
+        (
+            uint256 lastUpdateAfter,
+            uint256 lastBalanceAfter,
+            uint256 rewardsAfter
+        ) = pxGlpRewards.userStates(user);
+
+        assertEq(lastUpdateAfter, warpTimestamp);
+        assertEq(lastBalanceAfter, pxGlpBalance);
+        assertEq(rewardsAfter, expectedUserRewards);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                 globalAccrue/userAccrue integration TESTS
     //////////////////////////////////////////////////////////////*/
 
