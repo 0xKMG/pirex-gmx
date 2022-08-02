@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
 import {PirexGlp} from "./PirexGlp.sol";
 
@@ -10,6 +11,8 @@ import {PirexGlp} from "./PirexGlp.sol";
     https://github.com/fei-protocol/flywheel-v2/blob/dbe3cb8/src/FlywheelCore.sol
 */
 contract PxGlpRewards is Owned {
+    using SafeTransferLib for ERC20;
+
     struct GlobalState {
         uint256 lastUpdate;
         uint256 rewards;
@@ -22,6 +25,9 @@ contract PxGlpRewards is Owned {
         uint256 lastBalance;
         uint256 rewards;
     }
+
+    ERC20 public constant WETH =
+        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     // Strategy producing rewards
     ERC20 public strategy;
@@ -37,6 +43,14 @@ contract PxGlpRewards is Owned {
 
     event SetStrategy(address newStrategy);
     event SetPirexGlp(address pirexGlp);
+    event ClaimWETHRewards(
+        address indexed caller,
+        address indexed receiver,
+        uint256 globalRewardsBeforeClaim,
+        uint256 userRewardsBeforeClaim,
+        uint256 wethFromGmx,
+        uint256 wethFromGlp
+    );
 
     error ZeroAddress();
 
@@ -69,7 +83,7 @@ contract PxGlpRewards is Owned {
     /**
         @notice Update global rewards accrual state
     */
-    function globalAccrue() external {
+    function globalAccrue() public returns (GlobalState memory) {
         (uint256 fromGmx, uint256 fromGlp, ) = pirexGlp.claimWETHRewards();
 
         globalState = GlobalState({
@@ -81,13 +95,15 @@ contract PxGlpRewards is Owned {
             wethFromGmx: globalState.wethFromGmx + fromGmx,
             wethFromGlp: globalState.wethFromGlp + fromGlp
         });
+
+        return globalState;
     }
 
     /**
         @notice Update user rewards accrual state
         @param  user  address  User
     */
-    function userAccrue(address user) external {
+    function userAccrue(address user) public returns (UserState memory) {
         UserState storage u = userStates[user];
 
         // Calculate the amount of rewards accrued by the user up to this call
@@ -97,5 +113,39 @@ contract PxGlpRewards is Owned {
             (block.timestamp - u.lastUpdate);
         u.lastUpdate = block.timestamp;
         u.lastBalance = strategy.balanceOf(user);
+
+        return u;
+    }
+
+    /**
+        @notice Claim WETH rewards for user
+        @param  receiver  address  Recipient of WETH rewards
+    */
+    function claimWETHRewards(address receiver) external {
+        if (receiver == address(0)) revert ZeroAddress();
+
+        GlobalState memory g = globalAccrue();
+        UserState memory u = userAccrue(msg.sender);
+
+        // User's share of global WETH rewards earned from GMX and GLP
+        uint256 wethFromGmx = (g.wethFromGmx * u.rewards) / g.rewards;
+        uint256 wethFromGlp = (g.wethFromGlp * u.rewards) / g.rewards;
+
+        // Update global and user reward states to prevent double claims
+        globalState.rewards = globalState.rewards - u.rewards;
+        globalState.wethFromGmx = g.wethFromGmx - wethFromGmx;
+        globalState.wethFromGlp = g.wethFromGlp - wethFromGlp;
+        userStates[msg.sender].rewards = 0;
+
+        emit ClaimWETHRewards(
+            msg.sender,
+            receiver,
+            g.rewards,
+            u.rewards,
+            wethFromGmx,
+            wethFromGlp
+        );
+
+        WETH.safeTransfer(receiver, wethFromGmx + wethFromGlp);
     }
 }

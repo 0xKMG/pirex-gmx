@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "forge-std/Test.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PxGlpRewards} from "src/PxGlpRewards.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
@@ -9,6 +11,14 @@ import {Helper} from "./Helper.t.sol";
 contract PxGlpRewardsTest is Helper {
     event SetStrategy(address newStrategy);
     event SetPirexGlp(address pirexGlp);
+    event ClaimWETHRewards(
+        address indexed caller,
+        address indexed receiver,
+        uint256 globalRewardsBeforeClaim,
+        uint256 userRewardsBeforeClaim,
+        uint256 wethFromGmx,
+        uint256 wethFromGlp
+    );
 
     /**
         @notice Mint pxGLP for test accounts
@@ -514,5 +524,104 @@ contract PxGlpRewardsTest is Helper {
             expectedSenderRewardsAfterTransferAndWarp
         );
         assertEq(expectedReceiverRewards, receiverRewards);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        claimWETHRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to receiver being the zero address
+     */
+    function testCannotClaimWETHRewardsReceiverZeroAddress() external {
+        address invalidReceiver = address(0);
+
+        vm.expectRevert(PxGlpRewards.ZeroAddress.selector);
+
+        pxGlpRewards.claimWETHRewards(invalidReceiver);
+    }
+
+    /**
+        @notice Test correctness of state and distribution amounts for WETH reward claims
+        @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  multiplier       uint8   Multiplied with fixed token amounts (uint256 to avoid overflow)
+        @param  useETH           bool    Whether or not to use ETH as the source asset for minting GLP
+     */
+    function testClaimWETHRewards(
+        uint32 secondsElapsed,
+        uint8 multiplier,
+        bool useETH
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+
+        _mintForTestAccounts(multiplier, useETH);
+
+        vm.warp(block.timestamp + secondsElapsed);
+
+        // Ensure that user and global states are properly updated, and WETH is correctly distributed
+        for (uint256 i; i < testAccounts.length; ++i) {
+            // Pre-claim accrual to calculate expected values and perform post-claim comparisons
+            pxGlpRewards.globalAccrue();
+
+            (
+                ,
+                uint256 globalRewardsPreClaim,
+                uint256 wethFromGmxPreClaim,
+                uint256 wethFromGlpPreClaim
+            ) = pxGlpRewards.globalState();
+            uint256 totalGlobalWETHPreClaim = wethFromGmxPreClaim +
+                wethFromGlpPreClaim;
+            address testAccount = testAccounts[i];
+            uint256 userRewardsPreClaim = _calculateUserRewards(testAccount);
+            uint256 expectedUserWETHRewards = (userRewardsPreClaim *
+                totalGlobalWETHPreClaim) / globalRewardsPreClaim;
+            uint256 userWETHBalancePreClaim = WETH.balanceOf(testAccount);
+
+            vm.prank(testAccount);
+            vm.expectEmit(true, true, false, true, address(pxGlpRewards));
+
+            emit ClaimWETHRewards(
+                testAccount,
+                testAccount,
+                globalRewardsPreClaim,
+                userRewardsPreClaim,
+                (wethFromGmxPreClaim * userRewardsPreClaim) /
+                    globalRewardsPreClaim,
+                (wethFromGlpPreClaim * userRewardsPreClaim) /
+                    globalRewardsPreClaim
+            );
+
+            pxGlpRewards.claimWETHRewards(testAccount);
+
+            (
+                ,
+                uint256 globalRewardsPostClaim,
+                uint256 wethFromGmxPostClaim,
+                uint256 wethFromGlpPostClaim
+            ) = pxGlpRewards.globalState();
+            uint256 totalGlobalWETHPostClaim = wethFromGmxPostClaim +
+                wethFromGlpPostClaim;
+            (, , uint256 userRewardsPostClaim) = pxGlpRewards.userStates(
+                testAccount
+            );
+
+            // Ensure global and user states are properly updated after claiming
+            assertEq(
+                WETH.balanceOf(testAccount) - userWETHBalancePreClaim,
+                expectedUserWETHRewards
+            );
+            assertEq(
+                globalRewardsPreClaim - userRewardsPreClaim,
+                globalRewardsPostClaim
+            );
+            assertEq(
+                totalGlobalWETHPreClaim - expectedUserWETHRewards,
+                totalGlobalWETHPostClaim
+            );
+            assertEq(userRewardsPostClaim, 0);
+        }
     }
 }
