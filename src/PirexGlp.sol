@@ -23,20 +23,20 @@ contract PirexGlp is ReentrancyGuard {
 
     PxGlp public immutable pxGlp;
 
-    event Mint(
+    event Deposit(
         address indexed caller,
-        uint256 indexed minShares,
         address indexed receiver,
-        address token,
+        address indexed token,
+        uint256 minShares,
         uint256 amount,
         uint256 assets
     );
 
     event Redeem(
         address indexed caller,
-        uint256 indexed minRedemption,
         address indexed receiver,
-        address token,
+        address indexed token,
+        uint256 minRedemption,
         uint256 amount,
         uint256 redemption
     );
@@ -60,7 +60,7 @@ contract PirexGlp is ReentrancyGuard {
         @param  receiver   address  Recipient of pxGLP
         @return assets     uint256  Amount of pxGLP
      */
-    function mintWithETH(uint256 minShares, address receiver)
+    function depositWithETH(uint256 minShares, address receiver)
         external
         payable
         nonReentrant
@@ -79,11 +79,11 @@ contract PirexGlp is ReentrancyGuard {
         // Mint pxGLP based on the actual amount of GLP minted
         pxGlp.mint(receiver, assets);
 
-        emit Mint(
+        emit Deposit(
             msg.sender,
-            minShares,
             receiver,
             address(0),
+            minShares,
             msg.value,
             assets
         );
@@ -97,7 +97,7 @@ contract PirexGlp is ReentrancyGuard {
         @param  receiver     address  Recipient of pxGLP
         @return assets       uint256  Amount of pxGLP
      */
-    function mintWithERC20(
+    function depositWithERC20(
         address token,
         uint256 tokenAmount,
         uint256 minShares,
@@ -124,7 +124,7 @@ contract PirexGlp is ReentrancyGuard {
 
         pxGlp.mint(receiver, assets);
 
-        emit Mint(msg.sender, minShares, receiver, token, tokenAmount, assets);
+        emit Deposit(msg.sender, receiver, token, minShares, tokenAmount, assets);
     }
 
     /**
@@ -155,9 +155,9 @@ contract PirexGlp is ReentrancyGuard {
 
         emit Redeem(
             msg.sender,
-            minRedemption,
             receiver,
             address(0),
+            minRedemption,
             amount,
             redeemed
         );
@@ -196,9 +196,9 @@ contract PirexGlp is ReentrancyGuard {
 
         emit Redeem(
             msg.sender,
-            minRedemption,
             receiver,
             token,
+            minRedemption,
             amount,
             redeemed
         );
