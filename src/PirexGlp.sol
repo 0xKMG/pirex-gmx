@@ -23,13 +23,22 @@ contract PirexGlp is ReentrancyGuard {
 
     PxGlp public immutable pxGlp;
 
-    event Mint(
+    event Deposit(
         address indexed caller,
-        uint256 indexed minShares,
         address indexed receiver,
-        address token,
+        address indexed token,
+        uint256 minShares,
         uint256 amount,
         uint256 assets
+    );
+
+    event Redeem(
+        address indexed caller,
+        address indexed receiver,
+        address indexed token,
+        uint256 minRedemption,
+        uint256 amount,
+        uint256 redemption
     );
 
     error ZeroAmount();
@@ -51,7 +60,7 @@ contract PirexGlp is ReentrancyGuard {
         @param  receiver   address  Recipient of pxGLP
         @return assets     uint256  Amount of pxGLP
      */
-    function mintWithETH(uint256 minShares, address receiver)
+    function depositWithETH(uint256 minShares, address receiver)
         external
         payable
         nonReentrant
@@ -70,11 +79,11 @@ contract PirexGlp is ReentrancyGuard {
         // Mint pxGLP based on the actual amount of GLP minted
         pxGlp.mint(receiver, assets);
 
-        emit Mint(
+        emit Deposit(
             msg.sender,
-            minShares,
             receiver,
             address(0),
+            minShares,
             msg.value,
             assets
         );
@@ -88,7 +97,7 @@ contract PirexGlp is ReentrancyGuard {
         @param  receiver     address  Recipient of pxGLP
         @return assets       uint256  Amount of pxGLP
      */
-    function mintWithERC20(
+    function depositWithERC20(
         address token,
         uint256 tokenAmount,
         uint256 minShares,
@@ -115,6 +124,90 @@ contract PirexGlp is ReentrancyGuard {
 
         pxGlp.mint(receiver, assets);
 
-        emit Mint(msg.sender, minShares, receiver, token, tokenAmount, assets);
+        emit Deposit(
+            msg.sender,
+            receiver,
+            token,
+            minShares,
+            tokenAmount,
+            assets
+        );
+    }
+
+    /**
+        @notice Redeem back ETH from pxGLP
+        @param  amount         uint256  Amount of pxGLP
+        @param  minRedemption  uint256  Minimum amount of ETH to be redeemed
+        @param  receiver       address  Recipient of the redeemed ETH
+        @return redeemed       uint256  Amount of ETH received
+     */
+    function redeemForETH(
+        uint256 amount,
+        uint256 minRedemption,
+        address receiver
+    ) external nonReentrant returns (uint256 redeemed) {
+        if (amount == 0) revert ZeroAmount();
+        if (minRedemption == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Burn pxGLP before unstaking the underlying GLP
+        pxGlp.burn(receiver, amount);
+
+        // Unstake and redeem the underlying GLP for ETH
+        redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlpETH(
+            amount,
+            minRedemption,
+            receiver
+        );
+
+        emit Redeem(
+            msg.sender,
+            receiver,
+            address(0),
+            minRedemption,
+            amount,
+            redeemed
+        );
+    }
+
+    /**
+        @notice Redeem back any of the whitelisted ERC20 tokens from pxGLP
+        @param  token          address  GMX-whitelisted token to be redeemed
+        @param  amount         uint256  Amount of pxGLP
+        @param  minRedemption  uint256  Minimum amount of token to be redeemed
+        @param  receiver       address  Recipient of the redeemed token
+        @return redeemed       uint256  Amount of token received
+     */
+    function redeemForERC20(
+        address token,
+        uint256 amount,
+        uint256 minRedemption,
+        address receiver
+    ) external nonReentrant returns (uint256 redeemed) {
+        if (token == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+        if (minRedemption == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+        if (!VAULT.whitelistedTokens(token)) revert InvalidToken(token);
+
+        // Burn pxGLP before unstaking the underlying GLP
+        pxGlp.burn(receiver, amount);
+
+        // Unstake and redeem the underlying GLP for ERC20 token
+        redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlp(
+            token,
+            amount,
+            minRedemption,
+            receiver
+        );
+
+        emit Redeem(
+            msg.sender,
+            receiver,
+            token,
+            minRedemption,
+            amount,
+            redeemed
+        );
     }
 }

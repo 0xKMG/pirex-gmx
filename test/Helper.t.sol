@@ -50,4 +50,7 @@ contract Helper {
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
     }
+
+    // For testing ETH transfers
+    receive() external payable {}
 }
