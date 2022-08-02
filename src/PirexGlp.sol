@@ -124,7 +124,14 @@ contract PirexGlp is ReentrancyGuard {
 
         pxGlp.mint(receiver, assets);
 
-        emit Deposit(msg.sender, receiver, token, minShares, tokenAmount, assets);
+        emit Deposit(
+            msg.sender,
+            receiver,
+            token,
+            minShares,
+            tokenAmount,
+            assets
+        );
     }
 
     /**
