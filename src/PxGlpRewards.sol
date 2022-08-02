@@ -23,9 +23,6 @@ contract PxGlpRewards is Owned {
         uint256 rewards;
     }
 
-    // Token to reward
-    ERC20 public immutable rewardToken;
-
     // Strategy producing rewards
     ERC20 public strategy;
 
@@ -43,14 +40,7 @@ contract PxGlpRewards is Owned {
 
     error ZeroAddress();
 
-    /**
-        @param  _rewardToken  ERC20  Rewards token
-    */
-    constructor(ERC20 _rewardToken) Owned(msg.sender) {
-        if (address(_rewardToken) == address(0)) revert ZeroAddress();
-
-        rewardToken = _rewardToken;
-    }
+    constructor() Owned(msg.sender) {}
 
     /**
         @notice Set the strategy
@@ -88,8 +78,8 @@ contract PxGlpRewards is Owned {
             rewards: globalState.rewards +
                 (block.timestamp - globalState.lastUpdate) *
                 strategy.totalSupply(),
-            wethFromGmx: fromGmx,
-            wethFromGlp: fromGlp
+            wethFromGmx: globalState.wethFromGmx + fromGmx,
+            wethFromGlp: globalState.wethFromGlp + fromGlp
         });
     }
 

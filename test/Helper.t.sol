@@ -65,7 +65,7 @@ contract Helper is Test {
     receive() external payable {}
 
     constructor() {
-        pxGlpRewards = new PxGlpRewards(WETH);
+        pxGlpRewards = new PxGlpRewards();
         pxGlp = new PxGlp(address(pxGlpRewards));
         pirexGlp = new PirexGlp(address(pxGlp), address(pxGlpRewards));
 
