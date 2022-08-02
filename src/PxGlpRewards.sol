@@ -133,22 +133,28 @@ contract PxGlpRewards is Owned {
         GlobalState memory g = globalAccrue();
         UserState memory u = userAccrue(msg.sender);
 
+        // Cache repeatedly-accessed struct members
+        uint256 globalRewards = g.rewards;
+        uint256 globalWethFromGmx = g.wethFromGmx;
+        uint256 globalWethFromGlp = g.wethFromGlp;
+        uint256 userRewards = u.rewards;
+
         // User's share of global WETH rewards earned from GMX and GLP
-        uint256 wethFromGmx = (g.wethFromGmx * u.rewards) / g.rewards;
-        uint256 wethFromGlp = (g.wethFromGlp * u.rewards) / g.rewards;
+        uint256 wethFromGmx = (globalWethFromGmx * userRewards) / globalRewards;
+        uint256 wethFromGlp = (globalWethFromGlp * userRewards) / globalRewards;
 
         // Update global and user reward states to prevent double claims
-        globalState.rewards = globalState.rewards - u.rewards;
-        globalState.wethFromGmx = g.wethFromGmx - wethFromGmx;
-        globalState.wethFromGlp = g.wethFromGlp - wethFromGlp;
+        globalState.rewards = globalRewards - userRewards;
+        globalState.wethFromGmx = globalWethFromGmx - wethFromGmx;
+        globalState.wethFromGlp = globalWethFromGlp - wethFromGlp;
         userStates[msg.sender].rewards = 0;
         total = wethFromGmx + wethFromGlp;
 
         emit ClaimWETHRewards(
             msg.sender,
             receiver,
-            g.rewards,
-            u.rewards,
+            globalRewards,
+            userRewards,
             wethFromGmx,
             wethFromGlp
         );
