@@ -82,6 +82,7 @@ contract PxGlpRewards is Owned {
 
     /**
         @notice Update global rewards accrual state
+        @return GlobalState  Global state
     */
     function globalAccrue() public returns (GlobalState memory) {
         (uint256 fromGmx, uint256 fromGlp, ) = pirexGlp.claimWETHRewards();
@@ -101,7 +102,8 @@ contract PxGlpRewards is Owned {
 
     /**
         @notice Update user rewards accrual state
-        @param  user  address  User
+        @param  user  address    User
+        @return       UserState  User state
     */
     function userAccrue(address user) public returns (UserState memory) {
         UserState storage u = userStates[user];
@@ -120,8 +122,12 @@ contract PxGlpRewards is Owned {
     /**
         @notice Claim WETH rewards for user
         @param  receiver  address  Recipient of WETH rewards
+        @return total     uint256  Total WETH rewards earned from both GMX and GLP
     */
-    function claimWETHRewards(address receiver) external {
+    function claimWETHRewards(address receiver)
+        external
+        returns (uint256 total)
+    {
         if (receiver == address(0)) revert ZeroAddress();
 
         GlobalState memory g = globalAccrue();
@@ -136,6 +142,7 @@ contract PxGlpRewards is Owned {
         globalState.wethFromGmx = g.wethFromGmx - wethFromGmx;
         globalState.wethFromGlp = g.wethFromGlp - wethFromGlp;
         userStates[msg.sender].rewards = 0;
+        total = wethFromGmx + wethFromGlp;
 
         emit ClaimWETHRewards(
             msg.sender,
@@ -146,6 +153,6 @@ contract PxGlpRewards is Owned {
             wethFromGlp
         );
 
-        WETH.safeTransfer(receiver, wethFromGmx + wethFromGlp);
+        WETH.safeTransfer(receiver, total);
     }
 }

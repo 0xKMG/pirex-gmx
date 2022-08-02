@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import "forge-std/Test.sol";
-
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PxGlpRewards} from "src/PxGlpRewards.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
@@ -594,8 +592,9 @@ contract PxGlpRewardsTest is Helper {
                     globalRewardsPreClaim
             );
 
-            pxGlpRewards.claimWETHRewards(testAccount);
-
+            uint256 actualUserWETHRewards = pxGlpRewards.claimWETHRewards(
+                testAccount
+            );
             (
                 ,
                 uint256 globalRewardsPostClaim,
@@ -609,6 +608,7 @@ contract PxGlpRewardsTest is Helper {
             );
 
             // Ensure global and user states are properly updated after claiming
+            assertEq(actualUserWETHRewards, expectedUserWETHRewards);
             assertEq(
                 WETH.balanceOf(testAccount) - userWETHBalancePreClaim,
                 expectedUserWETHRewards
