@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import "forge-std/Test.sol";
-
 import {PxGlp} from "src/PxGlp.sol";
 import {Helper} from "./Helper.t.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-contract PxGlpTest is Test, Helper {
+contract PxGlpTest is Helper {
     /*//////////////////////////////////////////////////////////////
                         mint TESTS
     //////////////////////////////////////////////////////////////*/
@@ -47,10 +45,25 @@ contract PxGlpTest is Test, Helper {
     }
 
     /**
+        @notice Test tx reversion due to amount being zero
+     */
+    function testCannotMintToZeroAmount() external {
+        address to = address(this);
+        uint256 invalidAmount = 0;
+
+        vm.prank(address(pirexGlp));
+        vm.expectRevert(PxGlp.ZeroAmount.selector);
+
+        pxGlp.mint(to, invalidAmount);
+    }
+
+    /**
         @notice Test minting pxGLP
         @param  amount  uint256  Amount to mint
      */
     function testMint(uint256 amount) external {
+        vm.assume(amount != 0);
+
         address to = address(this);
         uint256 premintBalance = pxGlp.balanceOf(address(this));
 

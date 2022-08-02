@@ -5,23 +5,32 @@ import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IRewardRouterV2} from "./interfaces/IRewardRouterV2.sol";
+import {IRewardTracker} from "./interfaces/IRewardTracker.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
 
 contract PirexGlp is ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
+    // GMX contracts and addresses
     IRewardRouterV2 public constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
-    ERC20 public constant FS_GLP =
-        ERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
+    IRewardTracker public constant REWARD_TRACKER_GMX =
+        IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
+    IRewardTracker public constant REWARD_TRACKER_GLP =
+        IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
     Vault public constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
-
     address public constant GLP_MANAGER =
         0x321F653eED006AD1C29D174e17d96351BDe22649;
+    ERC20 public constant WETH =
+        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
+    // Pirex contracts
     PxGlp public immutable pxGlp;
+
+    // Mutability subject to change
+    address public immutable pxGlpRewards;
 
     event Deposit(
         address indexed caller,
@@ -44,19 +53,23 @@ contract PirexGlp is ReentrancyGuard {
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
+    error NotPxGlpRewards();
 
     /**
-        @param  _pxGlp  address  PxGlp contract address
+        @param  _pxGlp         address  PxGlp contract address
+        @param  _pxGlpRewards  address  PxGlpRewards contract address
     */
-    constructor(address _pxGlp) {
+    constructor(address _pxGlp, address _pxGlpRewards) {
         if (_pxGlp == address(0)) revert ZeroAddress();
+        if (_pxGlpRewards == address(0)) revert ZeroAddress();
 
         pxGlp = PxGlp(_pxGlp);
+        pxGlpRewards = _pxGlpRewards;
     }
 
     /**
         @notice Deposit ETH for pxGLP
-        @param  minShares  uint256  Minimum amount of pxGLP
+        @param  minShares  uint256  Minimum amount of GLP
         @param  receiver   address  Recipient of pxGLP
         @return assets     uint256  Amount of pxGLP
      */
@@ -93,7 +106,7 @@ contract PirexGlp is ReentrancyGuard {
         @notice Deposit whitelisted ERC20 token for pxGLP
         @param  token        address  GMX-whitelisted token for buying GLP
         @param  tokenAmount  uint256  Whitelisted token amount
-        @param  minShares    uint256  Minimum amount of pxGLP
+        @param  minShares    uint256  Minimum amount of GLP
         @param  receiver     address  Recipient of pxGLP
         @return assets       uint256  Amount of pxGLP
      */
@@ -209,5 +222,53 @@ contract PirexGlp is ReentrancyGuard {
             amount,
             redeemed
         );
+    }
+
+    /**
+        @notice Claim WETH rewards
+        @return fromGmx  uint256  WETH earned from staked esGMX
+        @return fromGlp  uint256  WETH earned from staked GLP
+        @return weth     uint256  WETH transferred
+     */
+    function claimWETHRewards()
+        external
+        returns (
+            uint256 fromGmx,
+            uint256 fromGlp,
+            uint256 weth
+        )
+    {
+        // Restrict call to pxGlpRewards since it is the rewards receiver
+        // Additionally, the WETH amount may need to be synced with reward points
+        if (msg.sender != pxGlpRewards) revert NotPxGlpRewards();
+
+        // Retrieve the WETH reward amounts for each reward-producing token
+        fromGmx = REWARD_TRACKER_GMX.claimable(address(this));
+        fromGlp = REWARD_TRACKER_GLP.claimable(address(this));
+
+        uint256 wethBalanceBefore = WETH.balanceOf(address(this));
+
+        // Claim only WETH rewards to keep gas to a minimum
+        REWARD_ROUTER_V2.handleRewards(
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+        );
+
+        uint256 fromGmxGlp = fromGmx + fromGlp;
+
+        if (fromGmxGlp != 0) {
+            // Recalculate fromGmx/Glp since the WETH amount received may differ
+            weth = WETH.balanceOf(address(this)) - wethBalanceBefore;
+            fromGmx = (weth * fromGmx) / fromGmxGlp;
+            fromGlp = (weth * fromGlp) / fromGmxGlp;
+
+            // Check above ensures that msg.sender is pxGlpRewards
+            WETH.safeTransfer(msg.sender, weth);
+        }
     }
 }

@@ -1,19 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "forge-std/Test.sol";
+
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
+import {PxGlpRewards} from "src/PxGlpRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
+import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
 import {IReader} from "src/interfaces/IReader.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
 
-contract Helper {
+contract Helper is Test {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
+    IRewardTracker public constant REWARD_TRACKER_GMX =
+        IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
+    IRewardTracker public constant REWARD_TRACKER_GLP =
+        IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
     IVaultReader internal constant VAULT_READER =
         IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
     IGlpManager internal constant GLP_MANAGER =
@@ -29,13 +38,15 @@ contract Helper {
     IERC20 FEE_STAKED_GLP = IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     IWBTC internal constant WBTC =
         IWBTC(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
+    ERC20 internal constant WETH =
+        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     PirexGlp internal immutable pirexGlp;
     PxGlp internal immutable pxGlp;
+    PxGlpRewards internal immutable pxGlpRewards;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
-    address internal constant WETH = 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1;
     uint256 internal constant FEE_BPS = 25;
     uint256 internal constant TAX_BPS = 50;
     uint256 internal constant BPS_DIVISOR = 10_000;
@@ -44,13 +55,37 @@ contract Helper {
     uint256 internal constant EXPANDED_GLP_DECIMALS = 18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
 
-    constructor() {
-        pxGlp = new PxGlp(address(this));
-        pirexGlp = new PirexGlp(address(pxGlp));
-
-        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
-    }
+    address[3] internal testAccounts = [
+        0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
+        0xE36Ea790bc9d7AB70C55260C66D52b1eca985f84,
+        0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
+    ];
 
     // For testing ETH transfers
     receive() external payable {}
+
+    constructor() {
+        pxGlpRewards = new PxGlpRewards();
+        pxGlp = new PxGlp(address(pxGlpRewards));
+        pirexGlp = new PirexGlp(address(pxGlp), address(pxGlpRewards));
+
+        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
+        pxGlpRewards.setStrategyForRewards(pxGlp);
+        pxGlpRewards.setPirexGlp(pirexGlp);
+    }
+
+    /**
+        @notice Mint WBTC for testing ERC20 GLP minting
+        @param  amount  uint256  Amount of WBTC
+     */
+    function _mintWbtc(uint256 amount) internal {
+        // Set self to l2Gateway
+        vm.store(
+            address(WBTC),
+            bytes32(uint256(204)),
+            bytes32(uint256(uint160(address(this))))
+        );
+
+        WBTC.bridgeMint(address(this), amount);
+    }
 }
