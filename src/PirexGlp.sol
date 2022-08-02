@@ -69,7 +69,7 @@ contract PirexGlp is ReentrancyGuard {
 
     /**
         @notice Deposit ETH for pxGLP
-        @param  minGlp     uint256  Minimum amount of GLP
+        @param  minShares  uint256  Minimum amount of GLP
         @param  receiver   address  Recipient of pxGLP
         @return assets     uint256  Amount of pxGLP
      */
@@ -80,13 +80,13 @@ contract PirexGlp is ReentrancyGuard {
         returns (uint256 assets)
     {
         if (msg.value == 0) revert ZeroAmount();
-        if (minGlp == 0) revert ZeroAmount();
+        if (minShares == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
         // Buy GLP with the user's ETH, specifying the minimum amount of GLP
         assets = REWARD_ROUTER_V2.mintAndStakeGlpETH{value: msg.value}(
             0,
-            minGlp
+            minShares
         );
 
         // Mint pxGLP based on the actual amount of GLP minted
@@ -106,19 +106,19 @@ contract PirexGlp is ReentrancyGuard {
         @notice Deposit whitelisted ERC20 token for pxGLP
         @param  token        address  GMX-whitelisted token for buying GLP
         @param  tokenAmount  uint256  Whitelisted token amount
-        @param  minGlp       uint256  Minimum amount of GLP
+        @param  minShares    uint256  Minimum amount of GLP
         @param  receiver     address  Recipient of pxGLP
         @return assets       uint256  Amount of pxGLP
      */
     function depositWithERC20(
         address token,
         uint256 tokenAmount,
-        uint256 minGlp,
+        uint256 minShares,
         address receiver
     ) external nonReentrant returns (uint256 assets) {
         if (token == address(0)) revert ZeroAddress();
         if (tokenAmount == 0) revert ZeroAmount();
-        if (minGlp == 0) revert ZeroAmount();
+        if (minShares == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
         if (!VAULT.whitelistedTokens(token)) revert InvalidToken(token);
 
@@ -132,7 +132,7 @@ contract PirexGlp is ReentrancyGuard {
             token,
             tokenAmount,
             0,
-            minGlp
+            minShares
         );
 
         pxGlp.mint(receiver, assets);

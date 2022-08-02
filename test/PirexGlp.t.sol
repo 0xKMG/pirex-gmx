@@ -589,7 +589,7 @@ contract PirexGlpTest is Helper {
 
         uint256 assets = _depositGlpWithETH(etherAmount, receiver);
         uint256 invalidMinRedemption = _calculateMinRedemptionAmount(
-            WETH,
+            address(WETH),
             assets
         ) * 2;
 
@@ -606,7 +606,7 @@ contract PirexGlpTest is Helper {
         vm.assume(etherAmount > 0.1 ether);
         vm.assume(etherAmount < 1_000 ether);
 
-        address token = WETH;
+        address token = address(WETH);
         address receiver = address(this);
 
         // Mint pxGLP with ETH before attempting to redeem back into ETH
@@ -819,7 +819,7 @@ contract PirexGlpTest is Helper {
         // Mint pxGLP in order to begin accrual of GMX rewards
         _mintWbtc(tokenAmount);
         WBTC.approve(address(pirexGlp), tokenAmount);
-        pirexGlp.mintWithERC20(token, tokenAmount, minShares, receiver);
+        pirexGlp.depositWithERC20(token, tokenAmount, minShares, receiver);
 
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + 10000);
@@ -865,7 +865,7 @@ contract PirexGlpTest is Helper {
         // Mint pxGLP in order to begin accrual of GMX rewards
         _mintWbtc(tokenAmount);
         WBTC.approve(address(pirexGlp), tokenAmount);
-        pirexGlp.mintWithERC20(token, tokenAmount, minShares, receiver);
+        pirexGlp.depositWithERC20(token, tokenAmount, minShares, receiver);
 
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + 10000);

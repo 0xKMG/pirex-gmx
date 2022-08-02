@@ -47,9 +47,9 @@ contract PxGlpRewardsTest is Helper {
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGlp.mintWithETH{value: tokenAmount}(1, testAccounts[i]);
+                pirexGlp.depositWithETH{value: tokenAmount}(1, testAccounts[i]);
             } else {
-                pirexGlp.mintWithERC20(
+                pirexGlp.depositWithERC20(
                     address(WBTC),
                     tokenAmount,
                     1,
@@ -456,7 +456,7 @@ contract PxGlpRewardsTest is Helper {
 
         vm.deal(address(this), tokenAmount);
 
-        pirexGlp.mintWithETH{value: tokenAmount}(1, sender);
+        pirexGlp.depositWithETH{value: tokenAmount}(1, sender);
 
         // Forward time in order to accrue rewards for sender
         vm.warp(block.timestamp + secondsElapsed);
