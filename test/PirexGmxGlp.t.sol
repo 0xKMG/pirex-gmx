@@ -308,6 +308,9 @@ contract PirexGmxGlpTest is Helper {
 
         uint256 previousGMXBalance = GMX.balanceOf(receiver);
         uint256 previousPxGmxBalance = pxGmx.balanceOf(receiver);
+        uint256 previousStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
+            address(pirexGmxGlp)
+        );
 
         assertEq(previousGMXBalance - premintGMXBalance, gmxAmount);
 
@@ -315,16 +318,17 @@ contract PirexGmxGlpTest is Helper {
 
         vm.expectEmit(true, true, false, false, address(pirexGmxGlp));
 
-        emit DepositGmx(
-            address(this),
-            receiver,
-            gmxAmount
-        );
+        emit DepositGmx(address(this), receiver, gmxAmount);
 
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
 
         assertEq(previousGMXBalance - GMX.balanceOf(receiver), gmxAmount);
         assertEq(pxGmx.balanceOf(receiver) - previousPxGmxBalance, gmxAmount);
+        assertEq(
+            REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)) -
+                previousStakedGMXBalance,
+            gmxAmount
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
