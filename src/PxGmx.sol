@@ -25,15 +25,4 @@ contract PxGmx is ERC20("Pirex GMX", "pxGMX", 18), AccessControl {
 
         _mint(to, amount);
     }
-
-    /**
-        @notice Burn pxGMX
-        @param  from    address  Account owning the pxGMX to be burned
-        @param  amount  uint256  Amount of pxGMX
-    */
-    function burn(address from, uint256 amount) external onlyRole(MINTER_ROLE) {
-        if (from == address(0)) revert ZeroAddress();
-
-        _burn(from, amount);
-    }
 }
