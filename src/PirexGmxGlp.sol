@@ -20,8 +20,6 @@ contract PirexGmxGlp is ReentrancyGuard {
         IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
     IRewardTracker public constant REWARD_TRACKER_GLP =
         IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
-    IRewardTracker public constant STAKED_GMX =
-        IRewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
     Vault public constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public constant GLP_MANAGER =
@@ -71,11 +69,13 @@ contract PirexGmxGlp is ReentrancyGuard {
         @param  _pxGmx         address  PxGmx contract address
         @param  _pxGlp         address  PxGlp contract address
         @param  _pxGlpRewards  address  PxGlpRewards contract address
+        @param  _stakedGmx     address  StakedGmx contract address
     */
     constructor(
         address _pxGmx,
         address _pxGlp,
-        address _pxGlpRewards
+        address _pxGlpRewards,
+        address _stakedGmx
     ) {
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
@@ -85,8 +85,8 @@ contract PirexGmxGlp is ReentrancyGuard {
         pxGlp = PxGlp(_pxGlp);
         pxGlpRewards = _pxGlpRewards;
 
-        // Pre-approving STAKED_GMX for staking GMX on behalf of our vault
-        GMX.safeApprove(address(STAKED_GMX), type(uint256).max);
+        // Pre-approving stakedGmx contract for staking GMX on behalf of our vault
+        GMX.safeApprove(_stakedGmx, type(uint256).max);
     }
 
     /**

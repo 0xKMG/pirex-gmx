@@ -46,6 +46,9 @@ contract Helper is Test {
     ERC20 internal constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
+    address internal constant STAKED_GMX =
+        0x908C4D94D34924765f1eDc22A1DD098397c59dD4;
+
     PirexGmxGlp internal immutable pirexGmxGlp;
     PxGmx internal immutable pxGmx;
     PxGlp internal immutable pxGlp;
@@ -77,7 +80,8 @@ contract Helper is Test {
         pirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
-            address(pxGlpRewards)
+            address(pxGlpRewards),
+            STAKED_GMX
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
