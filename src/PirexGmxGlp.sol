@@ -69,13 +69,13 @@ contract PirexGmxGlp is ReentrancyGuard {
         @param  _pxGmx         address  PxGmx contract address
         @param  _pxGlp         address  PxGlp contract address
         @param  _pxGlpRewards  address  PxGlpRewards contract address
-        @param  _stakedGmx     address  StakedGmx contract address
+        @param  stakedGmx      address  StakedGmx contract address
     */
     constructor(
         address _pxGmx,
         address _pxGlp,
         address _pxGlpRewards,
-        address _stakedGmx
+        address stakedGmx
     ) {
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
@@ -86,7 +86,7 @@ contract PirexGmxGlp is ReentrancyGuard {
         pxGlpRewards = _pxGlpRewards;
 
         // Pre-approving stakedGmx contract for staking GMX on behalf of our vault
-        GMX.safeApprove(_stakedGmx, type(uint256).max);
+        GMX.safeApprove(stakedGmx, type(uint256).max);
     }
 
     /**
