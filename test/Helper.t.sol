@@ -8,6 +8,7 @@ import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PxGlpRewards} from "src/PxGlpRewards.sol";
+import {RewardsCoordinator} from "src/rewards/RewardsCoordinator.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
@@ -44,6 +45,7 @@ contract Helper is Test {
     PirexGlp internal immutable pirexGlp;
     PxGlp internal immutable pxGlp;
     PxGlpRewards internal immutable pxGlpRewards;
+    RewardsCoordinator internal immutable rewardsCoordinator;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -68,6 +70,7 @@ contract Helper is Test {
         pxGlpRewards = new PxGlpRewards();
         pxGlp = new PxGlp(address(pxGlpRewards));
         pirexGlp = new PirexGlp(address(pxGlp), address(pxGlpRewards));
+        rewardsCoordinator = new RewardsCoordinator();
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         pxGlpRewards.setStrategyForRewards(pxGlp);
