@@ -65,12 +65,86 @@ contract PxGlpTest is Helper {
         vm.assume(amount != 0);
 
         address to = address(this);
-        uint256 premintBalance = pxGlp.balanceOf(address(this));
+        uint256 premintBalance = pxGlp.balanceOf(to);
 
         vm.prank(address(pirexGmxGlp));
 
         pxGlp.mint(to, amount);
 
-        assertEq(pxGlp.balanceOf(address(this)) - premintBalance, amount);
+        assertEq(pxGlp.balanceOf(to) - premintBalance, amount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        burn TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not having the minter role
+     */
+    function testCannotBurnNoMinterRole() external {
+        address from = address(this);
+        uint256 amount = 1;
+
+        vm.expectRevert(
+            bytes(
+                abi.encodePacked(
+                    "AccessControl: account ",
+                    Strings.toHexString(uint160(address(this)), 20),
+                    " is missing role ",
+                    Strings.toHexString(uint256(pxGlp.MINTER_ROLE()), 32)
+                )
+            )
+        );
+
+        pxGlp.burn(from, amount);
+    }
+
+    /**
+        @notice Test tx reversion due to to being the zero address
+     */
+    function testCannotBurnFromZeroAddress() external {
+        address invalidFrom = address(0);
+        uint256 amount = 1;
+
+        vm.prank(address(pirexGmxGlp));
+        vm.expectRevert(PxGlp.ZeroAddress.selector);
+
+        pxGlp.burn(invalidFrom, amount);
+    }
+
+    /**
+        @notice Test tx reversion due to amount being zero
+     */
+    function testCannotBurnWithZeroAmount() external {
+        address from = address(this);
+        uint256 invalidAmount = 0;
+
+        vm.prank(address(pirexGmxGlp));
+        vm.expectRevert(PxGlp.ZeroAmount.selector);
+
+        pxGlp.burn(from, invalidAmount);
+    }
+
+    /**
+        @notice Test burning pxGLP
+        @param  amount  uint256  Amount to burn
+     */
+    function testBurn(uint256 amount) external {
+        vm.assume(amount != 0);
+
+        address account = address(this);
+
+        vm.startPrank(address(pirexGmxGlp));
+
+        // Mint first before attempting to burn
+        pxGlp.mint(account, amount);
+
+        uint256 preburnBalance = pxGlp.balanceOf(account);
+
+        pxGlp.burn(account, amount);
+
+        vm.stopPrank();
+
+        assertEq(preburnBalance - pxGlp.balanceOf(address(this)), amount);
     }
 }

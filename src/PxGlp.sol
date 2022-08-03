@@ -49,6 +49,7 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
     */
     function burn(address from, uint256 amount) external onlyRole(MINTER_ROLE) {
         if (from == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
 
         _burn(from, amount);
     }
