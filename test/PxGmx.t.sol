@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {PxGlp} from "src/PxGlp.sol";
+import {PxGmx} from "src/PxGmx.sol";
 import {Helper} from "./Helper.t.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
-contract PxGlpTest is Helper {
+contract PxGmxTest is Helper {
     /*//////////////////////////////////////////////////////////////
                         mint TESTS
     //////////////////////////////////////////////////////////////*/
@@ -23,12 +23,12 @@ contract PxGlpTest is Helper {
                     "AccessControl: account ",
                     Strings.toHexString(uint160(address(this)), 20),
                     " is missing role ",
-                    Strings.toHexString(uint256(pxGlp.MINTER_ROLE()), 32)
+                    Strings.toHexString(uint256(pxGmx.MINTER_ROLE()), 32)
                 )
             )
         );
 
-        pxGlp.mint(to, amount);
+        pxGmx.mint(to, amount);
     }
 
     /**
@@ -39,9 +39,9 @@ contract PxGlpTest is Helper {
         uint256 amount = 1;
 
         vm.prank(address(pirexGmxGlp));
-        vm.expectRevert(PxGlp.ZeroAddress.selector);
+        vm.expectRevert(PxGmx.ZeroAddress.selector);
 
-        pxGlp.mint(invalidTo, amount);
+        pxGmx.mint(invalidTo, amount);
     }
 
     /**
@@ -52,25 +52,25 @@ contract PxGlpTest is Helper {
         uint256 invalidAmount = 0;
 
         vm.prank(address(pirexGmxGlp));
-        vm.expectRevert(PxGlp.ZeroAmount.selector);
+        vm.expectRevert(PxGmx.ZeroAmount.selector);
 
-        pxGlp.mint(to, invalidAmount);
+        pxGmx.mint(to, invalidAmount);
     }
 
     /**
-        @notice Test minting pxGLP
+        @notice Test minting pxGMX
         @param  amount  uint256  Amount to mint
      */
     function testMint(uint256 amount) external {
         vm.assume(amount != 0);
 
         address to = address(this);
-        uint256 premintBalance = pxGlp.balanceOf(address(this));
+        uint256 premintBalance = pxGmx.balanceOf(address(this));
 
         vm.prank(address(pirexGmxGlp));
 
-        pxGlp.mint(to, amount);
+        pxGmx.mint(to, amount);
 
-        assertEq(pxGlp.balanceOf(address(this)) - premintBalance, amount);
+        assertEq(pxGmx.balanceOf(address(this)) - premintBalance, amount);
     }
 }

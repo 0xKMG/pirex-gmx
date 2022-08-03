@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {PirexGlp} from "src/PirexGlp.sol";
+import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {Vault} from "src/external/Vault.sol";
 import {Helper} from "./Helper.t.sol";
 
-contract PirexGlpTest is Helper {
-    event Deposit(
+contract PirexGmxGlpTest is Helper {
+    event DepositGlp(
         address indexed caller,
         address indexed receiver,
         address indexed token,
@@ -15,7 +15,7 @@ contract PirexGlpTest is Helper {
         uint256 assets
     );
 
-    event Redeem(
+    event RedeemGlp(
         address indexed caller,
         address indexed receiver,
         address indexed token,
@@ -174,7 +174,7 @@ contract PirexGlpTest is Helper {
     {
         vm.deal(address(this), etherAmount);
 
-        uint256 assets = pirexGlp.depositWithETH{value: etherAmount}(
+        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             1,
             receiver
         );
@@ -197,9 +197,9 @@ contract PirexGlpTest is Helper {
     {
         _mintWbtc(tokenAmount);
 
-        WBTC.approve(address(pirexGlp), tokenAmount);
+        WBTC.approve(address(pirexGmxGlp), tokenAmount);
 
-        uint256 assets = pirexGlp.depositWithERC20(
+        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
             address(WBTC),
             tokenAmount,
             1,
@@ -243,53 +243,59 @@ contract PirexGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        depositWithETH TESTS
+                        depositGlpWithETH TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion due to msg.value being zero
      */
-    function testCannotDepositWithETHZeroValue() external {
+    function testCannotDepositGlpWithETHZeroValue() external {
         uint256 minShares = 1;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGlp.depositWithETH{value: 0}(minShares, receiver);
+        pirexGmxGlp.depositGlpWithETH{value: 0}(minShares, receiver);
     }
 
     /**
         @notice Test tx reversion due to minShares being zero
      */
-    function testCannotDepositWithETHZeroMinShares() external {
+    function testCannotDepositGlpWithETHZeroMinShares() external {
         uint256 etherAmount = 1 ether;
         uint256 invalidMinShares = 0;
         address receiver = address(this);
 
         vm.deal(address(this), etherAmount);
-        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGlp.depositWithETH{value: etherAmount}(invalidMinShares, receiver);
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+            invalidMinShares,
+            receiver
+        );
     }
 
     /**
         @notice Test tx reversion due to receiver being the zero address
      */
-    function testCannotDepositWithETHZeroReceiver() external {
+    function testCannotDepositGlpWithETHZeroReceiver() external {
         uint256 etherAmount = 1 ether;
         uint256 minShares = 1;
         address invalidReceiver = address(0);
 
         vm.deal(address(this), etherAmount);
-        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGlp.depositWithETH{value: etherAmount}(minShares, invalidReceiver);
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+            minShares,
+            invalidReceiver
+        );
     }
 
     /**
         @notice Test tx reversion due to minShares being GT than actual GLP amount
      */
-    function testCannotDepositWithETHExcessiveMinShares() external {
+    function testCannotDepositGlpWithETHExcessiveMinShares() external {
         uint256 etherAmount = 1 ether;
         uint256 invalidMinShares = _calculateMinGlpAmount(
             address(0),
@@ -301,14 +307,17 @@ contract PirexGlpTest is Helper {
         vm.deal(address(this), etherAmount);
         vm.expectRevert(bytes("GlpManager: insufficient GLP output"));
 
-        pirexGlp.depositWithETH{value: etherAmount}(invalidMinShares, receiver);
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+            invalidMinShares,
+            receiver
+        );
     }
 
     /**
         @notice Test depositing pxGLP with ETH
         @param  etherAmount  uint256  Amount of ether in wei units
      */
-    function testDepositWithETH(uint256 etherAmount) external {
+    function testDepositGlpWithETH(uint256 etherAmount) external {
         vm.assume(etherAmount > 0.001 ether);
         vm.assume(etherAmount < 1_000 ether);
         vm.deal(address(this), etherAmount);
@@ -323,15 +332,15 @@ contract PirexGlpTest is Helper {
         uint256 premintETHBalance = address(this).balance;
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         );
 
         assertEq(premintETHBalance, etherAmount);
 
-        vm.expectEmit(true, true, true, false, address(pirexGlp));
+        vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 
         // Cannot test the `asset` member of the event since it's not known until after
-        emit Deposit(
+        emit DepositGlp(
             address(this),
             receiver,
             address(0),
@@ -340,14 +349,14 @@ contract PirexGlpTest is Helper {
             0
         );
 
-        uint256 assets = pirexGlp.depositWithETH{value: etherAmount}(
+        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             minShares,
             receiver
         );
         uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
             premintPxGlpUserBalance;
         uint256 glpReceivedByPirex = FEE_STAKED_GLP.balanceOf(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         ) - premintGlpPirexBalance;
 
         assertEq(address(this).balance, premintETHBalance - etherAmount);
@@ -359,21 +368,21 @@ contract PirexGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        depositWithERC20 TESTS
+                        depositGlpWithERC20 TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion due to token being the zero address
      */
-    function testCannotDepositWithERC20TokenZeroAddress() external {
+    function testCannotDepositGlpWithERC20TokenZeroAddress() external {
         address invalidToken = address(0);
         uint256 tokenAmount = 1;
         uint256 minShares = 1;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGlp.depositWithERC20(
+        pirexGmxGlp.depositGlpWithERC20(
             invalidToken,
             tokenAmount,
             minShares,
@@ -384,15 +393,15 @@ contract PirexGlpTest is Helper {
     /**
         @notice Test tx reversion due to token amount being zero
      */
-    function testCannotDepositWithERC20TokenZeroAmount() external {
+    function testCannotDepositGlpWithERC20TokenZeroAmount() external {
         address token = address(WBTC);
         uint256 invalidTokenAmount = 0;
         uint256 minShares = 1;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGlp.depositWithERC20(
+        pirexGmxGlp.depositGlpWithERC20(
             token,
             invalidTokenAmount,
             minShares,
@@ -403,15 +412,15 @@ contract PirexGlpTest is Helper {
     /**
         @notice Test tx reversion due to minShares being zero
      */
-    function testCannotDepositWithERC20MinSharesZeroAmount() external {
+    function testCannotDepositGlpWithERC20MinSharesZeroAmount() external {
         address token = address(WBTC);
         uint256 tokenAmount = 1;
         uint256 invalidMinShares = 0;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGlp.depositWithERC20(
+        pirexGmxGlp.depositGlpWithERC20(
             token,
             tokenAmount,
             invalidMinShares,
@@ -422,15 +431,15 @@ contract PirexGlpTest is Helper {
     /**
         @notice Test tx reversion due to receiver being the zero address
      */
-    function testCannotDepositWithERC20ReceiverZeroAddress() external {
+    function testCannotDepositGlpWithERC20ReceiverZeroAddress() external {
         address token = address(WBTC);
         uint256 tokenAmount = 1;
         uint256 minShares = 1;
         address invalidReceiver = address(0);
 
-        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGlp.depositWithERC20(
+        pirexGmxGlp.depositGlpWithERC20(
             token,
             tokenAmount,
             minShares,
@@ -441,17 +450,20 @@ contract PirexGlpTest is Helper {
     /**
         @notice Test tx reversion due to token not being whitelisted by GMX
      */
-    function testCannotDepositWithERC20InvalidToken() external {
+    function testCannotDepositGlpWithERC20InvalidToken() external {
         address invalidToken = address(this);
         uint256 tokenAmount = 1;
         uint256 minShares = 1;
         address receiver = address(this);
 
         vm.expectRevert(
-            abi.encodeWithSelector(PirexGlp.InvalidToken.selector, invalidToken)
+            abi.encodeWithSelector(
+                PirexGmxGlp.InvalidToken.selector,
+                invalidToken
+            )
         );
 
-        pirexGlp.depositWithERC20(
+        pirexGmxGlp.depositGlpWithERC20(
             invalidToken,
             tokenAmount,
             minShares,
@@ -462,7 +474,7 @@ contract PirexGlpTest is Helper {
     /**
         @notice Test tx reversion due to minShares being GT than actual GLP amount
      */
-    function testCannotDepositWithERC20ExcessiveMinShares() external {
+    function testCannotDepositGlpWithERC20ExcessiveMinShares() external {
         uint256 tokenAmount = 1e8;
         address token = address(WBTC);
         uint256 invalidMinShares = _calculateMinGlpAmount(
@@ -473,11 +485,11 @@ contract PirexGlpTest is Helper {
         address receiver = address(this);
 
         _mintWbtc(tokenAmount);
-        WBTC.approve(address(pirexGlp), tokenAmount);
+        WBTC.approve(address(pirexGmxGlp), tokenAmount);
 
         vm.expectRevert(bytes("GlpManager: insufficient GLP output"));
 
-        pirexGlp.depositWithERC20(
+        pirexGmxGlp.depositGlpWithERC20(
             token,
             tokenAmount,
             invalidMinShares,
@@ -489,7 +501,7 @@ contract PirexGlpTest is Helper {
         @notice Test depositing pxGLP with whitelisted ERC20 tokens
         @param  tokenAmount  uint256  Token amount
      */
-    function testDepositWithERC20(uint256 tokenAmount) external {
+    function testDepositGlpWithERC20(uint256 tokenAmount) external {
         vm.assume(tokenAmount > 1e5);
         vm.assume(tokenAmount < 100e8);
 
@@ -502,19 +514,19 @@ contract PirexGlpTest is Helper {
         uint256 premintWBTCBalance = WBTC.balanceOf(address(this));
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         );
 
         assertTrue(WBTC.balanceOf(address(this)) == tokenAmount);
 
-        WBTC.approve(address(pirexGlp), tokenAmount);
+        WBTC.approve(address(pirexGmxGlp), tokenAmount);
 
-        vm.expectEmit(true, true, true, false, address(pirexGlp));
+        vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 
         // Cannot test the `asset` member of the event since it's not known until after
-        emit Deposit(address(this), receiver, token, minShares, tokenAmount, 0);
+        emit DepositGlp(address(this), receiver, token, minShares, tokenAmount, 0);
 
-        uint256 assets = pirexGlp.depositWithERC20(
+        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
             token,
             tokenAmount,
             minShares,
@@ -523,7 +535,7 @@ contract PirexGlpTest is Helper {
         uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
             premintPxGlpUserBalance;
         uint256 glpReceivedByPirex = FEE_STAKED_GLP.balanceOf(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         ) - premintGlpPirexBalance;
 
         assertEq(
@@ -538,52 +550,52 @@ contract PirexGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        redeemForETH TESTS
+                        redeemPxGlpForETH TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion due to msg.value being zero
      */
-    function testCannotRedeemForETHZeroValue() external {
+    function testCannotRedeemPxGlpForETHZeroValue() external {
         uint256 invalidAmount = 0;
         uint256 minRedemption = 1;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGlp.redeemForETH(invalidAmount, minRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpForETH(invalidAmount, minRedemption, receiver);
     }
 
     /**
         @notice Test tx reversion due to minRedemption being zero
      */
-    function testCannotRedeemForETHZeroMinRedemption() external {
+    function testCannotRedeemPxGlpForETHZeroMinRedemption() external {
         uint256 amount = 1;
         uint256 invalidMinRedemption = 0;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGlp.redeemForETH(amount, invalidMinRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpForETH(amount, invalidMinRedemption, receiver);
     }
 
     /**
         @notice Test tx reversion due to receiver being the zero address
      */
-    function testCannotRedeemForETHZeroReceiver() external {
+    function testCannotRedeemPxGlpForETHZeroReceiver() external {
         uint256 amount = 1;
         uint256 minRedemption = 1;
         address invalidReceiver = address(0);
 
-        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGlp.redeemForETH(amount, minRedemption, invalidReceiver);
+        pirexGmxGlp.redeemPxGlpForETH(amount, minRedemption, invalidReceiver);
     }
 
     /**
         @notice Test tx reversion due to minShares being GT than actual GLP amount
      */
-    function testCannotRedeemForETHExcessiveMinRedemption() external {
+    function testCannotRedeemPxGlpForETHExcessiveMinRedemption() external {
         uint256 etherAmount = 1 ether;
         address receiver = address(this);
 
@@ -595,14 +607,14 @@ contract PirexGlpTest is Helper {
 
         vm.expectRevert(bytes("GlpManager: insufficient output"));
 
-        pirexGlp.redeemForETH(assets, invalidMinRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpForETH(assets, invalidMinRedemption, receiver);
     }
 
     /**
         @notice Test redeeming back ETH from pxGLP
         @param  etherAmount  uint256  Amount of ether in wei units
      */
-    function testRedeemForETH(uint256 etherAmount) external {
+    function testRedeemPxGlpForETH(uint256 etherAmount) external {
         vm.assume(etherAmount > 0.1 ether);
         vm.assume(etherAmount < 1_000 ether);
 
@@ -615,15 +627,15 @@ contract PirexGlpTest is Helper {
         uint256 previousETHBalance = receiver.balance;
         uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 previousGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         );
 
         // Calculate the minimum redemption amount then perform the redemption
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
 
-        vm.expectEmit(true, true, true, false, address(pirexGlp));
+        vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 
-        emit Redeem(
+        emit RedeemGlp(
             address(this),
             receiver,
             address(0),
@@ -632,7 +644,7 @@ contract PirexGlpTest is Helper {
             0
         );
 
-        uint256 redeemed = pirexGlp.redeemForETH(
+        uint256 redeemed = pirexGmxGlp.redeemPxGlpForETH(
             assets,
             minRedemption,
             receiver
@@ -643,91 +655,119 @@ contract PirexGlpTest is Helper {
         assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
         assertEq(
             previousGlpPirexBalance -
-                FEE_STAKED_GLP.balanceOf(address(pirexGlp)),
+                FEE_STAKED_GLP.balanceOf(address(pirexGmxGlp)),
             assets
         );
     }
 
     /*//////////////////////////////////////////////////////////////
-                        redeemForERC20 TESTS
+                        redeemPxGlpForERC20 TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion due to token being the zero address
      */
-    function testCannotRedeemForERC20TokenZeroAddress() external {
+    function testCannotRedeemPxGlpForERC20TokenZeroAddress() external {
         address invalidToken = address(0);
         uint256 amount = 1;
         uint256 minRedemption = 1;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGlp.redeemForERC20(invalidToken, amount, minRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpForERC20(
+            invalidToken,
+            amount,
+            minRedemption,
+            receiver
+        );
     }
 
     /**
         @notice Test tx reversion due to msg.value being zero
      */
-    function testCannotRedeemForERC20ZeroValue() external {
+    function testCannotRedeemPxGlpForERC20ZeroValue() external {
         address token = address(WBTC);
         uint256 invalidAmount = 0;
         uint256 minRedemption = 1;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGlp.redeemForERC20(token, invalidAmount, minRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpForERC20(
+            token,
+            invalidAmount,
+            minRedemption,
+            receiver
+        );
     }
 
     /**
         @notice Test tx reversion due to minRedemption being zero
      */
-    function testCannotRedeemForERC20ZeroMinRedemption() external {
+    function testCannotRedeemPxGlpForERC20ZeroMinRedemption() external {
         address token = address(WBTC);
         uint256 amount = 1;
         uint256 invalidMinRedemption = 0;
         address receiver = address(this);
 
-        vm.expectRevert(PirexGlp.ZeroAmount.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGlp.redeemForERC20(token, amount, invalidMinRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpForERC20(
+            token,
+            amount,
+            invalidMinRedemption,
+            receiver
+        );
     }
 
     /**
         @notice Test tx reversion due to receiver being the zero address
      */
-    function testCannotRedeemForERC20ZeroReceiver() external {
+    function testCannotRedeemPxGlpForERC20ZeroReceiver() external {
         address token = address(WBTC);
         uint256 amount = 1;
         uint256 minRedemption = 1;
         address invalidReceiver = address(0);
 
-        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGlp.redeemForERC20(token, amount, minRedemption, invalidReceiver);
+        pirexGmxGlp.redeemPxGlpForERC20(
+            token,
+            amount,
+            minRedemption,
+            invalidReceiver
+        );
     }
 
     /**
         @notice Test tx reversion due to token not being whitelisted by GMX
      */
-    function testCannotRedeemForERC20InvalidToken() external {
+    function testCannotRedeemPxGlpForERC20InvalidToken() external {
         address invalidToken = address(this);
         uint256 amount = 1;
         uint256 minRedemption = 1;
         address receiver = address(this);
 
         vm.expectRevert(
-            abi.encodeWithSelector(PirexGlp.InvalidToken.selector, invalidToken)
+            abi.encodeWithSelector(
+                PirexGmxGlp.InvalidToken.selector,
+                invalidToken
+            )
         );
 
-        pirexGlp.redeemForERC20(invalidToken, amount, minRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpForERC20(
+            invalidToken,
+            amount,
+            minRedemption,
+            receiver
+        );
     }
 
     /**
         @notice Test tx reversion due to minRedemption being GT than actual token amount
      */
-    function testCannotRedeemForERC20ExcessiveMinRedemption() external {
+    function testCannotRedeemPxGlpForERC20ExcessiveMinRedemption() external {
         address token = address(WBTC);
         uint256 tokenAmount = 1e8;
         address receiver = address(this);
@@ -740,14 +780,19 @@ contract PirexGlpTest is Helper {
 
         vm.expectRevert(bytes("GlpManager: insufficient output"));
 
-        pirexGlp.redeemForERC20(token, assets, invalidMinRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpForERC20(
+            token,
+            assets,
+            invalidMinRedemption,
+            receiver
+        );
     }
 
     /**
         @notice Test redeeming back to whitelisted ERC20 tokens from pxGLP
         @param  tokenAmount  uint256  Token amount
      */
-    function testRedeemForERC20(uint256 tokenAmount) external {
+    function testRedeemPxGlpForERC20(uint256 tokenAmount) external {
         vm.assume(tokenAmount > 1e5);
         vm.assume(tokenAmount < 100e8);
 
@@ -760,15 +805,15 @@ contract PirexGlpTest is Helper {
         uint256 previousWBTCBalance = WBTC.balanceOf(receiver);
         uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 previousGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         );
 
         // Calculate the minimum redemption amount then perform the redemption
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
 
-        vm.expectEmit(true, true, true, false, address(pirexGlp));
+        vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 
-        emit Redeem(
+        emit RedeemGlp(
             address(this),
             receiver,
             token,
@@ -777,7 +822,7 @@ contract PirexGlpTest is Helper {
             0
         );
 
-        uint256 redeemed = pirexGlp.redeemForERC20(
+        uint256 redeemed = pirexGmxGlp.redeemPxGlpForERC20(
             token,
             assets,
             minRedemption,
@@ -789,7 +834,7 @@ contract PirexGlpTest is Helper {
         assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
         assertEq(
             previousGlpPirexBalance -
-                FEE_STAKED_GLP.balanceOf(address(pirexGlp)),
+                FEE_STAKED_GLP.balanceOf(address(pirexGmxGlp)),
             assets
         );
     }
@@ -802,9 +847,9 @@ contract PirexGlpTest is Helper {
         @notice Test tx reversion due to the caller not being pxGlpRewards
      */
     function testCannotClaimWETHRewardsNotPxGlpRewards() external {
-        vm.expectRevert(PirexGlp.NotPxGlpRewards.selector);
+        vm.expectRevert(PirexGmxGlp.NotPxGlpRewards.selector);
 
-        pirexGlp.claimWETHRewards();
+        pirexGmxGlp.claimWETHRewards();
     }
 
     /**
@@ -818,18 +863,23 @@ contract PirexGlpTest is Helper {
 
         // Mint pxGLP in order to begin accrual of GMX rewards
         _mintWbtc(tokenAmount);
-        WBTC.approve(address(pirexGlp), tokenAmount);
-        pirexGlp.depositWithERC20(token, tokenAmount, minShares, receiver);
+        WBTC.approve(address(pirexGmxGlp), tokenAmount);
+        pirexGmxGlp.depositGlpWithERC20(
+            token,
+            tokenAmount,
+            minShares,
+            receiver
+        );
 
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + 10000);
 
         address f = address(pxGlpRewards);
         uint256 claimableFromGmx = REWARD_TRACKER_GMX.claimable(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         );
         uint256 claimableFromGlp = REWARD_TRACKER_GLP.claimable(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         );
         uint256 totalClaimable = claimableFromGmx + claimableFromGlp;
 
@@ -839,11 +889,11 @@ contract PirexGlpTest is Helper {
         // Impersonate pxGlpRewards and claim WETH rewards
         vm.prank(f);
 
-        (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGlp
+        (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGmxGlp
             .claimWETHRewards();
         uint256 totalFromGmxGlp = fromGmx + fromGlp;
 
-        // fromGmx should be zero since pirexGlp should not have staked esGMX yet
+        // fromGmx should be zero since pirexGmxGlp should not have staked esGMX yet
         assertEq(fromGmx, 0);
 
         assertEq(WETH.balanceOf(f), weth);
@@ -864,14 +914,19 @@ contract PirexGlpTest is Helper {
 
         // Mint pxGLP in order to begin accrual of GMX rewards
         _mintWbtc(tokenAmount);
-        WBTC.approve(address(pirexGlp), tokenAmount);
-        pirexGlp.depositWithERC20(token, tokenAmount, minShares, receiver);
+        WBTC.approve(address(pirexGmxGlp), tokenAmount);
+        pirexGmxGlp.depositGlpWithERC20(
+            token,
+            tokenAmount,
+            minShares,
+            receiver
+        );
 
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + 10000);
 
-        // Impersonate pirexGlp and claim + stake esGMX to test WETH accrual
-        vm.prank(address(pirexGlp));
+        // Impersonate pirexGmxGlp and claim + stake esGMX to test WETH accrual
+        vm.prank(address(pirexGmxGlp));
 
         // Only claim and stake esGMX for now
         REWARD_ROUTER_V2.handleRewards(
@@ -888,10 +943,10 @@ contract PirexGlpTest is Helper {
 
         address f = address(pxGlpRewards);
         uint256 claimableFromGmx = REWARD_TRACKER_GMX.claimable(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         );
         uint256 claimableFromGlp = REWARD_TRACKER_GLP.claimable(
-            address(pirexGlp)
+            address(pirexGmxGlp)
         );
         uint256 totalClaimable = claimableFromGmx + claimableFromGlp;
 
@@ -900,7 +955,7 @@ contract PirexGlpTest is Helper {
 
         vm.prank(f);
 
-        (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGlp
+        (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGmxGlp
             .claimWETHRewards();
         uint256 totalFromGmxGlp = fromGmx + fromGlp;
 

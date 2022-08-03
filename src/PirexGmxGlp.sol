@@ -8,8 +8,9 @@ import {IRewardRouterV2} from "./interfaces/IRewardRouterV2.sol";
 import {IRewardTracker} from "./interfaces/IRewardTracker.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
+import {PxGmx} from "./PxGmx.sol";
 
-contract PirexGlp is ReentrancyGuard {
+contract PirexGmxGlp is ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
     // GMX contracts and addresses
@@ -19,20 +20,31 @@ contract PirexGlp is ReentrancyGuard {
         IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
     IRewardTracker public constant REWARD_TRACKER_GLP =
         IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
+    IRewardTracker public constant STAKED_GMX =
+        IRewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
     Vault public constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public constant GLP_MANAGER =
         0x321F653eED006AD1C29D174e17d96351BDe22649;
+    ERC20 public constant GMX =
+        ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
-    // Pirex contracts
+    // Pirex token contracts
+    PxGmx public immutable pxGmx;
     PxGlp public immutable pxGlp;
 
     // Mutability subject to change
     address public immutable pxGlpRewards;
 
-    event Deposit(
+    event DepositGmx(
+        address indexed caller,
+        address indexed receiver,
+        uint256 amount
+    );
+
+    event DepositGlp(
         address indexed caller,
         address indexed receiver,
         address indexed token,
@@ -41,7 +53,7 @@ contract PirexGlp is ReentrancyGuard {
         uint256 assets
     );
 
-    event Redeem(
+    event RedeemGlp(
         address indexed caller,
         address indexed receiver,
         address indexed token,
@@ -56,15 +68,48 @@ contract PirexGlp is ReentrancyGuard {
     error NotPxGlpRewards();
 
     /**
+        @param  _pxGmx         address  PxGmx contract address
         @param  _pxGlp         address  PxGlp contract address
         @param  _pxGlpRewards  address  PxGlpRewards contract address
     */
-    constructor(address _pxGlp, address _pxGlpRewards) {
+    constructor(
+        address _pxGmx,
+        address _pxGlp,
+        address _pxGlpRewards
+    ) {
+        if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
         if (_pxGlpRewards == address(0)) revert ZeroAddress();
 
+        pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
         pxGlpRewards = _pxGlpRewards;
+
+        // Pre-approving STAKED_GMX for staking GMX on behalf of our vault
+        GMX.safeApprove(address(STAKED_GMX), type(uint256).max);
+    }
+
+    /**
+        @notice Deposit and stake GMX for pxGMX
+        @param  gmxAmount  uint256  GMX amount
+        @param  receiver   address  Recipient of pxGMX
+     */
+    function depositGmx(uint256 gmxAmount, address receiver)
+        external
+        nonReentrant
+    {
+        if (gmxAmount == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Transfer the caller's GMX before staking
+        GMX.safeTransferFrom(msg.sender, address(this), gmxAmount);
+
+        REWARD_ROUTER_V2.stakeGmx(gmxAmount);
+
+        // Mint pxGMX equal to the specified amount of GMX
+        pxGmx.mint(receiver, gmxAmount);
+
+        emit DepositGmx(msg.sender, receiver, gmxAmount);
     }
 
     /**
@@ -73,7 +118,7 @@ contract PirexGlp is ReentrancyGuard {
         @param  receiver   address  Recipient of pxGLP
         @return assets     uint256  Amount of pxGLP
      */
-    function depositWithETH(uint256 minShares, address receiver)
+    function depositGlpWithETH(uint256 minShares, address receiver)
         external
         payable
         nonReentrant
@@ -92,7 +137,7 @@ contract PirexGlp is ReentrancyGuard {
         // Mint pxGLP based on the actual amount of GLP minted
         pxGlp.mint(receiver, assets);
 
-        emit Deposit(
+        emit DepositGlp(
             msg.sender,
             receiver,
             address(0),
@@ -110,7 +155,7 @@ contract PirexGlp is ReentrancyGuard {
         @param  receiver     address  Recipient of pxGLP
         @return assets       uint256  Amount of pxGLP
      */
-    function depositWithERC20(
+    function depositGlpWithERC20(
         address token,
         uint256 tokenAmount,
         uint256 minShares,
@@ -137,7 +182,7 @@ contract PirexGlp is ReentrancyGuard {
 
         pxGlp.mint(receiver, assets);
 
-        emit Deposit(
+        emit DepositGlp(
             msg.sender,
             receiver,
             token,
@@ -154,7 +199,7 @@ contract PirexGlp is ReentrancyGuard {
         @param  receiver       address  Recipient of the redeemed ETH
         @return redeemed       uint256  Amount of ETH received
      */
-    function redeemForETH(
+    function redeemPxGlpForETH(
         uint256 amount,
         uint256 minRedemption,
         address receiver
@@ -173,7 +218,7 @@ contract PirexGlp is ReentrancyGuard {
             receiver
         );
 
-        emit Redeem(
+        emit RedeemGlp(
             msg.sender,
             receiver,
             address(0),
@@ -191,7 +236,7 @@ contract PirexGlp is ReentrancyGuard {
         @param  receiver       address  Recipient of the redeemed token
         @return redeemed       uint256  Amount of token received
      */
-    function redeemForERC20(
+    function redeemPxGlpForERC20(
         address token,
         uint256 amount,
         uint256 minRedemption,
@@ -214,7 +259,7 @@ contract PirexGlp is ReentrancyGuard {
             receiver
         );
 
-        emit Redeem(
+        emit RedeemGlp(
             msg.sender,
             receiver,
             token,
@@ -226,7 +271,7 @@ contract PirexGlp is ReentrancyGuard {
 
     /**
         @notice Claim WETH rewards
-        @return fromGmx  uint256  WETH earned from staked esGMX
+        @return fromGmx  uint256  WETH earned from staked GMX and esGMX
         @return fromGlp  uint256  WETH earned from staked GLP
         @return weth     uint256  WETH transferred
      */

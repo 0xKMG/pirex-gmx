@@ -4,7 +4,7 @@ pragma solidity 0.8.13;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
-import {PirexGlp} from "./PirexGlp.sol";
+import {PirexGmxGlp} from "./PirexGmxGlp.sol";
 
 /**
     Originally inspired by Flywheel V2 (thank you Tribe team):
@@ -32,8 +32,8 @@ contract PxGlpRewards is Owned {
     // Strategy producing rewards
     ERC20 public strategy;
 
-    // PirexGlp contract for claiming WETH rewards
-    PirexGlp public pirexGlp;
+    // PirexGmxGlp contract for claiming WETH rewards
+    PirexGmxGlp public pirexGmxGlp;
 
     // Global state
     GlobalState public globalState;
@@ -42,7 +42,7 @@ contract PxGlpRewards is Owned {
     mapping(address => UserState) public userStates;
 
     event SetStrategy(address newStrategy);
-    event SetPirexGlp(address pirexGlp);
+    event SetPirexGmxGlp(address pirexGmxGlp);
     event ClaimWETHRewards(
         address indexed caller,
         address indexed receiver,
@@ -69,15 +69,15 @@ contract PxGlpRewards is Owned {
     }
 
     /**
-        @notice Set pirexGlp
-        @param  _pirexGlp  PirexGlp  PirexGlp contract
+        @notice Set pirexGmxGlp
+        @param  _pirexGmxGlp  PirexGmxGlp  PirexGmxGlp contract
     */
-    function setPirexGlp(PirexGlp _pirexGlp) external onlyOwner {
-        if (address(_pirexGlp) == address(0)) revert ZeroAddress();
+    function setPirexGmxGlp(PirexGmxGlp _pirexGmxGlp) external onlyOwner {
+        if (address(_pirexGmxGlp) == address(0)) revert ZeroAddress();
 
-        pirexGlp = _pirexGlp;
+        pirexGmxGlp = _pirexGmxGlp;
 
-        emit SetPirexGlp(address(_pirexGlp));
+        emit SetPirexGmxGlp(address(_pirexGmxGlp));
     }
 
     /**
@@ -85,7 +85,7 @@ contract PxGlpRewards is Owned {
         @return GlobalState  Global state
     */
     function globalAccrue() public returns (GlobalState memory) {
-        (uint256 fromGmx, uint256 fromGlp, ) = pirexGlp.claimWETHRewards();
+        (uint256 fromGmx, uint256 fromGlp, ) = pirexGmxGlp.claimWETHRewards();
 
         globalState = GlobalState({
             lastUpdate: block.timestamp,

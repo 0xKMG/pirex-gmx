@@ -5,7 +5,8 @@ import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
-import {PirexGlp} from "src/PirexGlp.sol";
+import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
+import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PxGlpRewards} from "src/PxGlpRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
@@ -41,7 +42,8 @@ contract Helper is Test {
     ERC20 internal constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
-    PirexGlp internal immutable pirexGlp;
+    PirexGmxGlp internal immutable pirexGmxGlp;
+    PxGmx internal immutable pxGmx;
     PxGlp internal immutable pxGlp;
     PxGlpRewards internal immutable pxGlpRewards;
 
@@ -66,12 +68,18 @@ contract Helper is Test {
 
     constructor() {
         pxGlpRewards = new PxGlpRewards();
+        pxGmx = new PxGmx();
         pxGlp = new PxGlp(address(pxGlpRewards));
-        pirexGlp = new PirexGlp(address(pxGlp), address(pxGlpRewards));
+        pirexGmxGlp = new PirexGmxGlp(
+            address(pxGmx),
+            address(pxGlp),
+            address(pxGlpRewards)
+        );
 
-        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
+        pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
+        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
         pxGlpRewards.setStrategyForRewards(pxGlp);
-        pxGlpRewards.setPirexGlp(pirexGlp);
+        pxGlpRewards.setPirexGmxGlp(pirexGmxGlp);
     }
 
     /**
