@@ -80,6 +80,7 @@ contract PirexGmxGlp is ReentrancyGuard {
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
         if (_pxGlpRewards == address(0)) revert ZeroAddress();
+        if (stakedGmx == address(0)) revert ZeroAddress();
 
         pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
