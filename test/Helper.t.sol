@@ -14,6 +14,8 @@ import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
 import {IReader} from "src/interfaces/IReader.sol";
+import {IGMX} from "src/interfaces/IGMX.sol";
+import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
 
@@ -32,6 +34,8 @@ contract Helper is Test {
         IReader(0x22199a49A999c351eF7927602CFB187ec3cae489);
     Vault internal constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    IGMX internal constant GMX =
+        IGMX(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     IERC20 internal constant REWARD_TRACKER =
         IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     IERC20 internal constant USDG =
@@ -95,5 +99,26 @@ contract Helper is Test {
         );
 
         WBTC.bridgeMint(address(this), amount);
+    }
+
+    /**
+        @notice Mint GMX for pxGMX related tests
+        @param  amount  uint256  Amount of GMX
+     */
+    function _mintGmx(uint256 amount) internal {
+        // Simulate minting for GMX by impersonating the admin in the timelock contract
+        // Using the current values as they do change based on which block is pinned for tests
+        ITimelock gmxTimeLock = ITimelock(GMX.gov());
+        address timelockAdmin = gmxTimeLock.admin();
+
+        vm.startPrank(timelockAdmin);
+
+        gmxTimeLock.signalMint(address(GMX), address(this), amount);
+
+        vm.warp(block.timestamp + gmxTimeLock.buffer() + 1 hours);
+
+        gmxTimeLock.processMint(address(GMX), address(this), amount);
+
+        vm.stopPrank();
     }
 }

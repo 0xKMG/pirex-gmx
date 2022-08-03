@@ -6,6 +6,12 @@ import {Vault} from "src/external/Vault.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGmxGlpTest is Helper {
+    event DepositGmx(
+        address indexed caller,
+        address indexed receiver,
+        uint256 amount
+    );
+
     event DepositGlp(
         address indexed caller,
         address indexed receiver,
@@ -240,6 +246,85 @@ contract PirexGmxGlpTest is Helper {
         assertEq(address(this).balance, 0);
         assertGt(minGlpWithSlippage, 0);
         assertGt(glpAmount, minGlpWithSlippage);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        depositGmx TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to msg.value being zero
+     */
+    function testCannotDepositGmxZeroValue() external {
+        uint256 invalidGmxAmount = 0;
+        address receiver = address(this);
+
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
+
+        pirexGmxGlp.depositGmx(invalidGmxAmount, receiver);
+    }
+
+    /**
+        @notice Test tx reversion due to receiver being the zero address
+     */
+    function testCannotDepositGmxZeroReceiver() external {
+        uint256 gmxAmount = 1 ether;
+        address invalidReceiver = address(0);
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.depositGmx(gmxAmount, invalidReceiver);
+    }
+
+    /**
+        @notice Test tx reversion due to insufficient GMX balance
+     */
+    function testCannotDepositGmxInsufficientBalance() external {
+        uint256 invalidGmxAmount = 1 ether;
+        uint256 mintAmount = invalidGmxAmount / 2;
+        address receiver = address(this);
+
+        // Mint less token than the amount specified for staking
+        _mintGmx(mintAmount);
+
+        vm.expectRevert("TRANSFER_FROM_FAILED");
+
+        pirexGmxGlp.depositGmx(invalidGmxAmount, receiver);
+    }
+
+    /**
+        @notice Test depositing GMX for pxGMX
+        @param  gmxAmount  uint256  Amount of GMX
+     */
+    function testDepositGmx(uint256 gmxAmount) external {
+        vm.assume(gmxAmount > 0.001 ether);
+        vm.assume(gmxAmount < 10_000 ether);
+
+        address receiver = address(this);
+
+        uint256 premintGMXBalance = GMX.balanceOf(receiver);
+
+        _mintGmx(gmxAmount);
+
+        uint256 previousGMXBalance = GMX.balanceOf(receiver);
+        uint256 previousPxGmxBalance = pxGmx.balanceOf(receiver);
+
+        assertEq(previousGMXBalance - premintGMXBalance, gmxAmount);
+
+        GMX.approve(address(pirexGmxGlp), gmxAmount);
+
+        vm.expectEmit(true, true, false, false, address(pirexGmxGlp));
+
+        emit DepositGmx(
+            address(this),
+            receiver,
+            gmxAmount
+        );
+
+        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+
+        assertEq(previousGMXBalance - GMX.balanceOf(receiver), gmxAmount);
+        assertEq(pxGmx.balanceOf(receiver) - previousPxGmxBalance, gmxAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -524,7 +609,14 @@ contract PirexGmxGlpTest is Helper {
         vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 
         // Cannot test the `asset` member of the event since it's not known until after
-        emit DepositGlp(address(this), receiver, token, minShares, tokenAmount, 0);
+        emit DepositGlp(
+            address(this),
+            receiver,
+            token,
+            minShares,
+            tokenAmount,
+            0
+        );
 
         uint256 assets = pirexGmxGlp.depositGlpWithERC20(
             token,
