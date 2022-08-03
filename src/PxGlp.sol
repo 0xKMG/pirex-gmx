@@ -33,7 +33,7 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
-        // Update global accrued rewards state before new tokens added to supply
+        // Update global reward accrual state before tokens are added to the supply
         pxGlpRewards.globalAccrue();
 
         _mint(to, amount);
@@ -50,7 +50,13 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
     function burn(address from, uint256 amount) external onlyRole(MINTER_ROLE) {
         if (from == address(0)) revert ZeroAddress();
 
+        // Update global reward accrual state before tokens are removed from the supply
+        pxGlpRewards.globalAccrue();
+
         _burn(from, amount);
+
+        // Accrue user rewards and snapshot post-burn balance
+        pxGlpRewards.userAccrue(from);
     }
 
     /**
