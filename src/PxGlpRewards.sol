@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
 import {PirexGlp} from "./PirexGlp.sol";
 
@@ -10,6 +11,8 @@ import {PirexGlp} from "./PirexGlp.sol";
     https://github.com/fei-protocol/flywheel-v2/blob/dbe3cb8/src/FlywheelCore.sol
 */
 contract PxGlpRewards is Owned {
+    using SafeTransferLib for ERC20;
+
     struct GlobalState {
         uint256 lastUpdate;
         uint256 rewards;
@@ -22,6 +25,9 @@ contract PxGlpRewards is Owned {
         uint256 lastBalance;
         uint256 rewards;
     }
+
+    ERC20 public constant WETH =
+        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     // Strategy producing rewards
     ERC20 public strategy;
@@ -37,6 +43,14 @@ contract PxGlpRewards is Owned {
 
     event SetStrategy(address newStrategy);
     event SetPirexGlp(address pirexGlp);
+    event ClaimWETHRewards(
+        address indexed caller,
+        address indexed receiver,
+        uint256 globalRewardsBeforeClaim,
+        uint256 userRewardsBeforeClaim,
+        uint256 wethFromGmx,
+        uint256 wethFromGlp
+    );
 
     error ZeroAddress();
 
@@ -68,8 +82,9 @@ contract PxGlpRewards is Owned {
 
     /**
         @notice Update global rewards accrual state
+        @return GlobalState  Global state
     */
-    function globalAccrue() external {
+    function globalAccrue() public returns (GlobalState memory) {
         (uint256 fromGmx, uint256 fromGlp, ) = pirexGlp.claimWETHRewards();
 
         globalState = GlobalState({
@@ -81,13 +96,16 @@ contract PxGlpRewards is Owned {
             wethFromGmx: globalState.wethFromGmx + fromGmx,
             wethFromGlp: globalState.wethFromGlp + fromGlp
         });
+
+        return globalState;
     }
 
     /**
         @notice Update user rewards accrual state
-        @param  user  address  User
+        @param  user  address    User
+        @return       UserState  User state
     */
-    function userAccrue(address user) external {
+    function userAccrue(address user) public returns (UserState memory) {
         UserState storage u = userStates[user];
 
         // Calculate the amount of rewards accrued by the user up to this call
@@ -97,5 +115,50 @@ contract PxGlpRewards is Owned {
             (block.timestamp - u.lastUpdate);
         u.lastUpdate = block.timestamp;
         u.lastBalance = strategy.balanceOf(user);
+
+        return u;
+    }
+
+    /**
+        @notice Claim WETH rewards for user
+        @param  receiver  address  Recipient of WETH rewards
+        @return total     uint256  Total WETH rewards earned from both GMX and GLP
+    */
+    function claimWETHRewards(address receiver)
+        external
+        returns (uint256 total)
+    {
+        if (receiver == address(0)) revert ZeroAddress();
+
+        GlobalState memory g = globalAccrue();
+        UserState memory u = userAccrue(msg.sender);
+
+        // Cache repeatedly-accessed struct members
+        uint256 globalRewards = g.rewards;
+        uint256 globalWethFromGmx = g.wethFromGmx;
+        uint256 globalWethFromGlp = g.wethFromGlp;
+        uint256 userRewards = u.rewards;
+
+        // User's share of global WETH rewards earned from GMX and GLP
+        uint256 wethFromGmx = (globalWethFromGmx * userRewards) / globalRewards;
+        uint256 wethFromGlp = (globalWethFromGlp * userRewards) / globalRewards;
+
+        // Update global and user reward states to prevent double claims
+        globalState.rewards = globalRewards - userRewards;
+        globalState.wethFromGmx = globalWethFromGmx - wethFromGmx;
+        globalState.wethFromGlp = globalWethFromGlp - wethFromGlp;
+        userStates[msg.sender].rewards = 0;
+        total = wethFromGmx + wethFromGlp;
+
+        emit ClaimWETHRewards(
+            msg.sender,
+            receiver,
+            globalRewards,
+            userRewards,
+            wethFromGmx,
+            wethFromGlp
+        );
+
+        WETH.safeTransfer(receiver, total);
     }
 }
