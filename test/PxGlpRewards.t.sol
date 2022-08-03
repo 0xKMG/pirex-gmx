@@ -3,12 +3,12 @@ pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PxGlpRewards} from "src/PxGlpRewards.sol";
-import {PirexGlp} from "src/PirexGlp.sol";
+import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PxGlpRewardsTest is Helper {
     event SetStrategy(address newStrategy);
-    event SetPirexGlp(address pirexGlp);
+    event SetPirexGmxGlp(address pirexGmxGlp);
     event ClaimWETHRewards(
         address indexed caller,
         address indexed receiver,
@@ -46,7 +46,7 @@ contract PxGlpRewardsTest is Helper {
                 tokenAmounts[2];
 
             _mintWbtc(wBtcTotalAmount);
-            WBTC.approve(address(pirexGlp), wBtcTotalAmount);
+            WBTC.approve(address(pirexGmxGlp), wBtcTotalAmount);
         }
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
@@ -55,9 +55,12 @@ contract PxGlpRewardsTest is Helper {
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGlp.depositWithETH{value: tokenAmount}(1, testAccounts[i]);
+                pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(
+                    1,
+                    testAccounts[i]
+                );
             } else {
-                pirexGlp.depositWithERC20(
+                pirexGmxGlp.depositGlpWithERC20(
                     address(WBTC),
                     tokenAmount,
                     1,
@@ -140,46 +143,46 @@ contract PxGlpRewardsTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        setPirexGlp TESTS
+                        setPirexGmxGlp TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion due to caller not being the owner
      */
-    function testCannotSetPirexGlpNotOwner() external {
+    function testCannotSetPirexGmxGlpNotOwner() external {
         vm.expectRevert("UNAUTHORIZED");
         vm.prank(testAccounts[0]);
 
-        pxGlpRewards.setPirexGlp(PirexGlp(address(this)));
+        pxGlpRewards.setPirexGmxGlp(PirexGmxGlp(address(this)));
     }
 
     /**
-        @notice Test tx reversion due to _pirexGlp being the zero address
+        @notice Test tx reversion due to _pirexGmxGlp being the zero address
      */
-    function testCannotSetPirexGlpPirexGlpZeroAddress() external {
-        PirexGlp invalidPirexGlp = PirexGlp(address(0));
+    function testCannotSetPirexGmxGlpPirexGmxGlpZeroAddress() external {
+        PirexGmxGlp invalidPirexGmxGlp = PirexGmxGlp(address(0));
 
         vm.expectRevert(PxGlpRewards.ZeroAddress.selector);
 
-        pxGlpRewards.setPirexGlp(invalidPirexGlp);
+        pxGlpRewards.setPirexGmxGlp(invalidPirexGmxGlp);
     }
 
     /**
-        @notice Test setting pirexGlp
+        @notice Test setting pirexGmxGlp
      */
-    function testSetPirexGlp() external {
-        PirexGlp _pirexGlp = PirexGlp(address(this));
-        address pirexGlpAddr = address(_pirexGlp);
+    function testSetPirexGmxGlp() external {
+        PirexGmxGlp _pirexGmxGlp = PirexGmxGlp(address(this));
+        address pirexGmxGlpAddr = address(_pirexGmxGlp);
 
-        assertTrue(pirexGlpAddr != address(pxGlpRewards.pirexGlp()));
+        assertTrue(pirexGmxGlpAddr != address(pxGlpRewards.pirexGmxGlp()));
 
         vm.expectEmit(false, false, false, true, address(pxGlpRewards));
 
-        emit SetPirexGlp(pirexGlpAddr);
+        emit SetPirexGmxGlp(pirexGmxGlpAddr);
 
-        pxGlpRewards.setPirexGlp(_pirexGlp);
+        pxGlpRewards.setPirexGmxGlp(_pirexGmxGlp);
 
-        assertEq(pirexGlpAddr, address(pxGlpRewards.pirexGlp()));
+        assertEq(pirexGmxGlpAddr, address(pxGlpRewards.pirexGmxGlp()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -464,7 +467,7 @@ contract PxGlpRewardsTest is Helper {
 
         vm.deal(address(this), tokenAmount);
 
-        pirexGlp.depositWithETH{value: tokenAmount}(1, sender);
+        pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, sender);
 
         // Forward time in order to accrue rewards for sender
         vm.warp(block.timestamp + secondsElapsed);
@@ -546,7 +549,7 @@ contract PxGlpRewardsTest is Helper {
 
         vm.deal(user, tokenAmount);
 
-        pirexGlp.depositWithETH{value: tokenAmount}(1, user);
+        pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, user);
 
         // Forward time in order to accrue rewards for user
         vm.warp(block.timestamp + secondsElapsed);
@@ -556,7 +559,7 @@ contract PxGlpRewardsTest is Helper {
         uint256 expectedRewardsAfterBurn = _calculateUserRewards(user);
         uint256 expectedGlobalRewardsAfterBurn = _calculateGlobalRewards();
 
-        vm.prank(address(pirexGlp));
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.burn(user, burnAmount);
 
