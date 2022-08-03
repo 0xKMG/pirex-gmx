@@ -554,11 +554,13 @@ contract PxGlpRewardsTest is Helper {
         uint256 preBurnBalance = pxGlp.balanceOf(user);
         uint256 burnAmount = (preBurnBalance * burnPercent) / 100;
         uint256 expectedRewardsAfterBurn = _calculateUserRewards(user);
+        uint256 expectedGlobalRewardsAfterBurn = _calculateGlobalRewards();
 
         vm.prank(address(pirexGlp));
 
         pxGlp.burn(user, burnAmount);
 
+        (, uint256 globalRewardsAfterBurn, , ) = pxGlpRewards.globalState();
         (, , uint256 rewardsAfterBurn) = pxGlpRewards.userStates(user);
         uint256 postBurnBalance = pxGlp.balanceOf(user);
 
@@ -567,6 +569,9 @@ contract PxGlpRewardsTest is Helper {
 
         // User should have accrued rewards based on their balance up to the burn
         assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
+
+        // Ensure that rewards accrued from the supply pre-burn is accounted for
+        assertEq(expectedGlobalRewardsAfterBurn, globalRewardsAfterBurn);
 
         // Forward timestamp to check that user is accruing less rewards
         vm.warp(block.timestamp + secondsElapsed);
