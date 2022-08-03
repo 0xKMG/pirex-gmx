@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "forge-std/Test.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PxGlpRewards} from "src/PxGlpRewards.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
@@ -522,6 +524,72 @@ contract PxGlpRewardsTest is Helper {
             expectedSenderRewardsAfterTransferAndWarp
         );
         assertEq(expectedReceiverRewards, receiverRewards);
+    }
+
+    /**
+        @notice Test correctness of reward accruals in the case of pxGLP burns
+        @param  tokenAmount      uin80   Amount of pxGLP to mint the user
+        @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  burnPercent      uint8   Percent for testing partial balance burns
+     */
+    function testAccrueBurn(
+        uint80 tokenAmount,
+        uint32 secondsElapsed,
+        uint8 burnPercent
+    ) external {
+        vm.assume(tokenAmount > 0.001 ether);
+        vm.assume(tokenAmount < 10000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(burnPercent != 0);
+        vm.assume(burnPercent <= 100);
+
+        address user = address(this);
+
+        vm.deal(user, tokenAmount);
+
+        pirexGlp.depositWithETH{value: tokenAmount}(1, user);
+
+        // Forward time in order to accrue rewards for user
+        vm.warp(block.timestamp + secondsElapsed);
+
+        uint256 preBurnBalance = pxGlp.balanceOf(user);
+        uint256 burnAmount = (preBurnBalance * burnPercent) / 100;
+        uint256 expectedRewardsAfterBurn = _calculateUserRewards(user);
+
+        vm.prank(address(pirexGlp));
+
+        pxGlp.burn(user, burnAmount);
+
+        (, , uint256 rewardsAfterBurn) = pxGlpRewards.userStates(user);
+        uint256 postBurnBalance = pxGlp.balanceOf(user);
+
+        // Verify conditions for "less reward accrual" post-burn
+        assertTrue(postBurnBalance < preBurnBalance);
+
+        // User should have accrued rewards based on their balance up to the burn
+        assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
+
+        // Forward timestamp to check that user is accruing less rewards
+        vm.warp(block.timestamp + secondsElapsed);
+
+        uint256 expectedRewards = _calculateUserRewards(user);
+
+        // Rewards accrued if user were to not burn tokens
+        uint256 noBurnRewards = rewardsAfterBurn +
+            preBurnBalance *
+            secondsElapsed;
+
+        // Delta of expected/actual rewards accrued and no-burn rewards accrued
+        uint256 expectedAndNoBurnRewardDelta = (preBurnBalance -
+            postBurnBalance) * secondsElapsed;
+
+        pxGlpRewards.userAccrue(user);
+
+        (, , uint256 rewards) = pxGlpRewards.userStates(user);
+
+        assertEq(expectedRewards, rewards);
+        assertEq(noBurnRewards - expectedAndNoBurnRewardDelta, rewards);
     }
 
     /*//////////////////////////////////////////////////////////////

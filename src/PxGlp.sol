@@ -51,6 +51,9 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         if (from == address(0)) revert ZeroAddress();
 
         _burn(from, amount);
+
+        // Accrue user rewards and snapshot post-burn balance
+        pxGlpRewards.userAccrue(from);
     }
 
     /**
