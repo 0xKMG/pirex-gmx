@@ -549,7 +549,7 @@ contract PxGlpRewardsTest is Helper {
 
         vm.deal(user, tokenAmount);
 
-        pirexGlp.depositWithETH{value: tokenAmount}(1, user);
+        pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, user);
 
         // Forward time in order to accrue rewards for user
         vm.warp(block.timestamp + secondsElapsed);
@@ -559,7 +559,7 @@ contract PxGlpRewardsTest is Helper {
         uint256 expectedRewardsAfterBurn = _calculateUserRewards(user);
         uint256 expectedGlobalRewardsAfterBurn = _calculateGlobalRewards();
 
-        vm.prank(address(pirexGlp));
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.burn(user, burnAmount);
 
