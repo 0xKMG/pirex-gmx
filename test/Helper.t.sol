@@ -102,4 +102,15 @@ contract Helper is Test {
 
         pxGlp.mint(to, amount);
     }
+
+    /**
+        @notice Burn pxGLP
+        @param  from    address  Burn from account
+        @param  amount  uint256  Amount of pxGLP
+     */
+    function _burnPxGlp(address from, uint256 amount) internal {
+        vm.prank(address(pirexGlp));
+
+        pxGlp.burn(from, amount);
+    }
 }

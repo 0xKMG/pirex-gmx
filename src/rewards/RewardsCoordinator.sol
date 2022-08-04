@@ -45,12 +45,13 @@ contract RewardsCoordinator {
         GlobalState memory g = globalStates[producerToken];
         uint256 timestamp = block.timestamp;
         uint256 totalSupply = producerToken.totalSupply();
+
+        // Calculate rewards, the product of seconds elapsed and last supply
         uint256 rewards = g.rewards + (timestamp - g.lastUpdate) * g.lastSupply;
 
         globalStates[producerToken] = GlobalState({
             lastUpdate: timestamp,
             lastSupply: totalSupply,
-            // Calculate the latest global rewards accrued based on the seconds elapsed * total supply
             rewards: rewards
         });
 

@@ -45,7 +45,7 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         // Kick off reward accrual for user to snapshot post-mint balance
         pxGlpRewards.userAccrue(to);
 
-        // Snapshot supply ensure correct global reward accrual
+        // Accrue global rewards and store post-mint supply for future accrual
         rewardsCoordinator.globalAccrue(this);
     }
 
@@ -61,6 +61,9 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
         // Accrue user rewards and snapshot post-burn balance
         pxGlpRewards.userAccrue(from);
+
+        // Accrue global rewards and store post-burn supply for future accrual
+        rewardsCoordinator.globalAccrue(this);
     }
 
     /**
