@@ -68,9 +68,9 @@ contract Helper is Test {
 
     constructor() {
         pxGlpRewards = new PxGlpRewards();
-        pxGlp = new PxGlp(address(pxGlpRewards));
-        pirexGlp = new PirexGlp(address(pxGlp), address(pxGlpRewards));
         rewardsCoordinator = new RewardsCoordinator();
+        pxGlp = new PxGlp(address(pxGlpRewards), address(rewardsCoordinator));
+        pirexGlp = new PirexGlp(address(pxGlp), address(pxGlpRewards));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         pxGlpRewards.setStrategyForRewards(pxGlp);
@@ -90,5 +90,16 @@ contract Helper is Test {
         );
 
         WBTC.bridgeMint(address(this), amount);
+    }
+
+    /**
+        @notice Mint pxGLP
+        @param  to      address  Recipient of pxGLP
+        @param  amount  uint256  Amount of pxGLP
+     */
+    function _mintPxGlp(address to, uint256 amount) internal {
+        vm.prank(address(pirexGlp));
+
+        pxGlp.mint(to, amount);
     }
 }

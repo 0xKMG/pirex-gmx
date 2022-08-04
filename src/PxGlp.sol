@@ -4,9 +4,11 @@ pragma solidity 0.8.13;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
 import {PxGlpRewards} from "./PxGlpRewards.sol";
+import {RewardsCoordinator} from "./rewards/RewardsCoordinator.sol";
 
 contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
     PxGlpRewards public immutable pxGlpRewards;
+    RewardsCoordinator public immutable rewardsCoordinator;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
@@ -16,10 +18,12 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
     /**
         @param  _pxGlpRewards  address  PxGlpRewards contract address
     */
-    constructor(address _pxGlpRewards) {
+    constructor(address _pxGlpRewards, address _rewardsCoordinator) {
         if (_pxGlpRewards == address(0)) revert ZeroAddress();
+        if (_rewardsCoordinator == address(0)) revert ZeroAddress();
 
         pxGlpRewards = PxGlpRewards(_pxGlpRewards);
+        rewardsCoordinator = RewardsCoordinator(_rewardsCoordinator);
 
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -40,6 +44,9 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
         // Kick off reward accrual for user to snapshot post-mint balance
         pxGlpRewards.userAccrue(to);
+
+        // Snapshot supply ensure correct global reward accrual
+        rewardsCoordinator.globalAccrue(this);
     }
 
     /**
