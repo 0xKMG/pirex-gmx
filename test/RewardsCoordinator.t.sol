@@ -27,6 +27,26 @@ contract RewardsCoordinatorTest is Helper {
         return rewards + (block.timestamp - lastUpdate) * lastSupply;
     }
 
+    /**
+        @notice Calculate a user's rewards
+        @param  producerToken  ERC20    Producer token contract
+        @param  user           address  User
+        @return                uint256  User rewards
+    */
+    function _calculateUserRewards(ERC20 producerToken, address user)
+        internal
+        view
+        returns (uint256)
+    {
+        (
+            uint256 lastUpdate,
+            uint256 lastBalance,
+            uint256 rewards
+        ) = rewardsCoordinator.userStates(producerToken, user);
+
+        return rewards + lastBalance * (block.timestamp - lastUpdate);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         globalAccrue TESTS
     //////////////////////////////////////////////////////////////*/
@@ -34,7 +54,7 @@ contract RewardsCoordinatorTest is Helper {
     /**
         @notice Test tx reversion due to producerToken being the zero address
      */
-    function testCannotGlobalAccrue() external {
+    function testCannotGlobalAccrueProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
 
         vm.expectRevert(RewardsCoordinator.ZeroAddress.selector);
@@ -178,5 +198,407 @@ contract RewardsCoordinatorTest is Helper {
             noBurnRewards - expectedAndNoBurnRewardDelta,
             expectedRewardsAfterBurn
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        userAccrue TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to producerToken being the zero address
+     */
+    function testCannotUserAccrueProducerTokenZeroAddress() external {
+        ERC20 invalidProducerToken = ERC20(address(0));
+        address user = address(this);
+
+        vm.expectRevert(RewardsCoordinator.ZeroAddress.selector);
+
+        rewardsCoordinator.userAccrue(invalidProducerToken, user);
+    }
+
+    /**
+        @notice Test tx reversion due to user being the zero address
+     */
+    function testCannotUserAccrueUserZeroAddress() external {
+        ERC20 producerToken = pxGlp;
+        address invalidUser = address(0);
+
+        vm.expectRevert(RewardsCoordinator.ZeroAddress.selector);
+
+        rewardsCoordinator.userAccrue(producerToken, invalidUser);
+    }
+
+    /**
+        @notice Test user rewards accrual
+        @param  secondsElapsed    uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  multiplier        uint8   Multiplied with fixed token amounts for randomness
+        @param  useETH            bool    Whether or not to use ETH as the source asset for minting GLP
+        @param  testAccountIndex  uint8   Index of test account
+     */
+    function testUserAccrue(
+        uint32 secondsElapsed,
+        uint8 multiplier,
+        bool useETH,
+        uint8 testAccountIndex
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+        vm.assume(testAccountIndex < 3);
+
+        uint256 timestampBeforeMint = block.timestamp;
+
+        _mintForTestAccounts(multiplier, useETH);
+
+        address user = testAccounts[testAccountIndex];
+        uint256 pxGlpBalance = pxGlp.balanceOf(user);
+        (
+            uint256 lastUpdateBefore,
+            uint256 lastBalanceBefore,
+            uint256 rewardsBefore
+        ) = rewardsCoordinator.userStates(pxGlp, user);
+        uint256 warpTimestamp = block.timestamp + secondsElapsed;
+
+        assertEq(lastUpdateBefore, timestampBeforeMint);
+
+        // The recently minted balance amount should be what is stored in state
+        assertEq(lastBalanceBefore, pxGlpBalance);
+
+        // User should not accrue rewards until time has passed
+        assertEq(rewardsBefore, 0);
+
+        vm.warp(warpTimestamp);
+
+        uint256 expectedUserRewards = _calculateUserRewards(pxGlp, user);
+
+        rewardsCoordinator.userAccrue(pxGlp, user);
+
+        (
+            uint256 lastUpdateAfter,
+            uint256 lastBalanceAfter,
+            uint256 rewardsAfter
+        ) = rewardsCoordinator.userStates(pxGlp, user);
+
+        assertEq(lastUpdateAfter, warpTimestamp);
+        assertEq(lastBalanceAfter, pxGlpBalance);
+        assertEq(rewardsAfter, expectedUserRewards);
+        assertTrue(rewardsAfter != 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                globalAccrue/userAccrue integration TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test minting pxGLP and reward point accrual for multiple users
+        @param  secondsElapsed  uint32   Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  multiplier      uint8    Multiplied with fixed token amounts for randomness
+        @param  useETH          bool     Whether or not to use ETH as the source asset for minting GLP
+        @param  accrueGlobal    bool     Whether or not to update global reward accrual state
+     */
+    function testAccrue(
+        uint32 secondsElapsed,
+        uint8 multiplier,
+        bool useETH,
+        bool accrueGlobal
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+
+        _mintForTestAccounts(multiplier, useETH);
+
+        // Forward timestamp by X seconds which will determine the total amount of rewards accrued
+        vm.warp(block.timestamp + secondsElapsed);
+
+        uint256 timestampBeforeAccrue = block.timestamp;
+        uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
+
+        if (accrueGlobal) {
+            uint256 totalSupplyBeforeAccrue = pxGlp.totalSupply();
+
+            rewardsCoordinator.globalAccrue(pxGlp);
+
+            (
+                uint256 lastUpdate,
+                uint256 lastSupply,
+                uint256 rewards
+            ) = rewardsCoordinator.globalStates(pxGlp);
+
+            assertEq(lastUpdate, timestampBeforeAccrue);
+            assertEq(lastSupply, totalSupplyBeforeAccrue);
+            assertEq(rewards, expectedGlobalRewards);
+        }
+
+        // The sum of all user rewards accrued for comparison against the expected global amount
+        uint256 totalRewards;
+
+        // Iterate over test accounts and check that reward accrual amount is correct for each one
+        for (uint256 i; i < testAccounts.length; ++i) {
+            address testAccount = testAccounts[i];
+            uint256 balanceBeforeAccrue = pxGlp.balanceOf(testAccount);
+            uint256 expectedRewards = _calculateUserRewards(pxGlp, testAccount);
+
+            assertGt(expectedRewards, 0);
+
+            rewardsCoordinator.userAccrue(pxGlp, testAccount);
+
+            (
+                uint256 lastUpdate,
+                uint256 lastBalance,
+                uint256 rewards
+            ) = rewardsCoordinator.userStates(pxGlp, testAccount);
+
+            // Total rewards accrued by all users should add up to the global rewards
+            totalRewards += rewards;
+
+            assertEq(timestampBeforeAccrue, lastUpdate);
+            assertEq(balanceBeforeAccrue, lastBalance);
+            assertEq(expectedRewards, rewards);
+        }
+
+        assertEq(expectedGlobalRewards, totalRewards);
+    }
+
+    /**
+        @notice Test minting pxGLP and reward point accrual for multiple users with one who accrues asynchronously
+        @param  secondsElapsed       uint32   Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  rounds               uint8    Number of rounds to fast forward time and accrue rewards
+        @param  multiplier           uint8    Multiplied with fixed token amounts for randomness
+        @param  useETH               bool     Whether or not to use ETH as the source asset for minting GLP
+        @param  delayedAccountIndex  uint8    Test account index that will delay reward accrual until the end
+     */
+    function testAccrueAsync(
+        uint32 secondsElapsed,
+        uint8 rounds,
+        uint8 multiplier,
+        bool useETH,
+        uint8 delayedAccountIndex
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(rounds != 0);
+        vm.assume(rounds < 10);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+        vm.assume(delayedAccountIndex < 3);
+
+        _mintForTestAccounts(multiplier, useETH);
+
+        // Sum up the rewards accrued - after all rounds - for accounts where accrual is not delayed
+        uint256 nonDelayedTotalRewards;
+
+        uint256 tLen = testAccounts.length;
+
+        // Iterate over a number of rounds and accrue for non-delayed accounts
+        for (uint256 i; i < rounds; ++i) {
+            uint256 timestampBeforeAccrue = block.timestamp;
+
+            // Forward timestamp by X seconds which will determine the total amount of rewards accrued
+            vm.warp(timestampBeforeAccrue + secondsElapsed);
+
+            for (uint256 j; j < tLen; ++j) {
+                if (j != delayedAccountIndex) {
+                    (, , uint256 rewardsBefore) = rewardsCoordinator.userStates(
+                        pxGlp,
+                        testAccounts[j]
+                    );
+
+                    rewardsCoordinator.userAccrue(pxGlp, testAccounts[j]);
+
+                    (, , uint256 rewardsAfter) = rewardsCoordinator.userStates(
+                        pxGlp,
+                        testAccounts[j]
+                    );
+
+                    nonDelayedTotalRewards += rewardsAfter - rewardsBefore;
+                }
+            }
+        }
+
+        // Calculate the rewards which should be accrued by the delayed account
+        address delayedAccount = testAccounts[delayedAccountIndex];
+        uint256 expectedDelayedRewards = _calculateUserRewards(
+            pxGlp,
+            delayedAccount
+        );
+        uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
+
+        // Accrue rewards and check that the actual amount matches the expected
+        rewardsCoordinator.userAccrue(pxGlp, delayedAccount);
+
+        (, , uint256 rewardsAfterAccrue) = rewardsCoordinator.userStates(
+            pxGlp,
+            delayedAccount
+        );
+
+        assertEq(rewardsAfterAccrue, expectedDelayedRewards);
+        assertEq(
+            nonDelayedTotalRewards + rewardsAfterAccrue,
+            expectedGlobalRewards
+        );
+    }
+
+    /**
+        @notice Test correctness of reward accruals in the case of pxGLP transfers
+        @param  tokenAmount      uin80   Amount of pxGLP to mint the sender
+        @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  transferPercent  uint8   Percent for testing partial balance transfers
+        @param  useTransfer      bool    Whether or not to use the transfer method
+     */
+    function testAccrueTransfer(
+        uint80 tokenAmount,
+        uint32 secondsElapsed,
+        uint8 transferPercent,
+        bool useTransfer
+    ) external {
+        vm.assume(tokenAmount > 0.001 ether);
+        vm.assume(tokenAmount < 10000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(transferPercent != 0);
+        vm.assume(transferPercent <= 100);
+
+        address sender = testAccounts[0];
+        address receiver = testAccounts[1];
+
+        vm.deal(address(this), tokenAmount);
+
+        pirexGlp.depositWithETH{value: tokenAmount}(1, sender);
+
+        // Forward time in order to accrue rewards for sender
+        vm.warp(block.timestamp + secondsElapsed);
+
+        // Test sender reward accrual before transfer
+        uint256 transferAmount = (pxGlp.balanceOf(sender) * transferPercent) /
+            100;
+        uint256 expectedSenderRewardsAfterTransfer = _calculateUserRewards(
+            pxGlp,
+            sender
+        );
+
+        // Test both of the ERC20 transfer methods for correctness of reward accrual
+        if (useTransfer) {
+            vm.prank(sender);
+
+            pxGlp.transfer(receiver, transferAmount);
+        } else {
+            vm.prank(sender);
+
+            // Need to increase allowance of the caller if using transferFrom
+            pxGlp.approve(address(this), transferAmount);
+
+            pxGlp.transferFrom(sender, receiver, transferAmount);
+        }
+
+        (, , uint256 senderRewardsAfterTransfer) = rewardsCoordinator
+            .userStates(pxGlp, sender);
+
+        assertEq(
+            expectedSenderRewardsAfterTransfer,
+            senderRewardsAfterTransfer
+        );
+
+        // Forward time in order to accrue rewards for receiver
+        vm.warp(block.timestamp + secondsElapsed);
+
+        // Get expected sender and receiver reward accrual states
+        uint256 expectedReceiverRewards = _calculateUserRewards(
+            pxGlp,
+            receiver
+        );
+        uint256 expectedSenderRewardsAfterTransferAndWarp = _calculateUserRewards(
+                pxGlp,
+                sender
+            );
+
+        // Accrue rewards for both sender and receiver
+        rewardsCoordinator.userAccrue(pxGlp, sender);
+        rewardsCoordinator.userAccrue(pxGlp, receiver);
+
+        // Retrieve actual user reward accrual states
+        (, , uint256 receiverRewards) = rewardsCoordinator.userStates(
+            pxGlp,
+            receiver
+        );
+        (, , uint256 senderRewardsAfterTransferAndWarp) = rewardsCoordinator
+            .userStates(pxGlp, sender);
+
+        assertEq(
+            senderRewardsAfterTransferAndWarp,
+            expectedSenderRewardsAfterTransferAndWarp
+        );
+        assertEq(expectedReceiverRewards, receiverRewards);
+    }
+
+    /**
+        @notice Test correctness of reward accruals in the case of pxGLP burns
+        @param  tokenAmount      uin80   Amount of pxGLP to mint the user
+        @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  burnPercent      uint8   Percent for testing partial balance burns
+     */
+    function testAccrueBurn(
+        uint80 tokenAmount,
+        uint32 secondsElapsed,
+        uint8 burnPercent
+    ) external {
+        vm.assume(tokenAmount > 0.001 ether);
+        vm.assume(tokenAmount < 10000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(burnPercent != 0);
+        vm.assume(burnPercent <= 100);
+
+        address user = address(this);
+
+        vm.deal(user, tokenAmount);
+
+        pirexGlp.depositWithETH{value: tokenAmount}(1, user);
+
+        // Forward time in order to accrue rewards for user
+        vm.warp(block.timestamp + secondsElapsed);
+
+        uint256 preBurnBalance = pxGlp.balanceOf(user);
+        uint256 burnAmount = (preBurnBalance * burnPercent) / 100;
+        uint256 expectedRewardsAfterBurn = _calculateUserRewards(pxGlp, user);
+
+        vm.prank(address(pirexGlp));
+
+        pxGlp.burn(user, burnAmount);
+
+        (, , uint256 rewardsAfterBurn) = rewardsCoordinator.userStates(
+            pxGlp,
+            user
+        );
+        uint256 postBurnBalance = pxGlp.balanceOf(user);
+
+        // Verify conditions for "less reward accrual" post-burn
+        assertTrue(postBurnBalance < preBurnBalance);
+
+        // User should have accrued rewards based on their balance up to the burn
+        assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
+
+        // Forward timestamp to check that user is accruing less rewards
+        vm.warp(block.timestamp + secondsElapsed);
+
+        uint256 expectedRewards = _calculateUserRewards(pxGlp, user);
+
+        // Rewards accrued if user were to not burn tokens
+        uint256 noBurnRewards = rewardsAfterBurn +
+            preBurnBalance *
+            secondsElapsed;
+
+        // Delta of expected/actual rewards accrued and no-burn rewards accrued
+        uint256 expectedAndNoBurnRewardDelta = (preBurnBalance -
+            postBurnBalance) * secondsElapsed;
+
+        rewardsCoordinator.userAccrue(pxGlp, user);
+
+        (, , uint256 rewards) = rewardsCoordinator.userStates(pxGlp, user);
+
+        assertEq(expectedRewards, rewards);
+        assertEq(noBurnRewards - expectedAndNoBurnRewardDelta, rewards);
     }
 }

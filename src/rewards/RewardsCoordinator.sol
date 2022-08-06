@@ -33,13 +33,21 @@ contract RewardsCoordinator {
         uint256 rewards
     );
 
+    event UserAccrue(
+        ERC20 indexed producerToken,
+        address indexed user,
+        uint256 lastUpdate,
+        uint256 lastSupply,
+        uint256 rewards
+    );
+
     error ZeroAddress();
 
     /**
         @notice Update global rewards accrual state
         @param  producerToken  ERC20  Rewards-producing token
     */
-    function globalAccrue(ERC20 producerToken) public {
+    function globalAccrue(ERC20 producerToken) external {
         if (address(producerToken) == address(0)) revert ZeroAddress();
 
         GlobalState memory g = globalStates[producerToken];
@@ -56,5 +64,30 @@ contract RewardsCoordinator {
         });
 
         emit GlobalAccrue(producerToken, timestamp, totalSupply, rewards);
+    }
+
+    /**
+        @notice Update global rewards accrual state
+        @param  producerToken  ERC20    Rewards-producing token
+        @param  user           address  User address
+    */
+    function userAccrue(ERC20 producerToken, address user) external {
+        if (address(producerToken) == address(0)) revert ZeroAddress();
+        if (user == address(0)) revert ZeroAddress();
+
+        UserState storage u = userStates[producerToken][user];
+        uint256 timestamp = block.timestamp;
+        uint256 balance = producerToken.balanceOf(user);
+
+        // Calculate the amount of rewards accrued by the user up to this call
+        uint256 rewards = u.rewards +
+            u.lastBalance *
+            (timestamp - u.lastUpdate);
+
+        u.lastUpdate = timestamp;
+        u.lastBalance = balance;
+        u.rewards = rewards;
+
+        emit UserAccrue(producerToken, user, timestamp, balance, rewards);
     }
 }

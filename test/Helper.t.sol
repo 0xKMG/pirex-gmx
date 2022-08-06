@@ -7,7 +7,6 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
-import {PxGlpRewards} from "src/PxGlpRewards.sol";
 import {RewardsCoordinator} from "src/rewards/RewardsCoordinator.sol";
 import {RewardsSiloGlp} from "src/rewards/RewardsSiloGlp.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
@@ -45,7 +44,6 @@ contract Helper is Test {
 
     PirexGlp internal immutable pirexGlp;
     PxGlp internal immutable pxGlp;
-    PxGlpRewards internal immutable pxGlpRewards;
     RewardsCoordinator internal immutable rewardsCoordinator;
     RewardsSiloGlp internal immutable rewardsSiloGlp;
 
@@ -69,10 +67,9 @@ contract Helper is Test {
     receive() external payable {}
 
     constructor() {
-        pxGlpRewards = new PxGlpRewards();
         rewardsCoordinator = new RewardsCoordinator();
-        pxGlp = new PxGlp(address(pxGlpRewards), address(rewardsCoordinator));
-        pirexGlp = new PirexGlp(address(pxGlp), address(pxGlpRewards));
+        pxGlp = new PxGlp(address(rewardsCoordinator));
+        pirexGlp = new PirexGlp(address(pxGlp));
         rewardsSiloGlp = new RewardsSiloGlp(
             address(pirexGlp),
             address(rewardsCoordinator),
@@ -81,8 +78,6 @@ contract Helper is Test {
         );
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
-        pxGlpRewards.setStrategyForRewards(pxGlp);
-        pxGlpRewards.setPirexGlp(pirexGlp);
     }
 
     /**
@@ -120,5 +115,54 @@ contract Helper is Test {
         vm.prank(address(pirexGlp));
 
         pxGlp.burn(from, amount);
+    }
+
+    /**
+        @notice Mint pxGLP for test accounts
+        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
+        @param  useETH      bool     Whether or not to use ETH as the source asset for minting GLP
+     */
+    function _mintForTestAccounts(uint256 multiplier, bool useETH) internal {
+        uint256 tLen = testAccounts.length;
+        uint256[] memory tokenAmounts = new uint256[](tLen);
+
+        // Conditionally set ETH or WBTC amounts and call the appropriate method for acquiring
+        if (useETH) {
+            tokenAmounts[0] = 1 ether * multiplier;
+            tokenAmounts[1] = 2 ether * multiplier;
+            tokenAmounts[2] = 3 ether * multiplier;
+
+            vm.deal(
+                address(this),
+                tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2]
+            );
+        } else {
+            tokenAmounts[0] = 1e8 * multiplier;
+            tokenAmounts[1] = 2e8 * multiplier;
+            tokenAmounts[2] = 3e8 * multiplier;
+            uint256 wBtcTotalAmount = tokenAmounts[0] +
+                tokenAmounts[1] +
+                tokenAmounts[2];
+
+            _mintWbtc(wBtcTotalAmount);
+            WBTC.approve(address(pirexGlp), wBtcTotalAmount);
+        }
+
+        // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
+        for (uint256 i; i < tLen; ++i) {
+            uint256 tokenAmount = tokenAmounts[i];
+
+            // Call the appropriate method based on the type of currency
+            if (useETH) {
+                pirexGlp.depositWithETH{value: tokenAmount}(1, testAccounts[i]);
+            } else {
+                pirexGlp.depositWithERC20(
+                    address(WBTC),
+                    tokenAmount,
+                    1,
+                    testAccounts[i]
+                );
+            }
+        }
     }
 }

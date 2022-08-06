@@ -29,9 +29,6 @@ contract PirexGlp is ReentrancyGuard {
     // Pirex contracts
     PxGlp public immutable pxGlp;
 
-    // Mutability subject to change
-    address public immutable pxGlpRewards;
-
     event Deposit(
         address indexed caller,
         address indexed receiver,
@@ -53,18 +50,14 @@ contract PirexGlp is ReentrancyGuard {
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
-    error NotPxGlpRewards();
 
     /**
-        @param  _pxGlp         address  PxGlp contract address
-        @param  _pxGlpRewards  address  PxGlpRewards contract address
+        @param  _pxGlp  address  PxGlp contract address
     */
-    constructor(address _pxGlp, address _pxGlpRewards) {
+    constructor(address _pxGlp) {
         if (_pxGlp == address(0)) revert ZeroAddress();
-        if (_pxGlpRewards == address(0)) revert ZeroAddress();
 
         pxGlp = PxGlp(_pxGlp);
-        pxGlpRewards = _pxGlpRewards;
     }
 
     /**
@@ -222,53 +215,5 @@ contract PirexGlp is ReentrancyGuard {
             amount,
             redeemed
         );
-    }
-
-    /**
-        @notice Claim WETH rewards
-        @return fromGmx  uint256  WETH earned from staked esGMX
-        @return fromGlp  uint256  WETH earned from staked GLP
-        @return weth     uint256  WETH transferred
-     */
-    function claimWETHRewards()
-        external
-        returns (
-            uint256 fromGmx,
-            uint256 fromGlp,
-            uint256 weth
-        )
-    {
-        // Restrict call to pxGlpRewards since it is the rewards receiver
-        // Additionally, the WETH amount may need to be synced with reward points
-        if (msg.sender != pxGlpRewards) revert NotPxGlpRewards();
-
-        // Retrieve the WETH reward amounts for each reward-producing token
-        fromGmx = REWARD_TRACKER_GMX.claimable(address(this));
-        fromGlp = REWARD_TRACKER_GLP.claimable(address(this));
-
-        uint256 wethBalanceBefore = WETH.balanceOf(address(this));
-
-        // Claim only WETH rewards to keep gas to a minimum
-        REWARD_ROUTER_V2.handleRewards(
-            false,
-            false,
-            false,
-            false,
-            false,
-            true,
-            false
-        );
-
-        uint256 fromGmxGlp = fromGmx + fromGlp;
-
-        if (fromGmxGlp != 0) {
-            // Recalculate fromGmx/Glp since the WETH amount received may differ
-            weth = WETH.balanceOf(address(this)) - wethBalanceBefore;
-            fromGmx = (weth * fromGmx) / fromGmxGlp;
-            fromGlp = (weth * fromGlp) / fromGmxGlp;
-
-            // Check above ensures that msg.sender is pxGlpRewards
-            WETH.safeTransfer(msg.sender, weth);
-        }
     }
 }
