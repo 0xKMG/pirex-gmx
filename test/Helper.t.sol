@@ -7,8 +7,8 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
-import {RewardsCoordinator} from "src/rewards/RewardsCoordinator.sol";
-import {RewardsSiloGlp} from "src/rewards/RewardsSiloGlp.sol";
+import {RewardsHarvester} from "src/rewards/RewardsHarvester.sol";
+import {RewardsSilo} from "src/rewards/RewardsSilo.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
@@ -44,8 +44,8 @@ contract Helper is Test {
 
     PirexGlp internal immutable pirexGlp;
     PxGlp internal immutable pxGlp;
-    RewardsCoordinator internal immutable rewardsCoordinator;
-    RewardsSiloGlp internal immutable rewardsSiloGlp;
+    RewardsHarvester internal immutable rewardsHarvester;
+    RewardsSilo internal immutable rewardsSilo;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -67,17 +67,18 @@ contract Helper is Test {
     receive() external payable {}
 
     constructor() {
-        rewardsCoordinator = new RewardsCoordinator();
-        pxGlp = new PxGlp(address(rewardsCoordinator));
+        rewardsHarvester = new RewardsHarvester();
+        pxGlp = new PxGlp(address(rewardsHarvester));
         pirexGlp = new PirexGlp(address(pxGlp));
-        rewardsSiloGlp = new RewardsSiloGlp(
+        rewardsSilo = new RewardsSilo(
+            address(rewardsHarvester),
             address(pirexGlp),
-            address(rewardsCoordinator),
             pxGlp,
             WETH
         );
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
+        pirexGlp.setRewardsHarvester(address(rewardsHarvester));
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import {Owned} from "solmate/auth/Owned.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
@@ -9,7 +10,7 @@ import {IRewardTracker} from "./interfaces/IRewardTracker.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
 
-contract PirexGlp is ReentrancyGuard {
+contract PirexGlp is ReentrancyGuard, Owned {
     using SafeTransferLib for ERC20;
 
     // GMX contracts and addresses
@@ -28,6 +29,11 @@ contract PirexGlp is ReentrancyGuard {
 
     // Pirex contracts
     PxGlp public immutable pxGlp;
+
+    // Contracts for handling rewards produced by GMX/GLP tokens
+    address public rewardsHarvester;
+
+    event SetRewardsHarvester(address rewardsHarvester);
 
     event Deposit(
         address indexed caller,
@@ -54,10 +60,22 @@ contract PirexGlp is ReentrancyGuard {
     /**
         @param  _pxGlp  address  PxGlp contract address
     */
-    constructor(address _pxGlp) {
+    constructor(address _pxGlp) Owned(msg.sender) {
         if (_pxGlp == address(0)) revert ZeroAddress();
 
         pxGlp = PxGlp(_pxGlp);
+    }
+
+    /**
+        @notice Set rewardsHarvester
+        @param  _rewardsHarvester  address  RewardsHarvester contract address
+     */
+    function setRewardsHarvester(address _rewardsHarvester) external onlyOwner {
+        if (_rewardsHarvester == address(0)) revert ZeroAddress();
+
+        rewardsHarvester = _rewardsHarvester;
+
+        emit SetRewardsHarvester(_rewardsHarvester);
     }
 
     /**

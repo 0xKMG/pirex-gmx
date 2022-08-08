@@ -6,6 +6,8 @@ import {Vault} from "src/external/Vault.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGlpTest is Helper {
+    event SetRewardsHarvester(address rewardsHarvester);
+
     event Deposit(
         address indexed caller,
         address indexed receiver,
@@ -213,33 +215,48 @@ contract PirexGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        GMX-related TESTS
+                        setRewardsHarvester TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test for verifying correctness of GLP buy minimum calculation
-        @param  etherAmount  uint72  Amount of ether in wei units
+        @notice Test tx reversion due to caller not being owner
      */
-    function testMintAndStakeGlpETH(uint72 etherAmount) external {
-        vm.assume(etherAmount > 0.001 ether);
-        vm.assume(etherAmount < 1_000 ether);
-        vm.deal(address(this), etherAmount);
+    function testCannotSetRewardsHarvesterUnauthorized() external {
+        address _rewardsHarvester = address(this);
 
-        assertEq(address(this).balance, etherAmount);
-        assertEq(FEE_STAKED_GLP.balanceOf(address(this)), 0);
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
 
-        uint256 minGlpWithSlippage = _calculateMinGlpAmount(
-            address(0),
-            etherAmount,
-            18
-        );
-        uint256 glpAmount = REWARD_ROUTER_V2.mintAndStakeGlpETH{
-            value: etherAmount
-        }(0, minGlpWithSlippage);
+        pirexGlp.setRewardsHarvester(_rewardsHarvester);
+    }
 
-        assertEq(address(this).balance, 0);
-        assertGt(minGlpWithSlippage, 0);
-        assertGt(glpAmount, minGlpWithSlippage);
+    /**
+        @notice Test tx reversion due to _rewardsHarvester being zero
+     */
+    function testCannotSetRewardsHarvesterZeroAddress() external {
+        address invalidRewardsHarvester = address(0);
+
+        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+
+        pirexGlp.setRewardsHarvester(invalidRewardsHarvester);
+    }
+
+    /**
+        @notice Test setting rewardsHarvester
+     */
+    function testSetRewardsHarvester() external {
+        address rewardsHarvesterBefore = address(pirexGlp.rewardsHarvester());
+        address _rewardsHarvester = address(this);
+
+        assertTrue(rewardsHarvesterBefore != _rewardsHarvester);
+
+        vm.expectEmit(false, false, false, true, address(pirexGlp));
+
+        emit SetRewardsHarvester(_rewardsHarvester);
+
+        pirexGlp.setRewardsHarvester(_rewardsHarvester);
+
+        assertEq(_rewardsHarvester, address(pirexGlp.rewardsHarvester()));
     }
 
     /*//////////////////////////////////////////////////////////////
