@@ -8,6 +8,8 @@ import {RewardsHarvester} from "src/rewards/RewardsHarvester.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract RewardsHarvesterTest is Helper {
+    event SetRewardsSilo(address rewardsSilo);
+
     /**
         @notice Calculate the global rewards
         @param  producerToken  ERC20    Producer token
@@ -45,6 +47,51 @@ contract RewardsHarvesterTest is Helper {
         ) = rewardsHarvester.userStates(producerToken, user);
 
         return rewards + lastBalance * (block.timestamp - lastUpdate);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setRewardsSilo TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being owner
+     */
+    function testCannotSetRewardsSiloUnauthorized() external {
+        address _rewardsSilo = address(this);
+
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
+
+        rewardsHarvester.setRewardsSilo(_rewardsSilo);
+    }
+
+    /**
+        @notice Test tx reversion due to _rewardsSilo being zero
+     */
+    function testCannotSetRewardsSiloZeroAddress() external {
+        address invalidRewardsHarvester = address(0);
+
+        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+
+        rewardsHarvester.setRewardsSilo(invalidRewardsHarvester);
+    }
+
+    /**
+        @notice Test setting rewardsHarvester
+     */
+    function testSetRewardsSilo() external {
+        address rewardsHarvesterBefore = address(rewardsHarvester.rewardsSilo());
+        address _rewardsSilo = address(this);
+
+        assertTrue(rewardsHarvesterBefore != _rewardsSilo);
+
+        vm.expectEmit(false, false, false, true, address(rewardsHarvester));
+
+        emit SetRewardsSilo(_rewardsSilo);
+
+        rewardsHarvester.setRewardsSilo(_rewardsSilo);
+
+        assertEq(_rewardsSilo, address(rewardsHarvester.rewardsSilo()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -493,8 +540,10 @@ contract RewardsHarvesterTest is Helper {
             pxGlp.transferFrom(sender, receiver, transferAmount);
         }
 
-        (, , uint256 senderRewardsAfterTransfer) = rewardsHarvester
-            .userStates(pxGlp, sender);
+        (, , uint256 senderRewardsAfterTransfer) = rewardsHarvester.userStates(
+            pxGlp,
+            sender
+        );
 
         assertEq(
             expectedSenderRewardsAfterTransfer,
