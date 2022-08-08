@@ -7,7 +7,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
     Originally inspired by Flywheel V2 (thank you Tribe team):
     https://github.com/fei-protocol/flywheel-v2/blob/dbe3cb8/src/FlywheelCore.sol
 */
-contract RewardsCoordinator {
+contract RewardsHarvester {
     struct GlobalState {
         uint256 lastUpdate;
         uint256 lastSupply;

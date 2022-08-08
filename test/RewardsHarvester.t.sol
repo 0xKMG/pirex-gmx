@@ -4,10 +4,10 @@ pragma solidity 0.8.13;
 import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {RewardsCoordinator} from "src/rewards/RewardsCoordinator.sol";
+import {RewardsHarvester} from "src/rewards/RewardsHarvester.sol";
 import {Helper} from "./Helper.t.sol";
 
-contract RewardsCoordinatorTest is Helper {
+contract RewardsHarvesterTest is Helper {
     /**
         @notice Calculate the global rewards
         @param  producerToken  ERC20    Producer token
@@ -22,7 +22,7 @@ contract RewardsCoordinatorTest is Helper {
             uint256 lastUpdate,
             uint256 lastSupply,
             uint256 rewards
-        ) = rewardsCoordinator.globalStates(producerToken);
+        ) = rewardsHarvester.globalStates(producerToken);
 
         return rewards + (block.timestamp - lastUpdate) * lastSupply;
     }
@@ -42,7 +42,7 @@ contract RewardsCoordinatorTest is Helper {
             uint256 lastUpdate,
             uint256 lastBalance,
             uint256 rewards
-        ) = rewardsCoordinator.userStates(producerToken, user);
+        ) = rewardsHarvester.userStates(producerToken, user);
 
         return rewards + lastBalance * (block.timestamp - lastUpdate);
     }
@@ -57,9 +57,9 @@ contract RewardsCoordinatorTest is Helper {
     function testCannotGlobalAccrueProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
 
-        vm.expectRevert(RewardsCoordinator.ZeroAddress.selector);
+        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
 
-        rewardsCoordinator.globalAccrue(invalidProducerToken);
+        rewardsHarvester.globalAccrue(invalidProducerToken);
     }
 
     /**
@@ -81,7 +81,7 @@ contract RewardsCoordinatorTest is Helper {
             uint256 lastUpdateBeforeMint,
             uint256 lastSupplyBeforeMint,
             uint256 rewardsBeforeMint
-        ) = rewardsCoordinator.globalStates(producerToken);
+        ) = rewardsHarvester.globalStates(producerToken);
 
         assertEq(lastUpdateBeforeMint, 0);
         assertEq(lastSupplyBeforeMint, 0);
@@ -95,7 +95,7 @@ contract RewardsCoordinatorTest is Helper {
             uint256 lastUpdateAfterMint,
             uint256 lastSupplyAfterMint,
             uint256 rewardsAfterMint
-        ) = rewardsCoordinator.globalStates(producerToken);
+        ) = rewardsHarvester.globalStates(producerToken);
 
         // Ensure that the update timestamp and supply are tracked
         assertEq(lastUpdateAfterMint, timestampBeforeMint);
@@ -120,7 +120,7 @@ contract RewardsCoordinatorTest is Helper {
             uint256 lastUpdate,
             uint256 lastSupply,
             uint256 rewards
-        ) = rewardsCoordinator.globalStates(producerToken);
+        ) = rewardsHarvester.globalStates(producerToken);
 
         assertEq(expectedLastUpdate, lastUpdate);
         assertEq(pxGlp.totalSupply(), lastSupply);
@@ -163,7 +163,7 @@ contract RewardsCoordinatorTest is Helper {
 
         _burnPxGlp(user, burnAmount);
 
-        (, , uint256 rewards) = rewardsCoordinator.globalStates(producerToken);
+        (, , uint256 rewards) = rewardsHarvester.globalStates(producerToken);
         uint256 postBurnSupply = pxGlp.totalSupply();
 
         // Verify conditions for "less reward accrual" post-burn
@@ -187,9 +187,9 @@ contract RewardsCoordinatorTest is Helper {
         uint256 expectedAndNoBurnRewardDelta = (preBurnSupply -
             postBurnSupply) * secondsElapsed;
 
-        rewardsCoordinator.globalAccrue(producerToken);
+        rewardsHarvester.globalAccrue(producerToken);
 
-        (, , uint256 rewardsAfterBurn) = rewardsCoordinator.globalStates(
+        (, , uint256 rewardsAfterBurn) = rewardsHarvester.globalStates(
             producerToken
         );
 
@@ -211,9 +211,9 @@ contract RewardsCoordinatorTest is Helper {
         ERC20 invalidProducerToken = ERC20(address(0));
         address user = address(this);
 
-        vm.expectRevert(RewardsCoordinator.ZeroAddress.selector);
+        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
 
-        rewardsCoordinator.userAccrue(invalidProducerToken, user);
+        rewardsHarvester.userAccrue(invalidProducerToken, user);
     }
 
     /**
@@ -223,9 +223,9 @@ contract RewardsCoordinatorTest is Helper {
         ERC20 producerToken = pxGlp;
         address invalidUser = address(0);
 
-        vm.expectRevert(RewardsCoordinator.ZeroAddress.selector);
+        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
 
-        rewardsCoordinator.userAccrue(producerToken, invalidUser);
+        rewardsHarvester.userAccrue(producerToken, invalidUser);
     }
 
     /**
@@ -257,7 +257,7 @@ contract RewardsCoordinatorTest is Helper {
             uint256 lastUpdateBefore,
             uint256 lastBalanceBefore,
             uint256 rewardsBefore
-        ) = rewardsCoordinator.userStates(pxGlp, user);
+        ) = rewardsHarvester.userStates(pxGlp, user);
         uint256 warpTimestamp = block.timestamp + secondsElapsed;
 
         assertEq(lastUpdateBefore, timestampBeforeMint);
@@ -272,13 +272,13 @@ contract RewardsCoordinatorTest is Helper {
 
         uint256 expectedUserRewards = _calculateUserRewards(pxGlp, user);
 
-        rewardsCoordinator.userAccrue(pxGlp, user);
+        rewardsHarvester.userAccrue(pxGlp, user);
 
         (
             uint256 lastUpdateAfter,
             uint256 lastBalanceAfter,
             uint256 rewardsAfter
-        ) = rewardsCoordinator.userStates(pxGlp, user);
+        ) = rewardsHarvester.userStates(pxGlp, user);
 
         assertEq(lastUpdateAfter, warpTimestamp);
         assertEq(lastBalanceAfter, pxGlpBalance);
@@ -319,13 +319,13 @@ contract RewardsCoordinatorTest is Helper {
         if (accrueGlobal) {
             uint256 totalSupplyBeforeAccrue = pxGlp.totalSupply();
 
-            rewardsCoordinator.globalAccrue(pxGlp);
+            rewardsHarvester.globalAccrue(pxGlp);
 
             (
                 uint256 lastUpdate,
                 uint256 lastSupply,
                 uint256 rewards
-            ) = rewardsCoordinator.globalStates(pxGlp);
+            ) = rewardsHarvester.globalStates(pxGlp);
 
             assertEq(lastUpdate, timestampBeforeAccrue);
             assertEq(lastSupply, totalSupplyBeforeAccrue);
@@ -343,13 +343,13 @@ contract RewardsCoordinatorTest is Helper {
 
             assertGt(expectedRewards, 0);
 
-            rewardsCoordinator.userAccrue(pxGlp, testAccount);
+            rewardsHarvester.userAccrue(pxGlp, testAccount);
 
             (
                 uint256 lastUpdate,
                 uint256 lastBalance,
                 uint256 rewards
-            ) = rewardsCoordinator.userStates(pxGlp, testAccount);
+            ) = rewardsHarvester.userStates(pxGlp, testAccount);
 
             // Total rewards accrued by all users should add up to the global rewards
             totalRewards += rewards;
@@ -401,14 +401,14 @@ contract RewardsCoordinatorTest is Helper {
 
             for (uint256 j; j < tLen; ++j) {
                 if (j != delayedAccountIndex) {
-                    (, , uint256 rewardsBefore) = rewardsCoordinator.userStates(
+                    (, , uint256 rewardsBefore) = rewardsHarvester.userStates(
                         pxGlp,
                         testAccounts[j]
                     );
 
-                    rewardsCoordinator.userAccrue(pxGlp, testAccounts[j]);
+                    rewardsHarvester.userAccrue(pxGlp, testAccounts[j]);
 
-                    (, , uint256 rewardsAfter) = rewardsCoordinator.userStates(
+                    (, , uint256 rewardsAfter) = rewardsHarvester.userStates(
                         pxGlp,
                         testAccounts[j]
                     );
@@ -427,9 +427,9 @@ contract RewardsCoordinatorTest is Helper {
         uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
 
         // Accrue rewards and check that the actual amount matches the expected
-        rewardsCoordinator.userAccrue(pxGlp, delayedAccount);
+        rewardsHarvester.userAccrue(pxGlp, delayedAccount);
 
-        (, , uint256 rewardsAfterAccrue) = rewardsCoordinator.userStates(
+        (, , uint256 rewardsAfterAccrue) = rewardsHarvester.userStates(
             pxGlp,
             delayedAccount
         );
@@ -493,7 +493,7 @@ contract RewardsCoordinatorTest is Helper {
             pxGlp.transferFrom(sender, receiver, transferAmount);
         }
 
-        (, , uint256 senderRewardsAfterTransfer) = rewardsCoordinator
+        (, , uint256 senderRewardsAfterTransfer) = rewardsHarvester
             .userStates(pxGlp, sender);
 
         assertEq(
@@ -515,15 +515,15 @@ contract RewardsCoordinatorTest is Helper {
             );
 
         // Accrue rewards for both sender and receiver
-        rewardsCoordinator.userAccrue(pxGlp, sender);
-        rewardsCoordinator.userAccrue(pxGlp, receiver);
+        rewardsHarvester.userAccrue(pxGlp, sender);
+        rewardsHarvester.userAccrue(pxGlp, receiver);
 
         // Retrieve actual user reward accrual states
-        (, , uint256 receiverRewards) = rewardsCoordinator.userStates(
+        (, , uint256 receiverRewards) = rewardsHarvester.userStates(
             pxGlp,
             receiver
         );
-        (, , uint256 senderRewardsAfterTransferAndWarp) = rewardsCoordinator
+        (, , uint256 senderRewardsAfterTransferAndWarp) = rewardsHarvester
             .userStates(pxGlp, sender);
 
         assertEq(
@@ -568,7 +568,7 @@ contract RewardsCoordinatorTest is Helper {
 
         pxGlp.burn(user, burnAmount);
 
-        (, , uint256 rewardsAfterBurn) = rewardsCoordinator.userStates(
+        (, , uint256 rewardsAfterBurn) = rewardsHarvester.userStates(
             pxGlp,
             user
         );
@@ -594,9 +594,9 @@ contract RewardsCoordinatorTest is Helper {
         uint256 expectedAndNoBurnRewardDelta = (preBurnBalance -
             postBurnBalance) * secondsElapsed;
 
-        rewardsCoordinator.userAccrue(pxGlp, user);
+        rewardsHarvester.userAccrue(pxGlp, user);
 
-        (, , uint256 rewards) = rewardsCoordinator.userStates(pxGlp, user);
+        (, , uint256 rewards) = rewardsHarvester.userStates(pxGlp, user);
 
         assertEq(expectedRewards, rewards);
         assertEq(noBurnRewards - expectedAndNoBurnRewardDelta, rewards);

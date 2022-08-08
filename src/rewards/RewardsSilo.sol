@@ -6,7 +6,7 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
 import {PirexGlp} from "../PirexGlp.sol";
 
-contract RewardsHarvesterGlp {
+contract RewardsSilo {
     using SafeTransferLib for ERC20;
 
     // Pirex contract which maintains reward accrual state and coordinates silos

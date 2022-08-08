@@ -3,10 +3,10 @@ pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {RewardsCoordinator} from "./rewards/RewardsCoordinator.sol";
+import {RewardsHarvester} from "./rewards/RewardsHarvester.sol";
 
 contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
-    RewardsCoordinator public immutable rewardsCoordinator;
+    RewardsHarvester public immutable rewardsHarvester;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
@@ -14,12 +14,12 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
     error ZeroAmount();
 
     /**
-        @param  _rewardsCoordinator  address  RewardsCoordinator contract address
+        @param  _rewardsHarvester  address  RewardsHarvester contract address
     */
-    constructor(address _rewardsCoordinator) {
-        if (_rewardsCoordinator == address(0)) revert ZeroAddress();
+    constructor(address _rewardsHarvester) {
+        if (_rewardsHarvester == address(0)) revert ZeroAddress();
 
-        rewardsCoordinator = RewardsCoordinator(_rewardsCoordinator);
+        rewardsHarvester = RewardsHarvester(_rewardsHarvester);
 
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
@@ -36,8 +36,8 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         _mint(to, amount);
 
         // Accrue global and user rewards and store post-mint supply for future accrual
-        rewardsCoordinator.globalAccrue(this);
-        rewardsCoordinator.userAccrue(this, to);
+        rewardsHarvester.globalAccrue(this);
+        rewardsHarvester.userAccrue(this, to);
     }
 
     /**
@@ -51,8 +51,8 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         _burn(from, amount);
 
         // Accrue global and user rewards and store post-burn supply for future accrual
-        rewardsCoordinator.globalAccrue(this);
-        rewardsCoordinator.userAccrue(this, from);
+        rewardsHarvester.globalAccrue(this);
+        rewardsHarvester.userAccrue(this, from);
     }
 
     /**
@@ -76,8 +76,8 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         emit Transfer(msg.sender, to, amount);
 
         // Accrue rewards for sender, up to their current balance and kick off accrual for receiver
-        rewardsCoordinator.userAccrue(this, msg.sender);
-        rewardsCoordinator.userAccrue(this, to);
+        rewardsHarvester.userAccrue(this, msg.sender);
+        rewardsHarvester.userAccrue(this, to);
 
         return true;
     }
@@ -108,8 +108,8 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
         emit Transfer(from, to, amount);
 
-        rewardsCoordinator.userAccrue(this, from);
-        rewardsCoordinator.userAccrue(this, to);
+        rewardsHarvester.userAccrue(this, from);
+        rewardsHarvester.userAccrue(this, to);
 
         return true;
     }
