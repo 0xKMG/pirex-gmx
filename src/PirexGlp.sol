@@ -56,6 +56,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
+    error NotRewardsHarvester();
 
     /**
         @param  _pxGlp  address  PxGlp contract address
@@ -233,5 +234,61 @@ contract PirexGlp is ReentrancyGuard, Owned {
             amount,
             redeemed
         );
+    }
+
+    /**
+        @notice Claim WETH rewards
+        @param  receiver        address    Recipient of rewards
+        @return producerTokens  address[]  Producer tokens (pxGLP and pxGMX)
+        @return rewardAmounts   uint256[]  Reward amounts from each producerToken
+     */
+    function claimWETHRewards(address receiver)
+        external
+        returns (
+            address[] memory producerTokens,
+            uint256[] memory rewardAmounts
+        )
+    {
+        if (msg.sender != rewardsHarvester) revert NotRewardsHarvester();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        producerTokens = new address[](2);
+        rewardAmounts = new uint256[](2);
+
+        // Set the addresses of the px tokens responsible for the rewards
+        producerTokens[0] = address(pxGlp);
+
+        // @NOTE: This needs to be changed to the address of pxGMX later
+        producerTokens[1] = address(pxGlp);
+
+        // Retrieve the WETH reward amounts for each reward-producing token
+        uint256 fromGlp = REWARD_TRACKER_GLP.claimable(address(this));
+        uint256 fromGmx = REWARD_TRACKER_GMX.claimable(address(this));
+
+        // Necessary for transferring the exact amount received from GMX
+        uint256 wethBalanceBefore = WETH.balanceOf(address(this));
+
+        // Claim only WETH rewards to keep gas to a minimum
+        REWARD_ROUTER_V2.handleRewards(
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+        );
+
+        uint256 fromGmxGlp = fromGlp + fromGmx;
+        uint256 weth = WETH.balanceOf(address(this)) - wethBalanceBefore;
+
+        // Recalculate fromGmx/Glp since the WETH amount received may differ
+        if (fromGmxGlp != 0) {
+            rewardAmounts[0] = (weth * fromGlp) / fromGmxGlp;
+            rewardAmounts[1] = weth - rewardAmounts[0];
+
+            // Check above ensures that msg.sender is pxGlpRewards
+            WETH.safeTransfer(receiver, weth);
+        }
     }
 }

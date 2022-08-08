@@ -810,4 +810,96 @@ contract PirexGlpTest is Helper {
             assets
         );
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        claimWETHRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to the caller not being rewardsHarvester
+     */
+    function testCannotClaimWETHRewardsUnauthorized() external {
+        address receiver = address(this);
+
+        vm.prank(testAccounts[0]);
+        vm.expectRevert(PirexGlp.NotRewardsHarvester.selector);
+
+        pirexGlp.claimWETHRewards(receiver);
+    }
+
+    /**
+        @notice Test tx reversion due to the receiver being the zero address
+     */
+    function testCannotClaimWETHRewardsZeroAddress() external {
+        address invalidReceiver = address(0);
+
+        vm.prank(address(rewardsHarvester));
+        vm.expectRevert(PirexGlp.ZeroAddress.selector);
+
+        pirexGlp.claimWETHRewards(invalidReceiver);
+    }
+
+    /**
+        @notice Test claiming WETH rewards earned solely from GLP
+     */
+    function testClaimWETHRewards(
+        uint256 secondsElapsed,
+        uint256 tokenAmount,
+        bool stakeEsGmx
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(tokenAmount != 0);
+        vm.assume(tokenAmount < 100e8);
+
+        address token = address(WBTC);
+        address receiver = address(rewardsSilo);
+        uint256 minShares = 1;
+
+        // Mint pxGLP in order to begin accrual of GMX rewards
+        _mintWbtc(tokenAmount);
+        WBTC.approve(address(pirexGlp), tokenAmount);
+        pirexGlp.depositWithERC20(token, tokenAmount, minShares, receiver);
+
+        if (stakeEsGmx) {
+            // Forward timestamp to produce rewards
+            vm.warp(block.timestamp + secondsElapsed);
+
+            // Impersonate pirexGlp and claim + stake esGMX to test WETH accrual
+            vm.prank(address(pirexGlp));
+
+            // Only claim and stake esGMX for now
+            REWARD_ROUTER_V2.handleRewards(
+                false,
+                false,
+                true,
+                true,
+                false,
+                false,
+                false
+            );
+        }
+
+        // Forward timestamp to produce rewards
+        vm.warp(block.timestamp + secondsElapsed);
+
+        // Ensure receiver has a zero WETH balance before testing balance changes
+        assertEq(WETH.balanceOf(receiver), 0);
+
+        // Impersonate rewardsHarvester and claim WETH rewards
+        vm.prank(address(rewardsHarvester));
+
+        (
+            address[] memory producerTokens,
+            uint256[] memory rewardAmounts
+        ) = pirexGlp.claimWETHRewards(receiver);
+        uint256 wethFromGlp = rewardAmounts[0];
+        uint256 wethFromGmx = rewardAmounts[1];
+        uint256 totalFromGmxGlp = wethFromGlp + wethFromGmx;
+
+        // Only test the first element since the second will later be pxGMX
+        assertEq(producerTokens[0], address(pxGlp));
+
+        assertEq(WETH.balanceOf(receiver), totalFromGmxGlp);
+    }
 }
