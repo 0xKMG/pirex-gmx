@@ -37,20 +37,23 @@ contract RewardsHarvester is Owned {
 
     event SetProducer(address producer);
     event SetRewardsSilo(address rewardsSilo);
-
     event GlobalAccrue(
         ERC20 indexed producerToken,
         uint256 lastUpdate,
         uint256 lastSupply,
         uint256 rewards
     );
-
     event UserAccrue(
         ERC20 indexed producerToken,
         address indexed user,
         uint256 lastUpdate,
         uint256 lastSupply,
         uint256 rewards
+    );
+    event Harvest(
+        ERC20[] producerTokens,
+        ERC20[] rewardTokens,
+        uint256[] rewardAmounts
     );
 
     error ZeroAddress();
@@ -85,7 +88,7 @@ contract RewardsHarvester is Owned {
         @notice Update global rewards accrual state
         @param  producerToken  ERC20  Rewards-producing token
     */
-    function globalAccrue(ERC20 producerToken) external {
+    function globalAccrue(ERC20 producerToken) public {
         if (address(producerToken) == address(0)) revert ZeroAddress();
 
         GlobalState memory g = globalStates[producerToken];
@@ -127,5 +130,39 @@ contract RewardsHarvester is Owned {
         u.rewards = rewards;
 
         emit UserAccrue(producerToken, user, timestamp, balance, rewards);
+    }
+
+    /**
+        @notice Harvest rewards
+        @return producerTokens  ERC20[]  Producer token contracts
+        @return rewardTokens    ERC20[]  Reward token contracts
+        @return rewardAmounts   ERC20[]  Reward token amounts
+    */
+    function harvest()
+        external
+        returns (
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
+        )
+    {
+        (producerTokens, rewardTokens, rewardAmounts) = producer
+            .claimWETHRewards(address(rewardsSilo));
+        uint256 pLen = producerTokens.length;
+
+        // Iterate over the producer tokens and update reward state
+        for (uint256 i; i < pLen; ++i) {
+            ERC20 p = producerTokens[i];
+            uint256 r = rewardAmounts[i];
+
+            // Update global reward accrual state and associate with the update of reward state
+            globalAccrue(p);
+
+            if (r != 0) {
+                rewardsSilo.rewardAccrue(p, rewardTokens[i], r);
+            }
+        }
+
+        emit Harvest(producerTokens, rewardTokens, rewardAmounts);
     }
 }

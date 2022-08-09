@@ -74,6 +74,8 @@ contract Helper is Test {
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         pirexGlp.setRewardsHarvester(address(rewardsHarvester));
+        rewardsHarvester.setProducer(address(pirexGlp));
+        rewardsHarvester.setRewardsSilo(address(rewardsSilo));
     }
 
     /**

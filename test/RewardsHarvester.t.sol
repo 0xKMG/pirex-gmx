@@ -696,4 +696,48 @@ contract RewardsHarvesterTest is Helper {
         assertEq(expectedRewards, rewards);
         assertEq(noBurnRewards - expectedAndNoBurnRewardDelta, rewards);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        harvest TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function testHarvest() external {
+        address user = address(this);
+        uint256 tokenAmount = 5 ether;
+        uint256 secondsElapsed = 10000;
+
+        vm.deal(user, tokenAmount);
+
+        pirexGlp.depositWithETH{value: tokenAmount}(1, user);
+
+        vm.warp(block.timestamp + secondsElapsed);
+
+        uint256 expectedGlobalLastUpdate = block.timestamp;
+        uint256 expectedGlobalLastSupply = pxGlp.totalSupply();
+        uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
+        (
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
+        ) = rewardsHarvester.harvest();
+        uint256 pLen = producerTokens.length;
+        (
+            uint256 lastUpdate,
+            uint256 lastSupply,
+            uint256 rewards
+        ) = rewardsHarvester.globalStates(pxGlp);
+
+        assertEq(expectedGlobalLastUpdate, lastUpdate);
+        assertEq(expectedGlobalLastSupply, lastSupply);
+        assertEq(expectedGlobalRewards, rewards);
+
+        for (uint256 i; i < pLen; ++i) {
+            ERC20 p = producerTokens[i];
+
+            assertEq(
+                rewardAmounts[i],
+                rewardsSilo.rewardStates(p, rewardTokens[i])
+            );
+        }
+    }
 }
