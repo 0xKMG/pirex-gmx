@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGlp} from "src/PirexGlp.sol";
 import {Vault} from "src/external/Vault.sol";
 import {Helper} from "./Helper.t.sol";
@@ -890,7 +891,8 @@ contract PirexGlpTest is Helper {
         vm.prank(address(rewardsHarvester));
 
         (
-            address[] memory producerTokens,
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         ) = pirexGlp.claimWETHRewards(receiver);
         uint256 wethFromGlp = rewardAmounts[0];
@@ -898,8 +900,10 @@ contract PirexGlpTest is Helper {
         uint256 totalFromGmxGlp = wethFromGlp + wethFromGmx;
 
         // Only test the first element since the second will later be pxGMX
-        assertEq(producerTokens[0], address(pxGlp));
+        assertEq(address(producerTokens[0]), address(pxGlp));
 
+        assertEq(address(WETH), address(rewardTokens[0]));
+        assertEq(address(WETH), address(rewardTokens[1]));
         assertEq(WETH.balanceOf(receiver), totalFromGmxGlp);
     }
 }

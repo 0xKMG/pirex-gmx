@@ -239,27 +239,32 @@ contract PirexGlp is ReentrancyGuard, Owned {
     /**
         @notice Claim WETH rewards
         @param  receiver        address    Recipient of rewards
-        @return producerTokens  address[]  Producer tokens (pxGLP and pxGMX)
+        @return producerTokens  ERC20[]    Producer tokens (pxGLP and pxGMX)
+        @return rewardTokens    ERC20[]    Reward token contract instances
         @return rewardAmounts   uint256[]  Reward amounts from each producerToken
      */
     function claimWETHRewards(address receiver)
         external
         returns (
-            address[] memory producerTokens,
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         )
     {
         if (msg.sender != rewardsHarvester) revert NotRewardsHarvester();
         if (receiver == address(0)) revert ZeroAddress();
 
-        producerTokens = new address[](2);
+        producerTokens = new ERC20[](2);
         rewardAmounts = new uint256[](2);
 
+        // Currently, placeholder until improved handling of multiple reward tokens
+        rewardTokens = new ERC20[](2);
+
         // Set the addresses of the px tokens responsible for the rewards
-        producerTokens[0] = address(pxGlp);
+        producerTokens[0] = pxGlp;
 
         // @NOTE: This needs to be changed to the address of pxGMX later
-        producerTokens[1] = address(pxGlp);
+        producerTokens[1] = pxGlp;
 
         // Retrieve the WETH reward amounts for each reward-producing token
         uint256 fromGlp = REWARD_TRACKER_GLP.claimable(address(this));
@@ -284,6 +289,8 @@ contract PirexGlp is ReentrancyGuard, Owned {
 
         // Recalculate fromGmx/Glp since the WETH amount received may differ
         if (fromGmxGlp != 0) {
+            rewardTokens[0] = WETH;
+            rewardTokens[1] = WETH;
             rewardAmounts[0] = (weth * fromGlp) / fromGmxGlp;
             rewardAmounts[1] = weth - rewardAmounts[0];
 

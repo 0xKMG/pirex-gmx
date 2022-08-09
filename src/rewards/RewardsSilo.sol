@@ -10,39 +10,44 @@ contract RewardsSilo {
     using SafeTransferLib for ERC20;
 
     // Pirex contract which maintains reward accrual state and coordinates silos
-    address public immutable coordinator;
+    address public immutable harvester;
 
-    // Pirex contract which produces and enables reward claims
-    address public immutable producer;
-
-    // Pirex token which enables the attribution of rewards
-    ERC20 public immutable producerToken;
-
-    // Token distributed as rewards
-    ERC20 public immutable rewardToken;
+    // Producer tokens mapped their reward tokens and amounts accrued
+    mapping(ERC20 => mapping(ERC20 => uint256)) public rewardStates;
 
     error ZeroAddress();
+    error ZeroAmount();
+    error NotAuthorized();
 
     /**
-        @param  _coordinator    address  Pirex contract which maintains reward accrual state and coordinates silos
-        @param  _producer       address  Pirex contract which produces and enables reward claims
-        @param  _producerToken  ERC20    Pirex token which enables the attribution of rewards
-        @param  _rewardToken    ERC20    Token distributed as rewards
+        @param  _harvester  address  Pirex contract which maintains reward accrual state and coordinates silos
     */
-    constructor(
-        address _coordinator,
-        address _producer,
-        ERC20 _producerToken,
-        ERC20 _rewardToken
-    ) {
-        if (_coordinator == address(0)) revert ZeroAddress();
-        if (_producer == address(0)) revert ZeroAddress();
-        if (address(_producerToken) == address(0)) revert ZeroAddress();
-        if (address(_rewardToken) == address(0)) revert ZeroAddress();
+    constructor(address _harvester) {
+        if (_harvester == address(0)) revert ZeroAddress();
 
-        coordinator = _coordinator;
-        producer = _producer;
-        producerToken = _producerToken;
-        rewardToken = _rewardToken;
+        harvester = _harvester;
+    }
+
+    modifier onlyHarvester() {
+        if (msg.sender != harvester) revert NotAuthorized();
+        _;
+    }
+
+    /**q
+        @notice Update reward accrual state
+        @param  producerToken  ERC20    Producer token contract
+        @param  rewardToken    ERC20    Reward token contract
+        @param  rewardAmount   uint256  Reward amount
+    */
+    function rewardAccrue(
+        ERC20 producerToken,
+        ERC20 rewardToken,
+        uint256 rewardAmount
+    ) external onlyHarvester {
+        if (address(producerToken) == address(0)) revert ZeroAddress();
+        if (address(rewardToken) == address(0)) revert ZeroAddress();
+        if (rewardAmount == 0) revert ZeroAmount();
+
+        rewardStates[producerToken][rewardToken] += rewardAmount;
     }
 }

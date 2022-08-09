@@ -70,12 +70,7 @@ contract Helper is Test {
         rewardsHarvester = new RewardsHarvester();
         pxGlp = new PxGlp(address(rewardsHarvester));
         pirexGlp = new PirexGlp(address(pxGlp));
-        rewardsSilo = new RewardsSilo(
-            address(rewardsHarvester),
-            address(pirexGlp),
-            pxGlp,
-            WETH
-        );
+        rewardsSilo = new RewardsSilo(address(rewardsHarvester));
 
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
         pirexGlp.setRewardsHarvester(address(rewardsHarvester));
