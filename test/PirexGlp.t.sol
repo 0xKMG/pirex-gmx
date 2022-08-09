@@ -896,14 +896,11 @@ contract PirexGlpTest is Helper {
             uint256[] memory rewardAmounts
         ) = pirexGlp.claimWETHRewards(receiver);
         uint256 wethFromGlp = rewardAmounts[0];
-        uint256 wethFromGmx = rewardAmounts[1];
-        uint256 totalFromGmxGlp = wethFromGlp + wethFromGmx;
 
         // Only test the first element since the second will later be pxGMX
         assertEq(address(producerTokens[0]), address(pxGlp));
 
         assertEq(address(WETH), address(rewardTokens[0]));
-        assertEq(address(WETH), address(rewardTokens[1]));
-        assertEq(WETH.balanceOf(receiver), totalFromGmxGlp);
+        assertEq(WETH.balanceOf(receiver), wethFromGlp);
     }
 }

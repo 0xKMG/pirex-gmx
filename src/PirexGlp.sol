@@ -254,17 +254,14 @@ contract PirexGlp is ReentrancyGuard, Owned {
         if (msg.sender != rewardsHarvester) revert NotRewardsHarvester();
         if (receiver == address(0)) revert ZeroAddress();
 
-        producerTokens = new ERC20[](2);
-        rewardAmounts = new uint256[](2);
+        producerTokens = new ERC20[](1);
+        rewardAmounts = new uint256[](1);
 
         // Currently, placeholder until improved handling of multiple reward tokens
-        rewardTokens = new ERC20[](2);
+        rewardTokens = new ERC20[](1);
 
         // Set the addresses of the px tokens responsible for the rewards
         producerTokens[0] = pxGlp;
-
-        // @NOTE: This needs to be changed to the address of pxGMX later
-        producerTokens[1] = pxGlp;
 
         // Retrieve the WETH reward amounts for each reward-producing token
         uint256 fromGlp = REWARD_TRACKER_GLP.claimable(address(this));
@@ -290,9 +287,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
         // Recalculate fromGmx/Glp since the WETH amount received may differ
         if (fromGmxGlp != 0) {
             rewardTokens[0] = WETH;
-            rewardTokens[1] = WETH;
-            rewardAmounts[0] = (weth * fromGlp) / fromGmxGlp;
-            rewardAmounts[1] = weth - rewardAmounts[0];
+            rewardAmounts[0] = weth;
 
             // Check above ensures that msg.sender is pxGlpRewards
             WETH.safeTransfer(receiver, weth);
