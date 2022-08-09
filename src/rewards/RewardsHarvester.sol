@@ -3,6 +3,8 @@ pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {IProducer} from "src/interfaces/IProducer.sol";
+import {RewardsSilo} from "src/rewards/RewardsSilo.sol";
 
 /**
     Originally inspired by Flywheel V2 (thank you Tribe team):
@@ -27,9 +29,13 @@ contract RewardsHarvester is Owned {
     // Producer tokens mapped to their users' state
     mapping(ERC20 => mapping(address => UserState)) public userStates;
 
-    // Stores rewards data and tokens
-    address public rewardsSilo;
+    // Pirex contract which produces rewards
+    IProducer public producer;
 
+    // Stores rewards data and tokens
+    RewardsSilo public rewardsSilo;
+
+    event SetProducer(address producer);
     event SetRewardsSilo(address rewardsSilo);
 
     event GlobalAccrue(
@@ -52,13 +58,25 @@ contract RewardsHarvester is Owned {
     constructor() Owned(msg.sender) {}
 
     /**
-        @notice Set rewardsHarvester
+        @notice Set producer
+        @param  _producer  address  Producer contract address
+     */
+    function setProducer(address _producer) external onlyOwner {
+        if (_producer == address(0)) revert ZeroAddress();
+
+        producer = IProducer(_producer);
+
+        emit SetProducer(_producer);
+    }
+
+    /**
+        @notice Set rewardsSilo
         @param  _rewardsSilo  address  RewardsSilo contract address
      */
     function setRewardsSilo(address _rewardsSilo) external onlyOwner {
         if (_rewardsSilo == address(0)) revert ZeroAddress();
 
-        rewardsSilo = _rewardsSilo;
+        rewardsSilo = RewardsSilo(_rewardsSilo);
 
         emit SetRewardsSilo(_rewardsSilo);
     }

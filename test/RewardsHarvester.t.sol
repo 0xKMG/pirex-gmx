@@ -8,6 +8,7 @@ import {RewardsHarvester} from "src/rewards/RewardsHarvester.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract RewardsHarvesterTest is Helper {
+    event SetProducer(address producer);
     event SetRewardsSilo(address rewardsSilo);
 
     /**
@@ -50,6 +51,51 @@ contract RewardsHarvesterTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        setProducer TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being owner
+     */
+    function testCannotSetProducerUnauthorized() external {
+        address _producer = address(this);
+
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
+
+        rewardsHarvester.setProducer(_producer);
+    }
+
+    /**
+        @notice Test tx reversion due to _producer being zero
+     */
+    function testCannotSetProducerZeroAddress() external {
+        address invalidProducer = address(0);
+
+        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+
+        rewardsHarvester.setProducer(invalidProducer);
+    }
+
+    /**
+        @notice Test setting producer
+     */
+    function testSetProducer() external {
+        address producerBefore = address(rewardsHarvester.producer());
+        address _producer = address(this);
+
+        assertTrue(producerBefore != _producer);
+
+        vm.expectEmit(false, false, false, true, address(rewardsHarvester));
+
+        emit SetProducer(_producer);
+
+        rewardsHarvester.setProducer(_producer);
+
+        assertEq(_producer, address(rewardsHarvester.producer()));
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         setRewardsSilo TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -69,21 +115,21 @@ contract RewardsHarvesterTest is Helper {
         @notice Test tx reversion due to _rewardsSilo being zero
      */
     function testCannotSetRewardsSiloZeroAddress() external {
-        address invalidRewardsHarvester = address(0);
+        address invalidRewardsSilo = address(0);
 
         vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
 
-        rewardsHarvester.setRewardsSilo(invalidRewardsHarvester);
+        rewardsHarvester.setRewardsSilo(invalidRewardsSilo);
     }
 
     /**
         @notice Test setting rewardsHarvester
      */
     function testSetRewardsSilo() external {
-        address rewardsHarvesterBefore = address(rewardsHarvester.rewardsSilo());
+        address rewardsSiloBefore = address(rewardsHarvester.rewardsSilo());
         address _rewardsSilo = address(this);
 
-        assertTrue(rewardsHarvesterBefore != _rewardsSilo);
+        assertTrue(rewardsSiloBefore != _rewardsSilo);
 
         vm.expectEmit(false, false, false, true, address(rewardsHarvester));
 
