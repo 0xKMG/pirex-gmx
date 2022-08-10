@@ -701,14 +701,22 @@ contract RewardsHarvesterTest is Helper {
                         harvest TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function testHarvest() external {
+    /**
+        @notice Test harvesting WETH rewards produced by pxGLP
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+        @param  ethAmount       uint80  ETH amount used to mint pxGLP
+     */
+    function testHarvest(uint32 secondsElapsed, uint80 ethAmount) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(ethAmount > 0.001 ether);
+        vm.assume(ethAmount < 10000 ether);
+
         address user = address(this);
-        uint256 tokenAmount = 5 ether;
-        uint256 secondsElapsed = 10000;
 
-        vm.deal(user, tokenAmount);
+        vm.deal(user, ethAmount);
 
-        pirexGlp.depositWithETH{value: tokenAmount}(1, user);
+        pirexGlp.depositWithETH{value: ethAmount}(1, user);
 
         vm.warp(block.timestamp + secondsElapsed);
 
