@@ -23,20 +23,28 @@ contract RewardsHarvester is Owned {
         uint256 rewards;
     }
 
-    // Producer tokens mapped to their respective global states
-    mapping(ERC20 => GlobalState) public globalStates;
-
-    // Producer tokens mapped to their users' state
-    mapping(ERC20 => mapping(address => UserState)) public userStates;
-
     // Pirex contract which produces rewards
     IProducer public producer;
 
     // Stores rewards data and tokens
     RewardsSilo public rewardsSilo;
 
+    // Users mapped to reward tokens mapped to recipients
+    mapping(address => mapping(ERC20 => address)) public rewardRecipients;
+
+    // Producer tokens mapped to their respective global states
+    mapping(ERC20 => GlobalState) public globalStates;
+
+    // Producer tokens mapped to their users' state
+    mapping(ERC20 => mapping(address => UserState)) public userStates;
+
     event SetProducer(address producer);
     event SetRewardsSilo(address rewardsSilo);
+    event SetRewardRecipient(
+        address indexed user,
+        address indexed recipient,
+        ERC20 indexed rewardToken
+    );
     event GlobalAccrue(
         ERC20 indexed producerToken,
         uint256 lastUpdate,
@@ -82,6 +90,20 @@ contract RewardsHarvester is Owned {
         rewardsSilo = RewardsSilo(_rewardsSilo);
 
         emit SetRewardsSilo(_rewardsSilo);
+    }
+
+    /**
+        @notice Set reward recipient for a reward token
+        @param  recipient    address  Rewards recipient
+        @param  rewardToken  ERC20    Reward token contract
+    */
+    function setRewardRecipient(address recipient, ERC20 rewardToken) external {
+        if (recipient == address(0)) revert ZeroAddress();
+        if (address(rewardToken) == address(0)) revert ZeroAddress();
+
+        rewardRecipients[msg.sender][rewardToken] = recipient;
+
+        emit SetRewardRecipient(msg.sender, recipient, rewardToken);
     }
 
     /**

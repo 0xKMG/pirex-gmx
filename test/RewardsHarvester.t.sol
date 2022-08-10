@@ -10,6 +10,11 @@ import {Helper} from "./Helper.t.sol";
 contract RewardsHarvesterTest is Helper {
     event SetProducer(address producer);
     event SetRewardsSilo(address rewardsSilo);
+    event SetRewardRecipient(
+        address indexed user,
+        address indexed recipient,
+        ERC20 indexed rewardToken
+    );
 
     /**
         @notice Calculate the global rewards
@@ -698,7 +703,7 @@ contract RewardsHarvesterTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        harvest TESTS
+                            harvest TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -758,6 +763,59 @@ contract RewardsHarvesterTest is Helper {
         assertEq(
             WETH.balanceOf(address(rewardsSilo)) - wethBalanceBeforeHarvest,
             totalRewards
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setRewardRecipient TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: recipient is the zero address
+     */
+    function testCannotSetRewardRecipientRecipientZeroAddress() external {
+        address invalidRecipient = address(0);
+        ERC20 rewardToken = WETH;
+
+        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+
+        rewardsHarvester.setRewardRecipient(invalidRecipient, rewardToken);
+    }
+
+    /**
+        @notice Test tx reversion: rewardToken is the zero address
+     */
+    function testCannotSetRewardRecipientRewardTokenZeroAddress() external {
+        address recipient = address(this);
+        ERC20 invalidRewardToken = ERC20(address(0));
+
+        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+
+        rewardsHarvester.setRewardRecipient(recipient, invalidRewardToken);
+    }
+
+    /**
+        @notice Test setting a reward recipient
+     */
+    function testSetRewardRecipient() external {
+        address recipientBeforeSetting = rewardsHarvester.rewardRecipients(
+            address(this),
+            WETH
+        );
+        address recipient = address(this);
+        ERC20 rewardToken = WETH;
+
+        assertTrue(recipientBeforeSetting != recipient);
+
+        vm.expectEmit(true, true, true, true, address(rewardsHarvester));
+
+        emit SetRewardRecipient(address(this), recipient, rewardToken);
+
+        rewardsHarvester.setRewardRecipient(recipient, rewardToken);
+
+        assertEq(
+            recipient,
+            rewardsHarvester.rewardRecipients(address(this), WETH)
         );
     }
 }
