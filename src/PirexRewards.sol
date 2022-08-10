@@ -22,20 +22,20 @@ contract PirexRewards is Owned {
         uint256 rewards;
     }
 
+    struct ProducerToken {
+        GlobalState globalState;
+        mapping(address => UserState) userStates;
+        mapping(ERC20 => uint256) rewardStates;
+    }
+
     // Pirex contract which produces rewards
     IProducer public producer;
 
+    // Producer tokens mapped to their data
+    mapping(ERC20 => ProducerToken) public producerTokens;
+
     // Users mapped to reward tokens mapped to recipients
     mapping(address => mapping(ERC20 => address)) public rewardRecipients;
-
-    // Producer tokens mapped to their respective global states
-    mapping(ERC20 => GlobalState) public globalStates;
-
-    // Producer tokens mapped to their users' state
-    mapping(ERC20 => mapping(address => UserState)) public userStates;
-
-    // Producer tokens mapped their reward tokens and amounts accrued
-    mapping(ERC20 => mapping(ERC20 => uint256)) public rewardStates;
 
     event SetProducer(address producer);
     event SetRewardRecipient(
@@ -108,20 +108,58 @@ contract PirexRewards is Owned {
     }
 
     /**
+        @notice Getter for a producerToken's UserState struct member values
+        @param  producerToken  ERC20    Producer token contract
+        @param  user           address  User
+        @return lastUpdate     uint256  Last update
+        @return lastBalance    uint256  Last balance
+        @return rewards        uint256  Rewards
+    */
+    function getUserState(ERC20 producerToken, address user)
+        external
+        view
+        returns (
+            uint256 lastUpdate,
+            uint256 lastBalance,
+            uint256 rewards
+        )
+    {
+        UserState memory userState = producerTokens[producerToken].userStates[
+            user
+        ];
+
+        return (userState.lastUpdate, userState.lastBalance, userState.rewards);
+    }
+
+    /**
+        @notice Getter for a producerToken's UserState struct member values
+        @param  producerToken  ERC20    Producer token contract
+        @param  rewardToken    ERC20    Reward token contract
+        @return                uint256  Reward state
+    */
+    function getRewardState(ERC20 producerToken, ERC20 rewardToken)
+        external
+        view
+        returns (uint256)
+    {
+        return producerTokens[producerToken].rewardStates[rewardToken];
+    }
+
+    /**
         @notice Update global rewards accrual state
         @param  producerToken  ERC20  Rewards-producing token
     */
     function globalAccrue(ERC20 producerToken) public {
         if (address(producerToken) == address(0)) revert ZeroAddress();
 
-        GlobalState memory g = globalStates[producerToken];
+        GlobalState memory g = producerTokens[producerToken].globalState;
         uint256 timestamp = block.timestamp;
         uint256 totalSupply = producerToken.totalSupply();
 
         // Calculate rewards, the product of seconds elapsed and last supply
         uint256 rewards = g.rewards + (timestamp - g.lastUpdate) * g.lastSupply;
 
-        globalStates[producerToken] = GlobalState({
+        producerTokens[producerToken].globalState = GlobalState({
             lastUpdate: timestamp,
             lastSupply: totalSupply,
             rewards: rewards
@@ -139,7 +177,7 @@ contract PirexRewards is Owned {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (user == address(0)) revert ZeroAddress();
 
-        UserState storage u = userStates[producerToken][user];
+        UserState storage u = producerTokens[producerToken].userStates[user];
         uint256 timestamp = block.timestamp;
         uint256 balance = producerToken.balanceOf(user);
 
@@ -170,30 +208,30 @@ contract PirexRewards is Owned {
         if (address(rewardToken) == address(0)) revert ZeroAddress();
         if (rewardAmount == 0) revert ZeroAmount();
 
-        rewardStates[producerToken][rewardToken] += rewardAmount;
+        producerTokens[producerToken].rewardStates[rewardToken] += rewardAmount;
     }
 
     /**
         @notice Harvest rewards
-        @return producerTokens  ERC20[]  Producer token contracts
+        @return _producerTokens  ERC20[]  Producer token contracts
         @return rewardTokens    ERC20[]  Reward token contracts
         @return rewardAmounts   ERC20[]  Reward token amounts
     */
     function harvest()
         external
         returns (
-            ERC20[] memory producerTokens,
+            ERC20[] memory _producerTokens,
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         )
     {
-        (producerTokens, rewardTokens, rewardAmounts) = producer
+        (_producerTokens, rewardTokens, rewardAmounts) = producer
             .claimWETHRewards();
-        uint256 pLen = producerTokens.length;
+        uint256 pLen = _producerTokens.length;
 
         // Iterate over the producer tokens and update reward state
         for (uint256 i; i < pLen; ++i) {
-            ERC20 p = producerTokens[i];
+            ERC20 p = _producerTokens[i];
             uint256 r = rewardAmounts[i];
 
             // Update global reward accrual state and associate with the update of reward state
@@ -204,6 +242,6 @@ contract PirexRewards is Owned {
             }
         }
 
-        emit Harvest(producerTokens, rewardTokens, rewardAmounts);
+        emit Harvest(_producerTokens, rewardTokens, rewardAmounts);
     }
 }

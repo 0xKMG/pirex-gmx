@@ -17,6 +17,28 @@ contract PirexRewardsTest is Helper {
     event UnsetRewardRecipient(address indexed user, ERC20 indexed rewardToken);
 
     /**
+        @notice Getter for a producerToken's global state
+    */
+    function _getGlobalState(ERC20 producerToken)
+        internal
+        view
+        returns (
+            uint256 lastUpdate,
+            uint256 lastSupply,
+            uint256 rewards
+        )
+    {
+        PirexRewards.GlobalState memory globalState = pirexRewards
+            .producerTokens(producerToken);
+
+        return (
+            globalState.lastUpdate,
+            globalState.lastSupply,
+            globalState.rewards
+        );
+    }
+
+    /**
         @notice Calculate the global rewards
         @param  producerToken  ERC20    Producer token
         @return                uint256  Global rewards
@@ -30,7 +52,7 @@ contract PirexRewardsTest is Helper {
             uint256 lastUpdate,
             uint256 lastSupply,
             uint256 rewards
-        ) = pirexRewards.globalStates(producerToken);
+        ) = _getGlobalState(producerToken);
 
         return rewards + (block.timestamp - lastUpdate) * lastSupply;
     }
@@ -50,7 +72,7 @@ contract PirexRewardsTest is Helper {
             uint256 lastUpdate,
             uint256 lastBalance,
             uint256 rewards
-        ) = pirexRewards.userStates(producerToken, user);
+        ) = pirexRewards.getUserState(producerToken, user);
 
         return rewards + lastBalance * (block.timestamp - lastUpdate);
     }
@@ -134,7 +156,7 @@ contract PirexRewardsTest is Helper {
             uint256 lastUpdateBeforeMint,
             uint256 lastSupplyBeforeMint,
             uint256 rewardsBeforeMint
-        ) = pirexRewards.globalStates(producerToken);
+        ) = _getGlobalState(producerToken);
 
         assertEq(lastUpdateBeforeMint, 0);
         assertEq(lastSupplyBeforeMint, 0);
@@ -148,7 +170,7 @@ contract PirexRewardsTest is Helper {
             uint256 lastUpdateAfterMint,
             uint256 lastSupplyAfterMint,
             uint256 rewardsAfterMint
-        ) = pirexRewards.globalStates(producerToken);
+        ) = _getGlobalState(producerToken);
 
         // Ensure that the update timestamp and supply are tracked
         assertEq(lastUpdateAfterMint, timestampBeforeMint);
@@ -173,7 +195,7 @@ contract PirexRewardsTest is Helper {
             uint256 lastUpdate,
             uint256 lastSupply,
             uint256 rewards
-        ) = pirexRewards.globalStates(producerToken);
+        ) = _getGlobalState(producerToken);
 
         assertEq(expectedLastUpdate, lastUpdate);
         assertEq(pxGlp.totalSupply(), lastSupply);
@@ -216,7 +238,7 @@ contract PirexRewardsTest is Helper {
 
         _burnPxGlp(user, burnAmount);
 
-        (, , uint256 rewards) = pirexRewards.globalStates(producerToken);
+        (, , uint256 rewards) = _getGlobalState(producerToken);
         uint256 postBurnSupply = pxGlp.totalSupply();
 
         // Verify conditions for "less reward accrual" post-burn
@@ -242,9 +264,7 @@ contract PirexRewardsTest is Helper {
 
         pirexRewards.globalAccrue(producerToken);
 
-        (, , uint256 rewardsAfterBurn) = pirexRewards.globalStates(
-            producerToken
-        );
+        (, , uint256 rewardsAfterBurn) = _getGlobalState(producerToken);
 
         assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
         assertEq(
@@ -310,7 +330,7 @@ contract PirexRewardsTest is Helper {
             uint256 lastUpdateBefore,
             uint256 lastBalanceBefore,
             uint256 rewardsBefore
-        ) = pirexRewards.userStates(pxGlp, user);
+        ) = pirexRewards.getUserState(pxGlp, user);
         uint256 warpTimestamp = block.timestamp + secondsElapsed;
 
         assertEq(lastUpdateBefore, timestampBeforeMint);
@@ -331,7 +351,7 @@ contract PirexRewardsTest is Helper {
             uint256 lastUpdateAfter,
             uint256 lastBalanceAfter,
             uint256 rewardsAfter
-        ) = pirexRewards.userStates(pxGlp, user);
+        ) = pirexRewards.getUserState(pxGlp, user);
 
         assertEq(lastUpdateAfter, warpTimestamp);
         assertEq(lastBalanceAfter, pxGlpBalance);
@@ -378,7 +398,7 @@ contract PirexRewardsTest is Helper {
                 uint256 lastUpdate,
                 uint256 lastSupply,
                 uint256 rewards
-            ) = pirexRewards.globalStates(pxGlp);
+            ) = _getGlobalState(pxGlp);
 
             assertEq(lastUpdate, timestampBeforeAccrue);
             assertEq(lastSupply, totalSupplyBeforeAccrue);
@@ -402,7 +422,7 @@ contract PirexRewardsTest is Helper {
                 uint256 lastUpdate,
                 uint256 lastBalance,
                 uint256 rewards
-            ) = pirexRewards.userStates(pxGlp, testAccount);
+            ) = pirexRewards.getUserState(pxGlp, testAccount);
 
             // Total rewards accrued by all users should add up to the global rewards
             totalRewards += rewards;
@@ -454,14 +474,14 @@ contract PirexRewardsTest is Helper {
 
             for (uint256 j; j < tLen; ++j) {
                 if (j != delayedAccountIndex) {
-                    (, , uint256 rewardsBefore) = pirexRewards.userStates(
+                    (, , uint256 rewardsBefore) = pirexRewards.getUserState(
                         pxGlp,
                         testAccounts[j]
                     );
 
                     pirexRewards.userAccrue(pxGlp, testAccounts[j]);
 
-                    (, , uint256 rewardsAfter) = pirexRewards.userStates(
+                    (, , uint256 rewardsAfter) = pirexRewards.getUserState(
                         pxGlp,
                         testAccounts[j]
                     );
@@ -482,10 +502,7 @@ contract PirexRewardsTest is Helper {
         // Accrue rewards and check that the actual amount matches the expected
         pirexRewards.userAccrue(pxGlp, delayedAccount);
 
-        (, , uint256 rewardsAfterAccrue) = pirexRewards.userStates(
-            pxGlp,
-            delayedAccount
-        );
+        (, , uint256 rewardsAfterAccrue) = pirexRewards.getUserState(pxGlp, delayedAccount);
 
         assertEq(rewardsAfterAccrue, expectedDelayedRewards);
         assertEq(
@@ -546,10 +563,7 @@ contract PirexRewardsTest is Helper {
             pxGlp.transferFrom(sender, receiver, transferAmount);
         }
 
-        (, , uint256 senderRewardsAfterTransfer) = pirexRewards.userStates(
-            pxGlp,
-            sender
-        );
+        (, , uint256 senderRewardsAfterTransfer) = pirexRewards.getUserState(pxGlp, sender);
 
         assertEq(
             expectedSenderRewardsAfterTransfer,
@@ -574,12 +588,11 @@ contract PirexRewardsTest is Helper {
         pirexRewards.userAccrue(pxGlp, receiver);
 
         // Retrieve actual user reward accrual states
-        (, , uint256 receiverRewards) = pirexRewards.userStates(
+        (, , uint256 receiverRewards) = pirexRewards.getUserState(pxGlp, receiver);
+        (, , uint256 senderRewardsAfterTransferAndWarp) = pirexRewards.getUserState(
             pxGlp,
-            receiver
+            sender
         );
-        (, , uint256 senderRewardsAfterTransferAndWarp) = pirexRewards
-            .userStates(pxGlp, sender);
 
         assertEq(
             senderRewardsAfterTransferAndWarp,
@@ -623,10 +636,7 @@ contract PirexRewardsTest is Helper {
 
         pxGlp.burn(user, burnAmount);
 
-        (, , uint256 rewardsAfterBurn) = pirexRewards.userStates(
-            pxGlp,
-            user
-        );
+        (, , uint256 rewardsAfterBurn) = pirexRewards.getUserState(pxGlp, user);
         uint256 postBurnBalance = pxGlp.balanceOf(user);
 
         // Verify conditions for "less reward accrual" post-burn
@@ -651,7 +661,7 @@ contract PirexRewardsTest is Helper {
 
         pirexRewards.userAccrue(pxGlp, user);
 
-        (, , uint256 rewards) = pirexRewards.userStates(pxGlp, user);
+        (, , uint256 rewards) = pirexRewards.getUserState(pxGlp, user);
 
         assertEq(expectedRewards, rewards);
         assertEq(noBurnRewards - expectedAndNoBurnRewardDelta, rewards);
@@ -695,7 +705,7 @@ contract PirexRewardsTest is Helper {
             uint256 lastUpdate,
             uint256 lastSupply,
             uint256 rewards
-        ) = pirexRewards.globalStates(pxGlp);
+        ) = _getGlobalState(pxGlp);
 
         assertEq(expectedGlobalLastUpdate, lastUpdate);
         assertEq(expectedGlobalLastSupply, lastSupply);
@@ -712,14 +722,13 @@ contract PirexRewardsTest is Helper {
 
             assertEq(
                 rewardAmount,
-                pirexRewards.rewardStates(p, rewardTokens[i])
+                pirexRewards.getRewardState(p, rewardTokens[i])
             );
         }
 
         // Check that the correct amount of WETH was transferred to the silo
         assertEq(
-            WETH.balanceOf(address(pirexRewards)) -
-                wethBalanceBeforeHarvest,
+            WETH.balanceOf(address(pirexRewards)) - wethBalanceBeforeHarvest,
             totalRewards
         );
     }
@@ -771,10 +780,7 @@ contract PirexRewardsTest is Helper {
 
         pirexRewards.setRewardRecipient(recipient, rewardToken);
 
-        assertEq(
-            recipient,
-            pirexRewards.rewardRecipients(address(this), WETH)
-        );
+        assertEq(recipient, pirexRewards.rewardRecipients(address(this), WETH));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -802,10 +808,7 @@ contract PirexRewardsTest is Helper {
 
         pirexRewards.setRewardRecipient(recipient, rewardToken);
 
-        assertEq(
-            recipient,
-            pirexRewards.rewardRecipients(address(this), WETH)
-        );
+        assertEq(recipient, pirexRewards.rewardRecipients(address(this), WETH));
 
         vm.expectEmit(true, true, false, true, address(pirexRewards));
 
