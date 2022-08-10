@@ -26,6 +26,7 @@ contract PirexRewards is Owned {
         GlobalState globalState;
         mapping(address => UserState) userStates;
         mapping(ERC20 => uint256) rewardStates;
+        ERC20[] rewardTokens;
     }
 
     // Pirex contract which produces rewards
@@ -44,6 +45,8 @@ contract PirexRewards is Owned {
         ERC20 indexed rewardToken
     );
     event UnsetRewardRecipient(address indexed user, ERC20 indexed rewardToken);
+    event PushRewardToken(ERC20 indexed producerToken, ERC20 indexed rewardToken);
+    event PopRewardToken(ERC20 indexed producerToken);
     event GlobalAccrue(
         ERC20 indexed producerToken,
         uint256 lastUpdate,
@@ -108,6 +111,35 @@ contract PirexRewards is Owned {
     }
 
     /**
+        @notice Push a reward token to a producer token's rewardTokens array
+        @param  producerToken  ERC20    Producer token contract
+        @param  rewardToken    ERC20    Reward token contract
+    */
+    function pushRewardToken(ERC20 producerToken, ERC20 rewardToken)
+        external
+        onlyOwner
+    {
+        if (address(producerToken) == address(0)) revert ZeroAddress();
+        if (address(rewardToken) == address(0)) revert ZeroAddress();
+
+        producerTokens[producerToken].rewardTokens.push(rewardToken);
+
+        emit PushRewardToken(producerToken, rewardToken);
+    }
+
+    /**
+        @notice Push a reward token to a producer token's rewardTokens array
+        @param  producerToken  ERC20    Producer token contract
+    */
+    function popRewardToken(ERC20 producerToken) external onlyOwner {
+        if (address(producerToken) == address(0)) revert ZeroAddress();
+
+        producerTokens[producerToken].rewardTokens.pop();
+
+        emit PopRewardToken(producerToken);
+    }
+
+    /**
         @notice Getter for a producerToken's UserState struct member values
         @param  producerToken  ERC20    Producer token contract
         @param  user           address  User
@@ -143,6 +175,19 @@ contract PirexRewards is Owned {
         returns (uint256)
     {
         return producerTokens[producerToken].rewardStates[rewardToken];
+    }
+
+    /**
+        @notice Getter for a producerToken's rewardTokens
+        @param  producerToken  ERC20    Producer token contract
+        @return                ERC20[]  Reward token contracts
+    */
+    function getRewardTokens(ERC20 producerToken)
+        external
+        view
+        returns (ERC20[] memory)
+    {
+        return producerTokens[producerToken].rewardTokens;
     }
 
     /**

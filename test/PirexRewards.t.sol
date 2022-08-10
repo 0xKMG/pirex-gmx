@@ -15,6 +15,11 @@ contract PirexRewardsTest is Helper {
         ERC20 indexed rewardToken
     );
     event UnsetRewardRecipient(address indexed user, ERC20 indexed rewardToken);
+    event PushRewardToken(
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken
+    );
+    event PopRewardToken(ERC20 indexed producerToken);
 
     /**
         @notice Getter for a producerToken's global state
@@ -502,7 +507,10 @@ contract PirexRewardsTest is Helper {
         // Accrue rewards and check that the actual amount matches the expected
         pirexRewards.userAccrue(pxGlp, delayedAccount);
 
-        (, , uint256 rewardsAfterAccrue) = pirexRewards.getUserState(pxGlp, delayedAccount);
+        (, , uint256 rewardsAfterAccrue) = pirexRewards.getUserState(
+            pxGlp,
+            delayedAccount
+        );
 
         assertEq(rewardsAfterAccrue, expectedDelayedRewards);
         assertEq(
@@ -563,7 +571,10 @@ contract PirexRewardsTest is Helper {
             pxGlp.transferFrom(sender, receiver, transferAmount);
         }
 
-        (, , uint256 senderRewardsAfterTransfer) = pirexRewards.getUserState(pxGlp, sender);
+        (, , uint256 senderRewardsAfterTransfer) = pirexRewards.getUserState(
+            pxGlp,
+            sender
+        );
 
         assertEq(
             expectedSenderRewardsAfterTransfer,
@@ -588,11 +599,12 @@ contract PirexRewardsTest is Helper {
         pirexRewards.userAccrue(pxGlp, receiver);
 
         // Retrieve actual user reward accrual states
-        (, , uint256 receiverRewards) = pirexRewards.getUserState(pxGlp, receiver);
-        (, , uint256 senderRewardsAfterTransferAndWarp) = pirexRewards.getUserState(
+        (, , uint256 receiverRewards) = pirexRewards.getUserState(
             pxGlp,
-            sender
+            receiver
         );
+        (, , uint256 senderRewardsAfterTransferAndWarp) = pirexRewards
+            .getUserState(pxGlp, sender);
 
         assertEq(
             senderRewardsAfterTransferAndWarp,
@@ -820,5 +832,129 @@ contract PirexRewardsTest is Helper {
             address(0),
             pirexRewards.rewardRecipients(address(this), WETH)
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        pushRewardToken TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is not authorized
+     */
+    function testCannotPushRewardTokenNotAuthorized() external {
+        ERC20 producerToken = pxGlp;
+        ERC20 rewardToken = WETH;
+
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexRewards.pushRewardToken(producerToken, rewardToken);
+    }
+
+    /**
+        @notice Test tx reversion: producerToken is the zero address
+     */
+    function testCannotPushRewardTokenProducerTokenZeroAddress() external {
+        ERC20 invalidProducerToken = ERC20(address(0));
+        ERC20 rewardToken = ERC20(address(0));
+
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
+
+        pirexRewards.pushRewardToken(invalidProducerToken, rewardToken);
+    }
+
+    /**
+        @notice Test tx reversion: rewardToken is the zero address
+     */
+    function testCannotPushRewardTokenRewardTokenZeroAddress() external {
+        ERC20 producerToken = pxGlp;
+        ERC20 invalidRewardToken = ERC20(address(0));
+
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
+
+        pirexRewards.pushRewardToken(producerToken, invalidRewardToken);
+    }
+
+    /**
+        @notice Test pushing a reward token
+     */
+    function testPushRewardToken() external {
+        ERC20 producerToken = pxGlp;
+        ERC20 rewardToken = WETH;
+        ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+
+        assertEq(0, rewardTokensBeforePush.length);
+
+        vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+        emit PushRewardToken(producerToken, rewardToken);
+
+        pirexRewards.pushRewardToken(producerToken, rewardToken);
+
+        ERC20[] memory rewardTokensAfterPush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+
+        assertEq(1, rewardTokensAfterPush.length);
+        assertEq(address(rewardToken), address(rewardTokensAfterPush[0]));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        popRewardToken TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is not authorized
+     */
+    function testCannotPopRewardTokenNotAuthorized() external {
+        ERC20 producerToken = pxGlp;
+
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexRewards.popRewardToken(producerToken);
+    }
+
+    /**
+        @notice Test tx reversion: producerToken is the zero address
+     */
+    function testCannotPopRewardTokenProducerTokenZeroAddress() external {
+        ERC20 invalidProducerToken = ERC20(address(0));
+
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
+
+        pirexRewards.popRewardToken(invalidProducerToken);
+    }
+
+    /**
+        @notice Test popping a reward token
+     */
+    function testPopRewardToken() external {
+        ERC20 producerToken = pxGlp;
+        ERC20 rewardToken = WETH;
+
+        // Add rewardToken element to array to test pop
+        pirexRewards.pushRewardToken(producerToken, rewardToken);
+
+        ERC20[] memory rewardTokensBeforePop = pirexRewards.getRewardTokens(
+            producerToken
+        );
+
+        assertEq(1, rewardTokensBeforePop.length);
+        assertEq(address(rewardToken), address(rewardTokensBeforePop[0]));
+
+        vm.expectEmit(true, false, false, true, address(pirexRewards));
+
+        emit PopRewardToken(producerToken);
+
+        pirexRewards.popRewardToken(producerToken);
+
+        ERC20[] memory rewardTokensAfterPop = pirexRewards.getRewardTokens(
+            producerToken
+        );
+
+        assertEq(0, rewardTokensAfterPop.length);
     }
 }
