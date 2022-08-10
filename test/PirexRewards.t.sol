@@ -4,12 +4,11 @@ pragma solidity 0.8.13;
 import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {RewardsHarvester} from "src/rewards/RewardsHarvester.sol";
+import {PirexRewards} from "src/PirexRewards.sol";
 import {Helper} from "./Helper.t.sol";
 
-contract RewardsHarvesterTest is Helper {
+contract PirexRewardsTest is Helper {
     event SetProducer(address producer);
-    event SetRewardsSilo(address rewardsSilo);
     event SetRewardRecipient(
         address indexed user,
         address indexed recipient,
@@ -31,7 +30,7 @@ contract RewardsHarvesterTest is Helper {
             uint256 lastUpdate,
             uint256 lastSupply,
             uint256 rewards
-        ) = rewardsHarvester.globalStates(producerToken);
+        ) = pirexRewards.globalStates(producerToken);
 
         return rewards + (block.timestamp - lastUpdate) * lastSupply;
     }
@@ -51,7 +50,7 @@ contract RewardsHarvesterTest is Helper {
             uint256 lastUpdate,
             uint256 lastBalance,
             uint256 rewards
-        ) = rewardsHarvester.userStates(producerToken, user);
+        ) = pirexRewards.userStates(producerToken, user);
 
         return rewards + lastBalance * (block.timestamp - lastUpdate);
     }
@@ -69,7 +68,7 @@ contract RewardsHarvesterTest is Helper {
         vm.prank(testAccounts[0]);
         vm.expectRevert("UNAUTHORIZED");
 
-        rewardsHarvester.setProducer(_producer);
+        pirexRewards.setProducer(_producer);
     }
 
     /**
@@ -78,72 +77,27 @@ contract RewardsHarvesterTest is Helper {
     function testCannotSetProducerZeroAddress() external {
         address invalidProducer = address(0);
 
-        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        rewardsHarvester.setProducer(invalidProducer);
+        pirexRewards.setProducer(invalidProducer);
     }
 
     /**
         @notice Test setting producer
      */
     function testSetProducer() external {
-        address producerBefore = address(rewardsHarvester.producer());
+        address producerBefore = address(pirexRewards.producer());
         address _producer = address(this);
 
         assertTrue(producerBefore != _producer);
 
-        vm.expectEmit(false, false, false, true, address(rewardsHarvester));
+        vm.expectEmit(false, false, false, true, address(pirexRewards));
 
         emit SetProducer(_producer);
 
-        rewardsHarvester.setProducer(_producer);
+        pirexRewards.setProducer(_producer);
 
-        assertEq(_producer, address(rewardsHarvester.producer()));
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        setRewardsSilo TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion due to caller not being owner
-     */
-    function testCannotSetRewardsSiloUnauthorized() external {
-        address _rewardsSilo = address(this);
-
-        vm.prank(testAccounts[0]);
-        vm.expectRevert("UNAUTHORIZED");
-
-        rewardsHarvester.setRewardsSilo(_rewardsSilo);
-    }
-
-    /**
-        @notice Test tx reversion due to _rewardsSilo being zero
-     */
-    function testCannotSetRewardsSiloZeroAddress() external {
-        address invalidRewardsSilo = address(0);
-
-        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
-
-        rewardsHarvester.setRewardsSilo(invalidRewardsSilo);
-    }
-
-    /**
-        @notice Test setting rewardsHarvester
-     */
-    function testSetRewardsSilo() external {
-        address rewardsSiloBefore = address(rewardsHarvester.rewardsSilo());
-        address _rewardsSilo = address(this);
-
-        assertTrue(rewardsSiloBefore != _rewardsSilo);
-
-        vm.expectEmit(false, false, false, true, address(rewardsHarvester));
-
-        emit SetRewardsSilo(_rewardsSilo);
-
-        rewardsHarvester.setRewardsSilo(_rewardsSilo);
-
-        assertEq(_rewardsSilo, address(rewardsHarvester.rewardsSilo()));
+        assertEq(_producer, address(pirexRewards.producer()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -156,9 +110,9 @@ contract RewardsHarvesterTest is Helper {
     function testCannotGlobalAccrueProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
 
-        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        rewardsHarvester.globalAccrue(invalidProducerToken);
+        pirexRewards.globalAccrue(invalidProducerToken);
     }
 
     /**
@@ -180,7 +134,7 @@ contract RewardsHarvesterTest is Helper {
             uint256 lastUpdateBeforeMint,
             uint256 lastSupplyBeforeMint,
             uint256 rewardsBeforeMint
-        ) = rewardsHarvester.globalStates(producerToken);
+        ) = pirexRewards.globalStates(producerToken);
 
         assertEq(lastUpdateBeforeMint, 0);
         assertEq(lastSupplyBeforeMint, 0);
@@ -194,7 +148,7 @@ contract RewardsHarvesterTest is Helper {
             uint256 lastUpdateAfterMint,
             uint256 lastSupplyAfterMint,
             uint256 rewardsAfterMint
-        ) = rewardsHarvester.globalStates(producerToken);
+        ) = pirexRewards.globalStates(producerToken);
 
         // Ensure that the update timestamp and supply are tracked
         assertEq(lastUpdateAfterMint, timestampBeforeMint);
@@ -219,7 +173,7 @@ contract RewardsHarvesterTest is Helper {
             uint256 lastUpdate,
             uint256 lastSupply,
             uint256 rewards
-        ) = rewardsHarvester.globalStates(producerToken);
+        ) = pirexRewards.globalStates(producerToken);
 
         assertEq(expectedLastUpdate, lastUpdate);
         assertEq(pxGlp.totalSupply(), lastSupply);
@@ -262,7 +216,7 @@ contract RewardsHarvesterTest is Helper {
 
         _burnPxGlp(user, burnAmount);
 
-        (, , uint256 rewards) = rewardsHarvester.globalStates(producerToken);
+        (, , uint256 rewards) = pirexRewards.globalStates(producerToken);
         uint256 postBurnSupply = pxGlp.totalSupply();
 
         // Verify conditions for "less reward accrual" post-burn
@@ -286,9 +240,9 @@ contract RewardsHarvesterTest is Helper {
         uint256 expectedAndNoBurnRewardDelta = (preBurnSupply -
             postBurnSupply) * secondsElapsed;
 
-        rewardsHarvester.globalAccrue(producerToken);
+        pirexRewards.globalAccrue(producerToken);
 
-        (, , uint256 rewardsAfterBurn) = rewardsHarvester.globalStates(
+        (, , uint256 rewardsAfterBurn) = pirexRewards.globalStates(
             producerToken
         );
 
@@ -310,9 +264,9 @@ contract RewardsHarvesterTest is Helper {
         ERC20 invalidProducerToken = ERC20(address(0));
         address user = address(this);
 
-        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        rewardsHarvester.userAccrue(invalidProducerToken, user);
+        pirexRewards.userAccrue(invalidProducerToken, user);
     }
 
     /**
@@ -322,9 +276,9 @@ contract RewardsHarvesterTest is Helper {
         ERC20 producerToken = pxGlp;
         address invalidUser = address(0);
 
-        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        rewardsHarvester.userAccrue(producerToken, invalidUser);
+        pirexRewards.userAccrue(producerToken, invalidUser);
     }
 
     /**
@@ -356,7 +310,7 @@ contract RewardsHarvesterTest is Helper {
             uint256 lastUpdateBefore,
             uint256 lastBalanceBefore,
             uint256 rewardsBefore
-        ) = rewardsHarvester.userStates(pxGlp, user);
+        ) = pirexRewards.userStates(pxGlp, user);
         uint256 warpTimestamp = block.timestamp + secondsElapsed;
 
         assertEq(lastUpdateBefore, timestampBeforeMint);
@@ -371,13 +325,13 @@ contract RewardsHarvesterTest is Helper {
 
         uint256 expectedUserRewards = _calculateUserRewards(pxGlp, user);
 
-        rewardsHarvester.userAccrue(pxGlp, user);
+        pirexRewards.userAccrue(pxGlp, user);
 
         (
             uint256 lastUpdateAfter,
             uint256 lastBalanceAfter,
             uint256 rewardsAfter
-        ) = rewardsHarvester.userStates(pxGlp, user);
+        ) = pirexRewards.userStates(pxGlp, user);
 
         assertEq(lastUpdateAfter, warpTimestamp);
         assertEq(lastBalanceAfter, pxGlpBalance);
@@ -418,13 +372,13 @@ contract RewardsHarvesterTest is Helper {
         if (accrueGlobal) {
             uint256 totalSupplyBeforeAccrue = pxGlp.totalSupply();
 
-            rewardsHarvester.globalAccrue(pxGlp);
+            pirexRewards.globalAccrue(pxGlp);
 
             (
                 uint256 lastUpdate,
                 uint256 lastSupply,
                 uint256 rewards
-            ) = rewardsHarvester.globalStates(pxGlp);
+            ) = pirexRewards.globalStates(pxGlp);
 
             assertEq(lastUpdate, timestampBeforeAccrue);
             assertEq(lastSupply, totalSupplyBeforeAccrue);
@@ -442,13 +396,13 @@ contract RewardsHarvesterTest is Helper {
 
             assertGt(expectedRewards, 0);
 
-            rewardsHarvester.userAccrue(pxGlp, testAccount);
+            pirexRewards.userAccrue(pxGlp, testAccount);
 
             (
                 uint256 lastUpdate,
                 uint256 lastBalance,
                 uint256 rewards
-            ) = rewardsHarvester.userStates(pxGlp, testAccount);
+            ) = pirexRewards.userStates(pxGlp, testAccount);
 
             // Total rewards accrued by all users should add up to the global rewards
             totalRewards += rewards;
@@ -500,14 +454,14 @@ contract RewardsHarvesterTest is Helper {
 
             for (uint256 j; j < tLen; ++j) {
                 if (j != delayedAccountIndex) {
-                    (, , uint256 rewardsBefore) = rewardsHarvester.userStates(
+                    (, , uint256 rewardsBefore) = pirexRewards.userStates(
                         pxGlp,
                         testAccounts[j]
                     );
 
-                    rewardsHarvester.userAccrue(pxGlp, testAccounts[j]);
+                    pirexRewards.userAccrue(pxGlp, testAccounts[j]);
 
-                    (, , uint256 rewardsAfter) = rewardsHarvester.userStates(
+                    (, , uint256 rewardsAfter) = pirexRewards.userStates(
                         pxGlp,
                         testAccounts[j]
                     );
@@ -526,9 +480,9 @@ contract RewardsHarvesterTest is Helper {
         uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
 
         // Accrue rewards and check that the actual amount matches the expected
-        rewardsHarvester.userAccrue(pxGlp, delayedAccount);
+        pirexRewards.userAccrue(pxGlp, delayedAccount);
 
-        (, , uint256 rewardsAfterAccrue) = rewardsHarvester.userStates(
+        (, , uint256 rewardsAfterAccrue) = pirexRewards.userStates(
             pxGlp,
             delayedAccount
         );
@@ -592,7 +546,7 @@ contract RewardsHarvesterTest is Helper {
             pxGlp.transferFrom(sender, receiver, transferAmount);
         }
 
-        (, , uint256 senderRewardsAfterTransfer) = rewardsHarvester.userStates(
+        (, , uint256 senderRewardsAfterTransfer) = pirexRewards.userStates(
             pxGlp,
             sender
         );
@@ -616,15 +570,15 @@ contract RewardsHarvesterTest is Helper {
             );
 
         // Accrue rewards for both sender and receiver
-        rewardsHarvester.userAccrue(pxGlp, sender);
-        rewardsHarvester.userAccrue(pxGlp, receiver);
+        pirexRewards.userAccrue(pxGlp, sender);
+        pirexRewards.userAccrue(pxGlp, receiver);
 
         // Retrieve actual user reward accrual states
-        (, , uint256 receiverRewards) = rewardsHarvester.userStates(
+        (, , uint256 receiverRewards) = pirexRewards.userStates(
             pxGlp,
             receiver
         );
-        (, , uint256 senderRewardsAfterTransferAndWarp) = rewardsHarvester
+        (, , uint256 senderRewardsAfterTransferAndWarp) = pirexRewards
             .userStates(pxGlp, sender);
 
         assertEq(
@@ -669,7 +623,7 @@ contract RewardsHarvesterTest is Helper {
 
         pxGlp.burn(user, burnAmount);
 
-        (, , uint256 rewardsAfterBurn) = rewardsHarvester.userStates(
+        (, , uint256 rewardsAfterBurn) = pirexRewards.userStates(
             pxGlp,
             user
         );
@@ -695,9 +649,9 @@ contract RewardsHarvesterTest is Helper {
         uint256 expectedAndNoBurnRewardDelta = (preBurnBalance -
             postBurnBalance) * secondsElapsed;
 
-        rewardsHarvester.userAccrue(pxGlp, user);
+        pirexRewards.userAccrue(pxGlp, user);
 
-        (, , uint256 rewards) = rewardsHarvester.userStates(pxGlp, user);
+        (, , uint256 rewards) = pirexRewards.userStates(pxGlp, user);
 
         assertEq(expectedRewards, rewards);
         assertEq(noBurnRewards - expectedAndNoBurnRewardDelta, rewards);
@@ -726,7 +680,9 @@ contract RewardsHarvesterTest is Helper {
 
         vm.warp(block.timestamp + secondsElapsed);
 
-        uint256 wethBalanceBeforeHarvest = WETH.balanceOf(address(rewardsSilo));
+        uint256 wethBalanceBeforeHarvest = WETH.balanceOf(
+            address(pirexRewards)
+        );
         uint256 expectedGlobalLastUpdate = block.timestamp;
         uint256 expectedGlobalLastSupply = pxGlp.totalSupply();
         uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
@@ -734,12 +690,12 @@ contract RewardsHarvesterTest is Helper {
             ERC20[] memory producerTokens,
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
-        ) = rewardsHarvester.harvest();
+        ) = pirexRewards.harvest();
         (
             uint256 lastUpdate,
             uint256 lastSupply,
             uint256 rewards
-        ) = rewardsHarvester.globalStates(pxGlp);
+        ) = pirexRewards.globalStates(pxGlp);
 
         assertEq(expectedGlobalLastUpdate, lastUpdate);
         assertEq(expectedGlobalLastSupply, lastSupply);
@@ -756,13 +712,14 @@ contract RewardsHarvesterTest is Helper {
 
             assertEq(
                 rewardAmount,
-                rewardsSilo.rewardStates(p, rewardTokens[i])
+                pirexRewards.rewardStates(p, rewardTokens[i])
             );
         }
 
         // Check that the correct amount of WETH was transferred to the silo
         assertEq(
-            WETH.balanceOf(address(rewardsSilo)) - wethBalanceBeforeHarvest,
+            WETH.balanceOf(address(pirexRewards)) -
+                wethBalanceBeforeHarvest,
             totalRewards
         );
     }
@@ -778,9 +735,9 @@ contract RewardsHarvesterTest is Helper {
         address invalidRecipient = address(0);
         ERC20 rewardToken = WETH;
 
-        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        rewardsHarvester.setRewardRecipient(invalidRecipient, rewardToken);
+        pirexRewards.setRewardRecipient(invalidRecipient, rewardToken);
     }
 
     /**
@@ -790,16 +747,16 @@ contract RewardsHarvesterTest is Helper {
         address recipient = address(this);
         ERC20 invalidRewardToken = ERC20(address(0));
 
-        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        rewardsHarvester.setRewardRecipient(recipient, invalidRewardToken);
+        pirexRewards.setRewardRecipient(recipient, invalidRewardToken);
     }
 
     /**
         @notice Test setting a reward recipient
      */
     function testSetRewardRecipient() external {
-        address recipientBeforeSetting = rewardsHarvester.rewardRecipients(
+        address recipientBeforeSetting = pirexRewards.rewardRecipients(
             address(this),
             WETH
         );
@@ -808,15 +765,15 @@ contract RewardsHarvesterTest is Helper {
 
         assertTrue(recipientBeforeSetting != recipient);
 
-        vm.expectEmit(true, true, true, true, address(rewardsHarvester));
+        vm.expectEmit(true, true, true, true, address(pirexRewards));
 
         emit SetRewardRecipient(address(this), recipient, rewardToken);
 
-        rewardsHarvester.setRewardRecipient(recipient, rewardToken);
+        pirexRewards.setRewardRecipient(recipient, rewardToken);
 
         assertEq(
             recipient,
-            rewardsHarvester.rewardRecipients(address(this), WETH)
+            pirexRewards.rewardRecipients(address(this), WETH)
         );
     }
 
@@ -830,9 +787,9 @@ contract RewardsHarvesterTest is Helper {
     function testCannotUnsetRewardRecipientRewardTokenZeroAddress() external {
         ERC20 invalidRewardToken = ERC20(address(0));
 
-        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        rewardsHarvester.unsetRewardRecipient(invalidRewardToken);
+        pirexRewards.unsetRewardRecipient(invalidRewardToken);
     }
 
     /**
@@ -843,22 +800,22 @@ contract RewardsHarvesterTest is Helper {
         address recipient = address(this);
         ERC20 rewardToken = WETH;
 
-        rewardsHarvester.setRewardRecipient(recipient, rewardToken);
+        pirexRewards.setRewardRecipient(recipient, rewardToken);
 
         assertEq(
             recipient,
-            rewardsHarvester.rewardRecipients(address(this), WETH)
+            pirexRewards.rewardRecipients(address(this), WETH)
         );
 
-        vm.expectEmit(true, true, false, true, address(rewardsHarvester));
+        vm.expectEmit(true, true, false, true, address(pirexRewards));
 
         emit UnsetRewardRecipient(address(this), rewardToken);
 
-        rewardsHarvester.unsetRewardRecipient(rewardToken);
+        pirexRewards.unsetRewardRecipient(rewardToken);
 
         assertEq(
             address(0),
-            rewardsHarvester.rewardRecipients(address(this), WETH)
+            pirexRewards.rewardRecipients(address(this), WETH)
         );
     }
 }

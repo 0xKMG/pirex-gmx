@@ -4,13 +4,12 @@ pragma solidity 0.8.13;
 import {Owned} from "solmate/auth/Owned.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IProducer} from "src/interfaces/IProducer.sol";
-import {RewardsSilo} from "src/rewards/RewardsSilo.sol";
 
 /**
     Originally inspired by Flywheel V2 (thank you Tribe team):
     https://github.com/fei-protocol/flywheel-v2/blob/dbe3cb8/src/FlywheelCore.sol
 */
-contract RewardsHarvester is Owned {
+contract PirexRewards is Owned {
     struct GlobalState {
         uint256 lastUpdate;
         uint256 lastSupply;
@@ -26,9 +25,6 @@ contract RewardsHarvester is Owned {
     // Pirex contract which produces rewards
     IProducer public producer;
 
-    // Stores rewards data and tokens
-    RewardsSilo public rewardsSilo;
-
     // Users mapped to reward tokens mapped to recipients
     mapping(address => mapping(ERC20 => address)) public rewardRecipients;
 
@@ -38,8 +34,10 @@ contract RewardsHarvester is Owned {
     // Producer tokens mapped to their users' state
     mapping(ERC20 => mapping(address => UserState)) public userStates;
 
+    // Producer tokens mapped their reward tokens and amounts accrued
+    mapping(ERC20 => mapping(ERC20 => uint256)) public rewardStates;
+
     event SetProducer(address producer);
-    event SetRewardsSilo(address rewardsSilo);
     event SetRewardRecipient(
         address indexed user,
         address indexed recipient,
@@ -66,6 +64,8 @@ contract RewardsHarvester is Owned {
     );
 
     error ZeroAddress();
+    error ZeroAmount();
+    error EmptyArray();
 
     constructor() Owned(msg.sender) {}
 
@@ -79,18 +79,6 @@ contract RewardsHarvester is Owned {
         producer = IProducer(_producer);
 
         emit SetProducer(_producer);
-    }
-
-    /**
-        @notice Set rewardsSilo
-        @param  _rewardsSilo  address  RewardsSilo contract address
-     */
-    function setRewardsSilo(address _rewardsSilo) external onlyOwner {
-        if (_rewardsSilo == address(0)) revert ZeroAddress();
-
-        rewardsSilo = RewardsSilo(_rewardsSilo);
-
-        emit SetRewardsSilo(_rewardsSilo);
     }
 
     /**
@@ -168,6 +156,24 @@ contract RewardsHarvester is Owned {
     }
 
     /**
+        @notice Update reward accrual state
+        @param  producerToken  ERC20    Producer token contract
+        @param  rewardToken    ERC20    Reward token contract
+        @param  rewardAmount   uint256  Reward amount
+    */
+    function _rewardAccrue(
+        ERC20 producerToken,
+        ERC20 rewardToken,
+        uint256 rewardAmount
+    ) internal {
+        if (address(producerToken) == address(0)) revert ZeroAddress();
+        if (address(rewardToken) == address(0)) revert ZeroAddress();
+        if (rewardAmount == 0) revert ZeroAmount();
+
+        rewardStates[producerToken][rewardToken] += rewardAmount;
+    }
+
+    /**
         @notice Harvest rewards
         @return producerTokens  ERC20[]  Producer token contracts
         @return rewardTokens    ERC20[]  Reward token contracts
@@ -182,7 +188,7 @@ contract RewardsHarvester is Owned {
         )
     {
         (producerTokens, rewardTokens, rewardAmounts) = producer
-            .claimWETHRewards(address(rewardsSilo));
+            .claimWETHRewards();
         uint256 pLen = producerTokens.length;
 
         // Iterate over the producer tokens and update reward state
@@ -194,7 +200,7 @@ contract RewardsHarvester is Owned {
             globalAccrue(p);
 
             if (r != 0) {
-                rewardsSilo.rewardAccrue(p, rewardTokens[i], r);
+                _rewardAccrue(p, rewardTokens[i], r);
             }
         }
 

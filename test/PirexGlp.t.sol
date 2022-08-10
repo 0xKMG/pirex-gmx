@@ -7,7 +7,7 @@ import {Vault} from "src/external/Vault.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGlpTest is Helper {
-    event SetRewardsHarvester(address rewardsHarvester);
+    event SetPirexRewards(address pirexRewards);
 
     event Deposit(
         address indexed caller,
@@ -216,48 +216,48 @@ contract PirexGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        setRewardsHarvester TESTS
+                        setPirexRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion due to caller not being owner
      */
-    function testCannotSetRewardsHarvesterUnauthorized() external {
-        address _rewardsHarvester = address(this);
+    function testCannotSetPirexRewardsUnauthorized() external {
+        address _pirexRewards = address(this);
 
         vm.prank(testAccounts[0]);
         vm.expectRevert("UNAUTHORIZED");
 
-        pirexGlp.setRewardsHarvester(_rewardsHarvester);
+        pirexGlp.setPirexRewards(_pirexRewards);
     }
 
     /**
-        @notice Test tx reversion due to _rewardsHarvester being zero
+        @notice Test tx reversion due to _pirexRewards being zero
      */
-    function testCannotSetRewardsHarvesterZeroAddress() external {
-        address invalidRewardsHarvester = address(0);
+    function testCannotSetPirexRewardsZeroAddress() external {
+        address invalidPirexRewards = address(0);
 
         vm.expectRevert(PirexGlp.ZeroAddress.selector);
 
-        pirexGlp.setRewardsHarvester(invalidRewardsHarvester);
+        pirexGlp.setPirexRewards(invalidPirexRewards);
     }
 
     /**
-        @notice Test setting rewardsHarvester
+        @notice Test setting pirexRewards
      */
-    function testSetRewardsHarvester() external {
-        address rewardsHarvesterBefore = address(pirexGlp.rewardsHarvester());
-        address _rewardsHarvester = address(this);
+    function testSetPirexRewards() external {
+        address pirexRewardsBefore = address(pirexGlp.pirexRewards());
+        address _pirexRewards = address(this);
 
-        assertTrue(rewardsHarvesterBefore != _rewardsHarvester);
+        assertTrue(pirexRewardsBefore != _pirexRewards);
 
         vm.expectEmit(false, false, false, true, address(pirexGlp));
 
-        emit SetRewardsHarvester(_rewardsHarvester);
+        emit SetPirexRewards(_pirexRewards);
 
-        pirexGlp.setRewardsHarvester(_rewardsHarvester);
+        pirexGlp.setPirexRewards(_pirexRewards);
 
-        assertEq(_rewardsHarvester, address(pirexGlp.rewardsHarvester()));
+        assertEq(_pirexRewards, address(pirexGlp.pirexRewards()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -817,27 +817,13 @@ contract PirexGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to the caller not being rewardsHarvester
+        @notice Test tx reversion due to the caller not being pirexRewards
      */
     function testCannotClaimWETHRewardsUnauthorized() external {
-        address receiver = address(this);
-
         vm.prank(testAccounts[0]);
-        vm.expectRevert(PirexGlp.NotRewardsHarvester.selector);
+        vm.expectRevert(PirexGlp.NotPirexRewards.selector);
 
-        pirexGlp.claimWETHRewards(receiver);
-    }
-
-    /**
-        @notice Test tx reversion due to the receiver being the zero address
-     */
-    function testCannotClaimWETHRewardsZeroAddress() external {
-        address invalidReceiver = address(0);
-
-        vm.prank(address(rewardsHarvester));
-        vm.expectRevert(PirexGlp.ZeroAddress.selector);
-
-        pirexGlp.claimWETHRewards(invalidReceiver);
+        pirexGlp.claimWETHRewards();
     }
 
     /**
@@ -854,13 +840,14 @@ contract PirexGlpTest is Helper {
         vm.assume(tokenAmount < 100e8);
 
         address token = address(WBTC);
-        address receiver = address(rewardsSilo);
         uint256 minShares = 1;
+        address pirexRewardsAddr = address(pirexRewards);
 
         // Mint pxGLP in order to begin accrual of GMX rewards
         _mintWbtc(tokenAmount);
+
         WBTC.approve(address(pirexGlp), tokenAmount);
-        pirexGlp.depositWithERC20(token, tokenAmount, minShares, receiver);
+        pirexGlp.depositWithERC20(token, tokenAmount, minShares, address(this));
 
         if (stakeEsGmx) {
             // Forward timestamp to produce rewards
@@ -884,23 +871,23 @@ contract PirexGlpTest is Helper {
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + secondsElapsed);
 
-        // Ensure receiver has a zero WETH balance before testing balance changes
-        assertEq(WETH.balanceOf(receiver), 0);
+        // Ensure pirexRewards has a zero WETH balance to test balance changes
+        assertEq(WETH.balanceOf(pirexRewardsAddr), 0);
 
-        // Impersonate rewardsHarvester and claim WETH rewards
-        vm.prank(address(rewardsHarvester));
+        // Impersonate pirexRewards and claim WETH rewards
+        vm.prank(pirexRewardsAddr);
 
         (
             ERC20[] memory producerTokens,
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
-        ) = pirexGlp.claimWETHRewards(receiver);
+        ) = pirexGlp.claimWETHRewards();
         uint256 wethFromGlp = rewardAmounts[0];
 
         // Only test the first element since the second will later be pxGMX
         assertEq(address(producerTokens[0]), address(pxGlp));
 
         assertEq(address(WETH), address(rewardTokens[0]));
-        assertEq(WETH.balanceOf(receiver), wethFromGlp);
+        assertEq(WETH.balanceOf(pirexRewardsAddr), wethFromGlp);
     }
 }

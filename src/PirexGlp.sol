@@ -31,9 +31,9 @@ contract PirexGlp is ReentrancyGuard, Owned {
     PxGlp public immutable pxGlp;
 
     // Contracts for handling rewards produced by GMX/GLP tokens
-    address public rewardsHarvester;
+    address public pirexRewards;
 
-    event SetRewardsHarvester(address rewardsHarvester);
+    event SetPirexRewards(address pirexRewards);
 
     event Deposit(
         address indexed caller,
@@ -56,7 +56,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
-    error NotRewardsHarvester();
+    error NotPirexRewards();
 
     /**
         @param  _pxGlp  address  PxGlp contract address
@@ -68,15 +68,15 @@ contract PirexGlp is ReentrancyGuard, Owned {
     }
 
     /**
-        @notice Set rewardsHarvester
-        @param  _rewardsHarvester  address  RewardsHarvester contract address
+        @notice Set pirexRewards
+        @param  _pirexRewards  address  PirexRewards contract address
      */
-    function setRewardsHarvester(address _rewardsHarvester) external onlyOwner {
-        if (_rewardsHarvester == address(0)) revert ZeroAddress();
+    function setPirexRewards(address _pirexRewards) external onlyOwner {
+        if (_pirexRewards == address(0)) revert ZeroAddress();
 
-        rewardsHarvester = _rewardsHarvester;
+        pirexRewards = _pirexRewards;
 
-        emit SetRewardsHarvester(_rewardsHarvester);
+        emit SetPirexRewards(_pirexRewards);
     }
 
     /**
@@ -238,12 +238,11 @@ contract PirexGlp is ReentrancyGuard, Owned {
 
     /**
         @notice Claim WETH rewards
-        @param  receiver        address    Recipient of rewards
         @return producerTokens  ERC20[]    Producer tokens (pxGLP and pxGMX)
         @return rewardTokens    ERC20[]    Reward token contract instances
         @return rewardAmounts   uint256[]  Reward amounts from each producerToken
      */
-    function claimWETHRewards(address receiver)
+    function claimWETHRewards()
         external
         returns (
             ERC20[] memory producerTokens,
@@ -251,8 +250,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
             uint256[] memory rewardAmounts
         )
     {
-        if (msg.sender != rewardsHarvester) revert NotRewardsHarvester();
-        if (receiver == address(0)) revert ZeroAddress();
+        if (msg.sender != pirexRewards) revert NotPirexRewards();
 
         producerTokens = new ERC20[](1);
         rewardAmounts = new uint256[](1);
@@ -290,7 +288,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
             rewardAmounts[0] = weth;
 
             // Check above ensures that msg.sender is pxGlpRewards
-            WETH.safeTransfer(receiver, weth);
+            WETH.safeTransfer(msg.sender, weth);
         }
     }
 }
