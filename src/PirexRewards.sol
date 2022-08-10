@@ -198,6 +198,12 @@ contract PirexRewards is Owned {
         return producerTokens[producerToken].rewardTokens;
     }
 
+    /**
+        @notice Getter for rewardRecipients
+        @param  user         address  User
+        @param  rewardToken  ERC20    Reward token contract
+        @return              address  Reward recipient
+    */
     function getRewardRecipient(address user, ERC20 rewardToken)
         public
         view
