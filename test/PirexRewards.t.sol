@@ -957,4 +957,141 @@ contract PirexRewardsTest is Helper {
 
         assertEq(0, rewardTokensAfterPop.length);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        claim TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: producerToken is the zero address
+     */
+    function testCannotClaimProducerTokenZeroAddress() external {
+        ERC20 invalidProducerToken = ERC20(address(0));
+        address user = address(this);
+        bool forwardRewards = false;
+
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
+
+        pirexRewards.claim(invalidProducerToken, user, forwardRewards);
+    }
+
+    /**
+        @notice Test tx reversion: producerToken is the zero address
+     */
+    function testCannotClaimUserZeroAddress() external {
+        ERC20 producerToken = pxGlp;
+        address invalidUser = address(0);
+        bool forwardRewards = false;
+
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
+
+        pirexRewards.claim(producerToken, invalidUser, forwardRewards);
+    }
+
+    /**
+        @notice Test tx reversion: producerToken is the zero address
+     */
+    function testCannotClaimRecipientNotSet() external {
+        ERC20 producerToken = pxGlp;
+        address user = address(this);
+        bool invalidForwardRewards = true;
+
+        vm.deal(address(this), 1 ether);
+
+        pirexGlp.depositWithETH{value: 1 ether}(1, user);
+
+        vm.warp(block.timestamp + 10000);
+
+        pirexRewards.pushRewardToken(pxGlp, WETH);
+
+        vm.expectRevert(PirexRewards.NoRewardRecipient.selector);
+
+        pirexRewards.claim(producerToken, user, invalidForwardRewards);
+    }
+
+    /**
+        @notice Test claim
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+        @param  ethAmount       uint80  ETH amount used to mint pxGLP
+        @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
+        @param  useETH          bool    Whether to use ETH when minting
+        @param  forwardRewards  bool    Whether to forward rewards
+     */
+    function testClaim(
+        uint32 secondsElapsed,
+        uint80 ethAmount,
+        uint8 multiplier,
+        bool useETH,
+        bool forwardRewards
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(ethAmount > 0.001 ether);
+        vm.assume(ethAmount < 10000 ether);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+
+        _mintForTestAccounts(multiplier, useETH);
+
+        vm.warp(block.timestamp + secondsElapsed);
+
+        // Add reward token and harvest rewards from Pirex contract
+        pirexRewards.pushRewardToken(pxGlp, WETH);
+        pirexRewards.harvest();
+
+        ERC20 producerToken = pxGlp;
+
+        for (uint256 i; i < testAccounts.length; ++i) {
+            address user = testAccounts[i];
+            address recipient = forwardRewards ? address(this) : user;
+
+            if (forwardRewards) {
+                vm.prank(user);
+
+                pirexRewards.setRewardRecipient(recipient, WETH);
+            } else {
+                assertEq(0, WETH.balanceOf(recipient));
+            }
+
+            pirexRewards.userAccrue(pxGlp, user);
+
+            (, , uint256 globalRewardsBeforeClaim) = _getGlobalState(
+                producerToken
+            );
+            (, , uint256 userRewardsBeforeClaim) = pirexRewards.getUserState(
+                producerToken,
+                user
+            );
+            uint256 expectedClaimAmount = (pirexRewards.getRewardState(
+                pxGlp,
+                WETH
+            ) * _calculateUserRewards(producerToken, user)) /
+                _calculateGlobalRewards(producerToken);
+
+            // Deduct previous balance if rewards are forwarded
+            uint256 recipientBalanceDeduction = forwardRewards
+                ? WETH.balanceOf(recipient)
+                : 0;
+
+            pirexRewards.claim(producerToken, user, forwardRewards);
+
+            (, , uint256 globalRewardsAfterClaim) = _getGlobalState(
+                producerToken
+            );
+            (, , uint256 userRewardsAfterClaim) = pirexRewards.getUserState(
+                producerToken,
+                user
+            );
+
+            assertEq(
+                globalRewardsBeforeClaim - userRewardsBeforeClaim,
+                globalRewardsAfterClaim
+            );
+            assertEq(0, userRewardsAfterClaim);
+            assertEq(
+                expectedClaimAmount,
+                WETH.balanceOf(recipient) - recipientBalanceDeduction
+            );
+        }
+    }
 }

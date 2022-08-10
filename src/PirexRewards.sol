@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IProducer} from "src/interfaces/IProducer.sol";
 
 /**
@@ -10,6 +11,8 @@ import {IProducer} from "src/interfaces/IProducer.sol";
     https://github.com/fei-protocol/flywheel-v2/blob/dbe3cb8/src/FlywheelCore.sol
 */
 contract PirexRewards is Owned {
+    using SafeTransferLib for ERC20;
+
     struct GlobalState {
         uint256 lastUpdate;
         uint256 lastSupply;
@@ -45,7 +48,10 @@ contract PirexRewards is Owned {
         ERC20 indexed rewardToken
     );
     event UnsetRewardRecipient(address indexed user, ERC20 indexed rewardToken);
-    event PushRewardToken(ERC20 indexed producerToken, ERC20 indexed rewardToken);
+    event PushRewardToken(
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken
+    );
     event PopRewardToken(ERC20 indexed producerToken);
     event GlobalAccrue(
         ERC20 indexed producerToken,
@@ -65,10 +71,12 @@ contract PirexRewards is Owned {
         ERC20[] rewardTokens,
         uint256[] rewardAmounts
     );
+    event Claim(ERC20 indexed producerToken, address indexed user);
 
     error ZeroAddress();
     error ZeroAmount();
     error EmptyArray();
+    error NoRewardRecipient();
 
     constructor() Owned(msg.sender) {}
 
@@ -190,6 +198,14 @@ contract PirexRewards is Owned {
         return producerTokens[producerToken].rewardTokens;
     }
 
+    function getRewardRecipient(address user, ERC20 rewardToken)
+        public
+        view
+        returns (address)
+    {
+        return rewardRecipients[user][rewardToken];
+    }
+
     /**
         @notice Update global rewards accrual state
         @param  producerToken  ERC20  Rewards-producing token
@@ -218,7 +234,7 @@ contract PirexRewards is Owned {
         @param  producerToken  ERC20    Rewards-producing token
         @param  user           address  User address
     */
-    function userAccrue(ERC20 producerToken, address user) external {
+    function userAccrue(ERC20 producerToken, address user) public {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (user == address(0)) revert ZeroAddress();
 
@@ -263,7 +279,7 @@ contract PirexRewards is Owned {
         @return rewardAmounts   ERC20[]  Reward token amounts
     */
     function harvest()
-        external
+        public
         returns (
             ERC20[] memory _producerTokens,
             ERC20[] memory rewardTokens,
@@ -288,5 +304,53 @@ contract PirexRewards is Owned {
         }
 
         emit Harvest(_producerTokens, rewardTokens, rewardAmounts);
+    }
+
+    /**
+        @notice Harvest rewards
+        @param  producerToken   ERC20    Producer token contract
+        @param  user            address  User
+        @param  forwardRewards  bool     Whether to forward rewards (recipient must be set)
+    */
+    function claim(
+        ERC20 producerToken,
+        address user,
+        bool forwardRewards
+    ) external {
+        if (address(producerToken) == address(0)) revert ZeroAddress();
+        if (user == address(0)) revert ZeroAddress();
+
+        harvest();
+        userAccrue(producerToken, user);
+
+        ProducerToken storage p = producerTokens[producerToken];
+        uint256 globalRewards = p.globalState.rewards;
+        uint256 userRewards = p.userStates[user].rewards;
+        ERC20[] memory rewardTokens = p.rewardTokens;
+        uint256 rLen = rewardTokens.length;
+
+        // Update global and user reward states to reflect the claim
+        p.globalState.rewards -= userRewards;
+        p.userStates[user].rewards = 0;
+
+        emit Claim(producerToken, user);
+
+        // Iterate over reward tokens and transfer the proportionate amount to the recipient
+        for (uint256 i; i < rLen; ++i) {
+            ERC20 rewardToken = rewardTokens[i];
+            address recipient = forwardRewards
+                ? rewardRecipients[user][rewardToken]
+                : user;
+            uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
+                globalRewards;
+
+            // Update reward state (i.e. amount) to reflect amount of reward token transferred out
+            p.rewardStates[rewardToken] -= amount;
+
+            // If forwardRewards is true, recipient must be set
+            if (recipient == address(0)) revert NoRewardRecipient();
+
+            rewardTokens[i].safeTransfer(recipient, amount);
+        }
     }
 }
