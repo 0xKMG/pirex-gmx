@@ -45,6 +45,7 @@ contract RewardsHarvester is Owned {
         address indexed recipient,
         ERC20 indexed rewardToken
     );
+    event UnsetRewardRecipient(address indexed user, ERC20 indexed rewardToken);
     event GlobalAccrue(
         ERC20 indexed producerToken,
         uint256 lastUpdate,
@@ -104,6 +105,18 @@ contract RewardsHarvester is Owned {
         rewardRecipients[msg.sender][rewardToken] = recipient;
 
         emit SetRewardRecipient(msg.sender, recipient, rewardToken);
+    }
+
+    /**
+        @notice Unset reward recipient for a reward token
+        @param  rewardToken  ERC20  Reward token contract
+    */
+    function unsetRewardRecipient(ERC20 rewardToken) external {
+        if (address(rewardToken) == address(0)) revert ZeroAddress();
+
+        rewardRecipients[msg.sender][rewardToken] = address(0);
+
+        emit UnsetRewardRecipient(msg.sender, rewardToken);
     }
 
     /**

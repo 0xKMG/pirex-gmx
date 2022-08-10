@@ -15,6 +15,7 @@ contract RewardsHarvesterTest is Helper {
         address indexed recipient,
         ERC20 indexed rewardToken
     );
+    event UnsetRewardRecipient(address indexed user, ERC20 indexed rewardToken);
 
     /**
         @notice Calculate the global rewards
@@ -815,6 +816,48 @@ contract RewardsHarvesterTest is Helper {
 
         assertEq(
             recipient,
+            rewardsHarvester.rewardRecipients(address(this), WETH)
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        unsetRewardRecipient TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: rewardToken is the zero address
+     */
+    function testCannotUnsetRewardRecipientRewardTokenZeroAddress() external {
+        ERC20 invalidRewardToken = ERC20(address(0));
+
+        vm.expectRevert(RewardsHarvester.ZeroAddress.selector);
+
+        rewardsHarvester.unsetRewardRecipient(invalidRewardToken);
+    }
+
+    /**
+        @notice Test unsetting a reward recipient
+     */
+    function testUnsetRewardRecipient() external {
+        // Set reward recipient in order to unset
+        address recipient = address(this);
+        ERC20 rewardToken = WETH;
+
+        rewardsHarvester.setRewardRecipient(recipient, rewardToken);
+
+        assertEq(
+            recipient,
+            rewardsHarvester.rewardRecipients(address(this), WETH)
+        );
+
+        vm.expectEmit(true, true, false, true, address(rewardsHarvester));
+
+        emit UnsetRewardRecipient(address(this), rewardToken);
+
+        rewardsHarvester.unsetRewardRecipient(rewardToken);
+
+        assertEq(
+            address(0),
             rewardsHarvester.rewardRecipients(address(this), WETH)
         );
     }
