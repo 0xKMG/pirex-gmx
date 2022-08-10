@@ -720,6 +720,7 @@ contract RewardsHarvesterTest is Helper {
 
         vm.warp(block.timestamp + secondsElapsed);
 
+        uint256 wethBalanceBeforeHarvest = WETH.balanceOf(address(rewardsSilo));
         uint256 expectedGlobalLastUpdate = block.timestamp;
         uint256 expectedGlobalLastSupply = pxGlp.totalSupply();
         uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
@@ -728,7 +729,6 @@ contract RewardsHarvesterTest is Helper {
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         ) = rewardsHarvester.harvest();
-        uint256 pLen = producerTokens.length;
         (
             uint256 lastUpdate,
             uint256 lastSupply,
@@ -739,13 +739,25 @@ contract RewardsHarvesterTest is Helper {
         assertEq(expectedGlobalLastSupply, lastSupply);
         assertEq(expectedGlobalRewards, rewards);
 
+        uint256 totalRewards;
+        uint256 pLen = producerTokens.length;
+
         for (uint256 i; i < pLen; ++i) {
             ERC20 p = producerTokens[i];
+            uint256 rewardAmount = rewardAmounts[i];
+
+            totalRewards += rewardAmount;
 
             assertEq(
-                rewardAmounts[i],
+                rewardAmount,
                 rewardsSilo.rewardStates(p, rewardTokens[i])
             );
         }
+
+        // Check that the correct amount of WETH was transferred to the silo
+        assertEq(
+            WETH.balanceOf(address(rewardsSilo)) - wethBalanceBeforeHarvest,
+            totalRewards
+        );
     }
 }
