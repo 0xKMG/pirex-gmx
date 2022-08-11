@@ -51,11 +51,11 @@ contract PirexRewards is Owned {
         ERC20 indexed producerToken,
         ERC20 indexed rewardToken
     );
-    event PushRewardToken(
+    event AddRewardToken(
         ERC20 indexed producerToken,
         ERC20 indexed rewardToken
     );
-    event PopRewardToken(ERC20 indexed producerToken);
+    event RemoveRewardToken(ERC20 indexed producerToken, uint256 removalIndex);
     event GlobalAccrue(
         ERC20 indexed producerToken,
         uint256 lastUpdate,
@@ -153,11 +153,11 @@ contract PirexRewards is Owned {
     }
 
     /**
-        @notice Push a reward token to a producer token's rewardTokens array
+        @notice Add a reward token to a producer token's rewardTokens array
         @param  producerToken  ERC20  Producer token contract
         @param  rewardToken    ERC20  Reward token contract
     */
-    function pushRewardToken(ERC20 producerToken, ERC20 rewardToken)
+    function addRewardToken(ERC20 producerToken, ERC20 rewardToken)
         external
         onlyOwner
     {
@@ -167,19 +167,32 @@ contract PirexRewards is Owned {
         // It is the responsibility of the caller to ensure rewardToken is not a dupe
         producerTokens[producerToken].rewardTokens.push(rewardToken);
 
-        emit PushRewardToken(producerToken, rewardToken);
+        emit AddRewardToken(producerToken, rewardToken);
     }
 
     /**
-        @notice Pop a reward token from a producer token's rewardTokens array
-        @param  producerToken  ERC20  Producer token contract
+        @notice Remove a reward token from a producer token's rewardTokens array
+        @param  producerToken  ERC20    Producer token contract
+        @param  removalIndex   uint256  Index of the element to be removed
     */
-    function popRewardToken(ERC20 producerToken) external onlyOwner {
+    function removeRewardToken(ERC20 producerToken, uint256 removalIndex)
+        external
+        onlyOwner
+    {
         if (address(producerToken) == address(0)) revert ZeroAddress();
+
+        ERC20[] storage rewardTokens = producerTokens[producerToken]
+            .rewardTokens;
+        uint256 lastIndex = rewardTokens.length - 1;
+
+        if (removalIndex != lastIndex) {
+            // Set the element at removalIndex to the last element
+            rewardTokens[removalIndex] = rewardTokens[lastIndex];
+        }
 
         producerTokens[producerToken].rewardTokens.pop();
 
-        emit PopRewardToken(producerToken);
+        emit RemoveRewardToken(producerToken, removalIndex);
     }
 
     /**

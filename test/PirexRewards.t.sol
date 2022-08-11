@@ -20,11 +20,11 @@ contract PirexRewardsTest is Helper {
         ERC20 indexed producerToken,
         ERC20 indexed rewardToken
     );
-    event PushRewardToken(
+    event AddRewardToken(
         ERC20 indexed producerToken,
         ERC20 indexed rewardToken
     );
-    event PopRewardToken(ERC20 indexed producerToken);
+    event RemoveRewardToken(ERC20 indexed producerToken, uint256 removalIndex);
     event SetRewardRecipientPrivileged(
         address indexed lpContract,
         ERC20 indexed producerToken,
@@ -919,50 +919,50 @@ contract PirexRewardsTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        pushRewardToken TESTS
+                        addRewardToken TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: caller is not authorized
      */
-    function testCannotPushRewardTokenNotAuthorized() external {
+    function testCannotAddRewardTokenNotAuthorized() external {
         ERC20 producerToken = pxGlp;
         ERC20 rewardToken = WETH;
 
         vm.prank(testAccounts[0]);
         vm.expectRevert("UNAUTHORIZED");
 
-        pirexRewards.pushRewardToken(producerToken, rewardToken);
+        pirexRewards.addRewardToken(producerToken, rewardToken);
     }
 
     /**
         @notice Test tx reversion: producerToken is the zero address
      */
-    function testCannotPushRewardTokenProducerTokenZeroAddress() external {
+    function testCannotAddRewardTokenProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
         ERC20 rewardToken = ERC20(address(0));
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        pirexRewards.pushRewardToken(invalidProducerToken, rewardToken);
+        pirexRewards.addRewardToken(invalidProducerToken, rewardToken);
     }
 
     /**
         @notice Test tx reversion: rewardToken is the zero address
      */
-    function testCannotPushRewardTokenRewardTokenZeroAddress() external {
+    function testCannotAddRewardTokenRewardTokenZeroAddress() external {
         ERC20 producerToken = pxGlp;
         ERC20 invalidRewardToken = ERC20(address(0));
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        pirexRewards.pushRewardToken(producerToken, invalidRewardToken);
+        pirexRewards.addRewardToken(producerToken, invalidRewardToken);
     }
 
     /**
-        @notice Test pushing a reward token
+        @notice Test adding a reward token
      */
-    function testPushRewardToken() external {
+    function testAddRewardToken() external {
         ERC20 producerToken = pxGlp;
         ERC20 rewardToken = WETH;
         ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
@@ -973,9 +973,9 @@ contract PirexRewardsTest is Helper {
 
         vm.expectEmit(true, true, false, true, address(pirexRewards));
 
-        emit PushRewardToken(producerToken, rewardToken);
+        emit AddRewardToken(producerToken, rewardToken);
 
-        pirexRewards.pushRewardToken(producerToken, rewardToken);
+        pirexRewards.addRewardToken(producerToken, rewardToken);
 
         ERC20[] memory rewardTokensAfterPush = pirexRewards.getRewardTokens(
             producerToken
@@ -986,60 +986,72 @@ contract PirexRewardsTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        popRewardToken TESTS
+                        removeRewardToken TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: caller is not authorized
      */
-    function testCannotPopRewardTokenNotAuthorized() external {
+    function testCannotRemoveRewardTokenNotAuthorized() external {
         ERC20 producerToken = pxGlp;
+        uint256 removalIndex = 0;
 
         vm.prank(testAccounts[0]);
         vm.expectRevert("UNAUTHORIZED");
 
-        pirexRewards.popRewardToken(producerToken);
+        pirexRewards.removeRewardToken(producerToken, removalIndex);
     }
 
     /**
         @notice Test tx reversion: producerToken is the zero address
      */
-    function testCannotPopRewardTokenProducerTokenZeroAddress() external {
+    function testCannotRemoveRewardTokenProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
+        uint256 removalIndex = 0;
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        pirexRewards.popRewardToken(invalidProducerToken);
+        pirexRewards.removeRewardToken(invalidProducerToken, removalIndex);
     }
 
     /**
-        @notice Test popping a reward token
+        @notice Test removing a reward token at a random index
+        @param  removalIndex  uint8  Index of the element to be removed
      */
-    function testPopRewardToken() external {
+    function testRemoveRewardToken(uint8 removalIndex) external {
+        vm.assume(removalIndex < 2);
+
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        address rewardToken1 = address(WETH);
+        address rewardToken2 = address(WBTC);
 
-        // Add rewardToken element to array to test pop
-        pirexRewards.pushRewardToken(producerToken, rewardToken);
+        // Add rewardTokens to array to test proper removal
+        pirexRewards.addRewardToken(producerToken, ERC20(rewardToken1));
+        pirexRewards.addRewardToken(producerToken, ERC20(rewardToken2));
 
-        ERC20[] memory rewardTokensBeforePop = pirexRewards.getRewardTokens(
+        ERC20[] memory rewardTokensBeforeRemoval = pirexRewards.getRewardTokens(
             producerToken
         );
 
-        assertEq(1, rewardTokensBeforePop.length);
-        assertEq(address(rewardToken), address(rewardTokensBeforePop[0]));
+        assertEq(2, rewardTokensBeforeRemoval.length);
+        assertEq(rewardToken1, address(rewardTokensBeforeRemoval[0]));
+        assertEq(rewardToken2, address(rewardTokensBeforeRemoval[1]));
 
         vm.expectEmit(true, false, false, true, address(pirexRewards));
 
-        emit PopRewardToken(producerToken);
+        emit RemoveRewardToken(producerToken, removalIndex);
 
-        pirexRewards.popRewardToken(producerToken);
+        pirexRewards.removeRewardToken(producerToken, removalIndex);
 
-        ERC20[] memory rewardTokensAfterPop = pirexRewards.getRewardTokens(
+        ERC20[] memory rewardTokensAfterRemoval = pirexRewards.getRewardTokens(
             producerToken
         );
+        address remainingToken = removalIndex == 0
+            ? rewardToken2
+            : rewardToken1;
 
-        assertEq(0, rewardTokensAfterPop.length);
+        assertEq(1, rewardTokensAfterRemoval.length);
+        assertEq(remainingToken, address(rewardTokensAfterRemoval[0]));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1100,7 +1112,7 @@ contract PirexRewardsTest is Helper {
         vm.warp(block.timestamp + secondsElapsed);
 
         // Add reward token and harvest rewards from Pirex contract
-        pirexRewards.pushRewardToken(producerToken, rewardToken);
+        pirexRewards.addRewardToken(producerToken, rewardToken);
         pirexRewards.harvest();
 
         for (uint256 i; i < testAccounts.length; ++i) {
