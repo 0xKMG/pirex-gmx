@@ -164,13 +164,14 @@ contract PirexRewards is Owned {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (address(rewardToken) == address(0)) revert ZeroAddress();
 
+        // It is the responsibility of the caller to ensure rewardToken is not a dupe
         producerTokens[producerToken].rewardTokens.push(rewardToken);
 
         emit PushRewardToken(producerToken, rewardToken);
     }
 
     /**
-        @notice Push a reward token to a producer token's rewardTokens array
+        @notice Pop a reward token from a producer token's rewardTokens array
         @param  producerToken  ERC20  Producer token contract
     */
     function popRewardToken(ERC20 producerToken) external onlyOwner {
@@ -182,7 +183,7 @@ contract PirexRewards is Owned {
     }
 
     /**
-        @notice Getter for a producerToken's UserState struct member values
+        @notice Getter for a producer token's UserState struct member values
         @param  producerToken  ERC20    Producer token contract
         @param  user           address  User
         @return lastUpdate     uint256  Last update
@@ -206,7 +207,7 @@ contract PirexRewards is Owned {
     }
 
     /**
-        @notice Getter for a producerToken's UserState struct member values
+        @notice Getter for a producer token's accrued amount for a reward token
         @param  producerToken  ERC20    Producer token contract
         @param  rewardToken    ERC20    Reward token contract
         @return                uint256  Reward state
@@ -220,7 +221,7 @@ contract PirexRewards is Owned {
     }
 
     /**
-        @notice Getter for a producerToken's rewardTokens
+        @notice Getter for a producer token's reward tokens
         @param  producerToken  ERC20    Producer token contract
         @return                ERC20[]  Reward token contracts
     */
@@ -233,7 +234,7 @@ contract PirexRewards is Owned {
     }
 
     /**
-        @notice Getter for rewardRecipients
+        @notice Get the reward recipient for a user by producer and reward token
         @param  user           address  User
         @param  producerToken  ERC20    Producer token contract
         @param  rewardToken    ERC20    Reward token contract
@@ -243,7 +244,7 @@ contract PirexRewards is Owned {
         address user,
         ERC20 producerToken,
         ERC20 rewardToken
-    ) public view returns (address) {
+    ) external view returns (address) {
         return
             producerTokens[producerToken].rewardRecipients[user][rewardToken];
     }
@@ -255,20 +256,19 @@ contract PirexRewards is Owned {
     function globalAccrue(ERC20 producerToken) public {
         if (address(producerToken) == address(0)) revert ZeroAddress();
 
-        GlobalState memory g = producerTokens[producerToken].globalState;
-        uint256 timestamp = block.timestamp;
+        GlobalState storage g = producerTokens[producerToken].globalState;
         uint256 totalSupply = producerToken.totalSupply();
 
         // Calculate rewards, the product of seconds elapsed and last supply
-        uint256 rewards = g.rewards + (timestamp - g.lastUpdate) * g.lastSupply;
+        uint256 rewards = g.rewards +
+            (block.timestamp - g.lastUpdate) *
+            g.lastSupply;
 
-        producerTokens[producerToken].globalState = GlobalState({
-            lastUpdate: timestamp,
-            lastSupply: totalSupply,
-            rewards: rewards
-        });
+        g.lastUpdate = block.timestamp;
+        g.lastSupply = totalSupply;
+        g.rewards = rewards;
 
-        emit GlobalAccrue(producerToken, timestamp, totalSupply, rewards);
+        emit GlobalAccrue(producerToken, block.timestamp, totalSupply, rewards);
     }
 
     /**
@@ -281,19 +281,18 @@ contract PirexRewards is Owned {
         if (user == address(0)) revert ZeroAddress();
 
         UserState storage u = producerTokens[producerToken].userStates[user];
-        uint256 timestamp = block.timestamp;
         uint256 balance = producerToken.balanceOf(user);
 
         // Calculate the amount of rewards accrued by the user up to this call
         uint256 rewards = u.rewards +
             u.lastBalance *
-            (timestamp - u.lastUpdate);
+            (block.timestamp - u.lastUpdate);
 
-        u.lastUpdate = timestamp;
+        u.lastUpdate = block.timestamp;
         u.lastBalance = balance;
         u.rewards = rewards;
 
-        emit UserAccrue(producerToken, user, timestamp, balance, rewards);
+        emit UserAccrue(producerToken, user, block.timestamp, balance, rewards);
     }
 
     /**
@@ -309,7 +308,6 @@ contract PirexRewards is Owned {
     ) internal {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (address(rewardToken) == address(0)) revert ZeroAddress();
-        if (rewardAmount == 0) revert ZeroAmount();
 
         producerTokens[producerToken].rewardStates[rewardToken] += rewardAmount;
     }
@@ -377,20 +375,21 @@ contract PirexRewards is Owned {
 
         emit Claim(producerToken, user);
 
-        // Iterate over reward tokens and transfer the proportionate amount to the recipient
+        // Transfer the proportionate reward token amounts to the recipient
         for (uint256 i; i < rLen; ++i) {
             ERC20 rewardToken = rewardTokens[i];
             address recipient = forwardRewards
                 ? p.rewardRecipients[user][rewardToken]
                 : user;
-            uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
-                globalRewards;
-
-            // Update reward state (i.e. amount) to reflect amount of reward token transferred out
-            p.rewardStates[rewardToken] -= amount;
 
             // If forwardRewards is true, recipient must be set
             if (recipient == address(0)) revert NoRewardRecipient();
+
+            uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
+                globalRewards;
+
+            // Update reward state (i.e. amount) to reflect reward tokens transferred out
+            p.rewardStates[rewardToken] -= amount;
 
             rewardTokens[i].safeTransfer(recipient, amount);
         }
