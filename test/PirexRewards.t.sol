@@ -560,7 +560,7 @@ contract PirexRewardsTest is Helper {
 
         vm.deal(address(this), tokenAmount);
 
-        pirexGlp.depositWithETH{value: tokenAmount}(1, sender);
+        pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, sender);
 
         // Forward time in order to accrue rewards for sender
         vm.warp(block.timestamp + secondsElapsed);
@@ -651,7 +651,7 @@ contract PirexRewardsTest is Helper {
 
         vm.deal(user, tokenAmount);
 
-        pirexGlp.depositWithETH{value: tokenAmount}(1, user);
+        pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, user);
 
         // Forward time in order to accrue rewards for user
         vm.warp(block.timestamp + secondsElapsed);
@@ -660,7 +660,7 @@ contract PirexRewardsTest is Helper {
         uint256 burnAmount = (preBurnBalance * burnPercent) / 100;
         uint256 expectedRewardsAfterBurn = _calculateUserRewards(pxGlp, user);
 
-        vm.prank(address(pirexGlp));
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.burn(user, burnAmount);
 
@@ -714,7 +714,7 @@ contract PirexRewardsTest is Helper {
 
         vm.deal(user, ethAmount);
 
-        pirexGlp.depositWithETH{value: ethAmount}(1, user);
+        pirexGmxGlp.depositGlpWithETH{value: ethAmount}(1, user);
 
         vm.warp(block.timestamp + secondsElapsed);
 

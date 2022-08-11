@@ -5,7 +5,8 @@ import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
-import {PirexGlp} from "src/PirexGlp.sol";
+import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
+import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
@@ -13,6 +14,8 @@ import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
 import {IReader} from "src/interfaces/IReader.sol";
+import {IGMX} from "src/interfaces/IGMX.sol";
+import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
 
@@ -31,6 +34,8 @@ contract Helper is Test {
         IReader(0x22199a49A999c351eF7927602CFB187ec3cae489);
     Vault internal constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    IGMX internal constant GMX =
+        IGMX(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     IERC20 internal constant REWARD_TRACKER =
         IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     IERC20 internal constant USDG =
@@ -41,7 +46,11 @@ contract Helper is Test {
     ERC20 internal constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
-    PirexGlp internal immutable pirexGlp;
+    address internal constant STAKED_GMX =
+        0x908C4D94D34924765f1eDc22A1DD098397c59dD4;
+
+    PirexGmxGlp internal immutable pirexGmxGlp;
+    PxGmx internal immutable pxGmx;
     PxGlp internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
 
@@ -66,12 +75,19 @@ contract Helper is Test {
 
     constructor() {
         pirexRewards = new PirexRewards();
+        pxGmx = new PxGmx();
         pxGlp = new PxGlp(address(pirexRewards));
-        pirexGlp = new PirexGlp(address(pxGlp));
+        pirexGmxGlp = new PirexGmxGlp(
+            address(pxGmx),
+            address(pxGlp),
+            address(pirexRewards),
+            STAKED_GMX
+        );
 
-        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGlp));
-        pirexGlp.setPirexRewards(address(pirexRewards));
-        pirexRewards.setProducer(address(pirexGlp));
+        pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
+        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
+        pirexGmxGlp.setPirexRewards(address(pirexRewards));
+        pirexRewards.setProducer(address(pirexGmxGlp));
     }
 
     /**
@@ -95,7 +111,7 @@ contract Helper is Test {
         @param  amount  uint256  Amount of pxGLP
      */
     function _mintPxGlp(address to, uint256 amount) internal {
-        vm.prank(address(pirexGlp));
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.mint(to, amount);
     }
@@ -106,7 +122,7 @@ contract Helper is Test {
         @param  amount  uint256  Amount of pxGLP
      */
     function _burnPxGlp(address from, uint256 amount) internal {
-        vm.prank(address(pirexGlp));
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.burn(from, amount);
     }
@@ -139,7 +155,7 @@ contract Helper is Test {
                 tokenAmounts[2];
 
             _mintWbtc(wBtcTotalAmount);
-            WBTC.approve(address(pirexGlp), wBtcTotalAmount);
+            WBTC.approve(address(pirexGmxGlp), wBtcTotalAmount);
         }
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
@@ -149,9 +165,9 @@ contract Helper is Test {
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGlp.depositWithETH{value: tokenAmount}(1, testAccount);
+                pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, testAccount);
             } else {
-                pirexGlp.depositWithERC20(
+                pirexGmxGlp.depositGlpWithERC20(
                     address(WBTC),
                     tokenAmount,
                     1,
@@ -159,5 +175,26 @@ contract Helper is Test {
                 );
             }
         }
+    }
+
+    /**
+        @notice Mint GMX for pxGMX related tests
+        @param  amount  uint256  Amount of GMX
+     */
+    function _mintGmx(uint256 amount) internal {
+        // Simulate minting for GMX by impersonating the admin in the timelock contract
+        // Using the current values as they do change based on which block is pinned for tests
+        ITimelock gmxTimeLock = ITimelock(GMX.gov());
+            address timelockAdmin = gmxTimeLock.admin();
+
+        vm.startPrank(timelockAdmin);
+
+        gmxTimeLock.signalMint(address(GMX), address(this), amount);
+
+        vm.warp(block.timestamp + gmxTimeLock.buffer() + 1 hours);
+
+        gmxTimeLock.processMint(address(GMX), address(this), amount);
+
+        vm.stopPrank();
     }
 }

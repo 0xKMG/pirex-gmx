@@ -8,8 +8,9 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IRewardRouterV2} from "./interfaces/IRewardRouterV2.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
+import {PxGmx} from "./PxGmx.sol";
 
-contract PirexGlp is ReentrancyGuard, Owned {
+contract PirexGmxGlp is ReentrancyGuard, Owned {
     using SafeTransferLib for ERC20;
 
     // Miscellaneous dependency contracts (e.g. GMX) and addresses
@@ -17,19 +18,27 @@ contract PirexGlp is ReentrancyGuard, Owned {
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     Vault public constant VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
-    ERC20 public constant WETH =
-        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
     address public constant GLP_MANAGER =
         0x321F653eED006AD1C29D174e17d96351BDe22649;
+    ERC20 public constant GMX =
+        ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
+    ERC20 public constant WETH =
+        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     // Pirex token contract(s)
+    PxGmx public immutable pxGmx;
     PxGlp public immutable pxGlp;
 
     // Pirex reward module contract
     address public pirexRewards;
 
     event SetPirexRewards(address pirexRewards);
-    event Deposit(
+    event DepositGmx(
+        address indexed caller,
+        address indexed receiver,
+        uint256 amount
+    );
+    event DepositGlp(
         address indexed caller,
         address indexed receiver,
         address indexed token,
@@ -37,7 +46,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
         uint256 amount,
         uint256 assets
     );
-    event Redeem(
+    event RedeemGlp(
         address indexed caller,
         address indexed receiver,
         address indexed token,
@@ -52,12 +61,28 @@ contract PirexGlp is ReentrancyGuard, Owned {
     error NotPirexRewards();
 
     /**
-        @param  _pxGlp  address  PxGlp contract address
+        @param  _pxGmx         address  PxGmx contract address
+        @param  _pxGlp         address  PxGlp contract address
+        @param  _pirexRewards  address  PirexRewards contract address
+        @param  stakedGmx      address  StakedGmx contract address
     */
-    constructor(address _pxGlp) Owned(msg.sender) {
+    constructor(
+        address _pxGmx,
+        address _pxGlp,
+        address _pirexRewards,
+        address stakedGmx
+    ) Owned(msg.sender) {
+        if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
+        if (_pirexRewards == address(0)) revert ZeroAddress();
+        if (stakedGmx == address(0)) revert ZeroAddress();
 
+        pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
+        pirexRewards = _pirexRewards;
+
+        // Pre-approving stakedGmx contract for staking GMX on behalf of our vault
+        GMX.safeApprove(stakedGmx, type(uint256).max);
     }
 
     /**
@@ -73,12 +98,35 @@ contract PirexGlp is ReentrancyGuard, Owned {
     }
 
     /**
+        @notice Deposit and stake GMX for pxGMX
+        @param  gmxAmount  uint256  GMX amount
+        @param  receiver   address  Recipient of pxGMX
+     */
+    function depositGmx(uint256 gmxAmount, address receiver)
+        external
+        nonReentrant
+    {
+        if (gmxAmount == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Transfer the caller's GMX before staking
+        GMX.safeTransferFrom(msg.sender, address(this), gmxAmount);
+
+        REWARD_ROUTER_V2.stakeGmx(gmxAmount);
+
+        // Mint pxGMX equal to the specified amount of GMX
+        pxGmx.mint(receiver, gmxAmount);
+
+        emit DepositGmx(msg.sender, receiver, gmxAmount);
+    }
+
+    /**
         @notice Deposit ETH for pxGLP
         @param  minShares  uint256  Minimum amount of GLP
         @param  receiver   address  Recipient of pxGLP
         @return assets     uint256  Amount of pxGLP
      */
-    function depositWithETH(uint256 minShares, address receiver)
+    function depositGlpWithETH(uint256 minShares, address receiver)
         external
         payable
         nonReentrant
@@ -97,7 +145,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
         // Mint pxGLP based on the actual amount of GLP minted
         pxGlp.mint(receiver, assets);
 
-        emit Deposit(
+        emit DepositGlp(
             msg.sender,
             receiver,
             address(0),
@@ -115,7 +163,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
         @param  receiver     address  Recipient of pxGLP
         @return assets       uint256  Amount of pxGLP
      */
-    function depositWithERC20(
+    function depositGlpWithERC20(
         address token,
         uint256 tokenAmount,
         uint256 minShares,
@@ -142,7 +190,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
 
         pxGlp.mint(receiver, assets);
 
-        emit Deposit(
+        emit DepositGlp(
             msg.sender,
             receiver,
             token,
@@ -159,7 +207,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
         @param  receiver       address  Recipient of the redeemed ETH
         @return redeemed       uint256  Amount of ETH received
      */
-    function redeemForETH(
+    function redeemPxGlpForETH(
         uint256 amount,
         uint256 minRedemption,
         address receiver
@@ -178,7 +226,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
             receiver
         );
 
-        emit Redeem(
+        emit RedeemGlp(
             msg.sender,
             receiver,
             address(0),
@@ -196,7 +244,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
         @param  receiver       address  Recipient of the redeemed token
         @return redeemed       uint256  Amount of token received
      */
-    function redeemForERC20(
+    function redeemPxGlpForERC20(
         address token,
         uint256 amount,
         uint256 minRedemption,
@@ -219,7 +267,7 @@ contract PirexGlp is ReentrancyGuard, Owned {
             receiver
         );
 
-        emit Redeem(
+        emit RedeemGlp(
             msg.sender,
             receiver,
             token,
