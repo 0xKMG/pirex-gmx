@@ -145,16 +145,17 @@ contract Helper is Test {
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
         for (uint256 i; i < tLen; ++i) {
             uint256 tokenAmount = tokenAmounts[i];
+            address testAccount = testAccounts[i];
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGlp.depositWithETH{value: tokenAmount}(1, testAccounts[i]);
+                pirexGlp.depositWithETH{value: tokenAmount}(1, testAccount);
             } else {
                 pirexGlp.depositWithERC20(
                     address(WBTC),
                     tokenAmount,
                     1,
-                    testAccounts[i]
+                    testAccount
                 );
             }
         }

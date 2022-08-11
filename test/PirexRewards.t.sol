@@ -38,7 +38,7 @@ contract PirexRewardsTest is Helper {
     );
 
     /**
-        @notice Getter for a producerToken's global state
+        @notice Getter for a producer token's global state
     */
     function _getGlobalState(ERC20 producerToken)
         internal
@@ -60,7 +60,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Calculate the global rewards
+        @notice Calculate the global rewards accrued since the last update
         @param  producerToken  ERC20    Producer token
         @return                uint256  Global rewards
     */
@@ -79,7 +79,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Calculate a user's rewards
+        @notice Calculate a user's rewards since the last update
         @param  producerToken  ERC20    Producer token contract
         @param  user           address  User
         @return                uint256  User rewards
@@ -103,7 +103,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to caller not being owner
+        @notice Test tx reversion: caller is not authorized
      */
     function testCannotSetProducerNotAuthorized() external {
         address _producer = address(this);
@@ -115,7 +115,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to _producer being zero
+        @notice Test tx reversion: _producer is the zero address
      */
     function testCannotSetProducerZeroAddress() external {
         address invalidProducer = address(0);
@@ -148,7 +148,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to producerToken being the zero address
+        @notice Test tx reversion: producerToken is the zero address
      */
     function testCannotGlobalAccrueProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
@@ -299,7 +299,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to producerToken being the zero address
+        @notice Test tx reversion: producerToken is the zero address
      */
     function testCannotUserAccrueProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
