@@ -8,7 +8,6 @@ import {Helper} from "./Helper.t.sol";
 
 contract PirexGlpTest is Helper {
     event SetPirexRewards(address pirexRewards);
-
     event Deposit(
         address indexed caller,
         address indexed receiver,
@@ -17,7 +16,6 @@ contract PirexGlpTest is Helper {
         uint256 amount,
         uint256 assets
     );
-
     event Redeem(
         address indexed caller,
         address indexed receiver,
@@ -817,7 +815,7 @@ contract PirexGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to the caller not being pirexRewards
+        @notice Test tx reversion: caller is not pirexRewards
      */
     function testCannotClaimWETHRewardsUnauthorized() external {
         vm.prank(testAccounts[0]);
@@ -827,52 +825,33 @@ contract PirexGlpTest is Helper {
     }
 
     /**
-        @notice Test claiming WETH rewards earned solely from GLP
+        @notice Test claiming WETH rewards earned solely from pxGLP
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+        @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
      */
-    function testClaimWETHRewards(
-        uint256 secondsElapsed,
-        uint256 tokenAmount,
-        bool stakeEsGmx
-    ) external {
+    function testClaimWETHRewards(uint32 secondsElapsed, uint40 wbtcAmount)
+        external
+    {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
-        vm.assume(tokenAmount != 0);
-        vm.assume(tokenAmount < 100e8);
+        vm.assume(wbtcAmount != 0);
+        vm.assume(wbtcAmount < 100e8);
 
         address token = address(WBTC);
         uint256 minShares = 1;
         address pirexRewardsAddr = address(pirexRewards);
 
         // Mint pxGLP in order to begin accrual of GMX rewards
-        _mintWbtc(tokenAmount);
+        _mintWbtc(wbtcAmount);
 
-        WBTC.approve(address(pirexGlp), tokenAmount);
-        pirexGlp.depositWithERC20(token, tokenAmount, minShares, address(this));
-
-        if (stakeEsGmx) {
-            // Forward timestamp to produce rewards
-            vm.warp(block.timestamp + secondsElapsed);
-
-            // Impersonate pirexGlp and claim + stake esGMX to test WETH accrual
-            vm.prank(address(pirexGlp));
-
-            // Only claim and stake esGMX for now
-            REWARD_ROUTER_V2.handleRewards(
-                false,
-                false,
-                true,
-                true,
-                false,
-                false,
-                false
-            );
-        }
+        WBTC.approve(address(pirexGlp), wbtcAmount);
+        pirexGlp.depositWithERC20(token, wbtcAmount, minShares, address(this));
 
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + secondsElapsed);
 
         // Ensure pirexRewards has a zero WETH balance to test balance changes
-        assertEq(WETH.balanceOf(pirexRewardsAddr), 0);
+        assertEq(0, WETH.balanceOf(pirexRewardsAddr));
 
         // Impersonate pirexRewards and claim WETH rewards
         vm.prank(pirexRewardsAddr);
@@ -882,12 +861,11 @@ contract PirexGlpTest is Helper {
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         ) = pirexGlp.claimWETHRewards();
-        uint256 wethFromGlp = rewardAmounts[0];
 
         // Only test the first element since the second will later be pxGMX
-        assertEq(address(producerTokens[0]), address(pxGlp));
+        assertEq(address(pxGlp), address(producerTokens[0]));
 
         assertEq(address(WETH), address(rewardTokens[0]));
-        assertEq(WETH.balanceOf(pirexRewardsAddr), wethFromGlp);
+        assertEq(WETH.balanceOf(pirexRewardsAddr), rewardAmounts[0]);
     }
 }
