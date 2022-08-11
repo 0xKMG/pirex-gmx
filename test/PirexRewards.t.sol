@@ -25,6 +25,10 @@ contract PirexRewardsTest is Helper {
         address indexed recipient,
         ERC20 indexed rewardToken
     );
+    event UnsetRewardRecipientPrivileged(
+        address indexed lpContract,
+        ERC20 indexed rewardToken
+    );
 
     /**
         @notice Getter for a producerToken's global state
@@ -1101,7 +1105,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                    privilegedSetRewardRecipient TESTS
+                    setRewardRecipientPrivileged TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -1132,6 +1136,17 @@ contract PirexRewardsTest is Helper {
         address invalidLpContract = testAccounts[0];
         address recipient = address(this);
         ERC20 rewardToken = WETH;
+
+        vm.expectRevert(PirexRewards.NotContract.selector);
+
+        pirexRewards.setRewardRecipientPrivileged(
+            invalidLpContract,
+            recipient,
+            rewardToken
+        );
+
+        // Covers zero addresses
+        invalidLpContract = address(0);
 
         vm.expectRevert(PirexRewards.NotContract.selector);
 
@@ -1208,5 +1223,93 @@ contract PirexRewardsTest is Helper {
             recipient,
             pirexRewards.getRewardRecipient(lpContract, rewardToken)
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    unsetRewardRecipientPrivileged TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is not authorized
+     */
+    function testCannotUnsetRewardRecipientPrivilegedNotAuthorized() external {
+        address lpContract = address(this);
+        ERC20 rewardToken = WETH;
+
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexRewards.unsetRewardRecipientPrivileged(lpContract, rewardToken);
+    }
+
+    /**
+        @notice Test tx reversion: lpContract is not a contract
+     */
+    function testCannotUnsetRewardRecipientPrivilegedLpContractNotContract()
+        external
+    {
+        address invalidLpContract = testAccounts[0];
+        ERC20 rewardToken = WETH;
+
+        vm.expectRevert(PirexRewards.NotContract.selector);
+
+        pirexRewards.unsetRewardRecipientPrivileged(
+            invalidLpContract,
+            rewardToken
+        );
+
+        invalidLpContract = address(0);
+
+        vm.expectRevert(PirexRewards.NotContract.selector);
+
+        pirexRewards.unsetRewardRecipientPrivileged(
+            invalidLpContract,
+            rewardToken
+        );
+    }
+
+    /**
+        @notice Test tx reversion: rewardToken is the zero address
+     */
+    function testCannotUnsetRewardRecipientPrivilegedRewardTokenZeroAddress()
+        external
+    {
+        address lpContract = address(this);
+        ERC20 invalidRewardToken = ERC20(address(0));
+
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
+
+        pirexRewards.unsetRewardRecipientPrivileged(
+            lpContract,
+            invalidRewardToken
+        );
+    }
+
+    /**
+        @notice Test tx reversion: rewardToken is the zero address
+     */
+    function testUnsetRewardRecipientPrivileged()
+        external
+    {
+        address lpContract = address(this);
+        ERC20 rewardToken = WETH;
+
+        // Set reward recipient in order to unset
+        address recipient = address(this);
+
+        pirexRewards.setRewardRecipientPrivileged(lpContract, recipient, rewardToken);
+
+        assertEq(recipient, pirexRewards.getRewardRecipient(lpContract, rewardToken));
+
+        vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+        emit UnsetRewardRecipientPrivileged(lpContract, rewardToken);
+
+        pirexRewards.unsetRewardRecipientPrivileged(
+            lpContract,
+            rewardToken
+        );
+
+        assertEq(address(0), pirexRewards.getRewardRecipient(lpContract, rewardToken));
     }
 }
