@@ -350,13 +350,8 @@ contract PirexRewards is Owned {
         @notice Harvest rewards
         @param  producerToken   ERC20    Producer token contract
         @param  user            address  User
-        @param  forwardRewards  bool     Whether to forward rewards (recipient must be set)
     */
-    function claim(
-        ERC20 producerToken,
-        address user,
-        bool forwardRewards
-    ) external {
+    function claim(ERC20 producerToken, address user) external {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (user == address(0)) revert ZeroAddress();
 
@@ -378,13 +373,10 @@ contract PirexRewards is Owned {
         // Transfer the proportionate reward token amounts to the recipient
         for (uint256 i; i < rLen; ++i) {
             ERC20 rewardToken = rewardTokens[i];
-            address recipient = forwardRewards
-                ? p.rewardRecipients[user][rewardToken]
+            address rewardRecipient = p.rewardRecipients[user][rewardToken];
+            address recipient = rewardRecipient != address(0)
+                ? rewardRecipient
                 : user;
-
-            // If forwardRewards is true, recipient must be set
-            if (recipient == address(0)) revert NoRewardRecipient();
-
             uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
                 globalRewards;
 

@@ -1052,11 +1052,10 @@ contract PirexRewardsTest is Helper {
     function testCannotClaimProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
         address user = address(this);
-        bool forwardRewards = false;
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        pirexRewards.claim(invalidProducerToken, user, forwardRewards);
+        pirexRewards.claim(invalidProducerToken, user);
     }
 
     /**
@@ -1065,32 +1064,10 @@ contract PirexRewardsTest is Helper {
     function testCannotClaimUserZeroAddress() external {
         ERC20 producerToken = pxGlp;
         address invalidUser = address(0);
-        bool forwardRewards = false;
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
-        pirexRewards.claim(producerToken, invalidUser, forwardRewards);
-    }
-
-    /**
-        @notice Test tx reversion: producerToken is the zero address
-     */
-    function testCannotClaimRecipientNotSet() external {
-        ERC20 producerToken = pxGlp;
-        address user = address(this);
-        bool invalidForwardRewards = true;
-
-        vm.deal(address(this), 1 ether);
-
-        pirexGlp.depositWithETH{value: 1 ether}(1, user);
-
-        vm.warp(block.timestamp + 10000);
-
-        pirexRewards.pushRewardToken(pxGlp, WETH);
-
-        vm.expectRevert(PirexRewards.NoRewardRecipient.selector);
-
-        pirexRewards.claim(producerToken, user, invalidForwardRewards);
+        pirexRewards.claim(producerToken, invalidUser);
     }
 
     /**
@@ -1136,10 +1113,10 @@ contract PirexRewardsTest is Helper {
                 pirexRewards.setRewardRecipient(
                     producerToken,
                     rewardToken,
-                    recipient
+                    address(this)
                 );
             } else {
-                assertEq(0, rewardToken.balanceOf(recipient));
+                assertEq(0, rewardToken.balanceOf(user));
             }
 
             pirexRewards.userAccrue(producerToken, user);
@@ -1162,7 +1139,7 @@ contract PirexRewardsTest is Helper {
                 ? rewardToken.balanceOf(recipient)
                 : 0;
 
-            pirexRewards.claim(producerToken, user, forwardRewards);
+            pirexRewards.claim(producerToken, user);
 
             (, , uint256 globalRewardsAfterClaim) = _getGlobalState(
                 producerToken
