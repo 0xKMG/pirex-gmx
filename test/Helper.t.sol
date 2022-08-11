@@ -165,7 +165,10 @@ contract Helper is Test {
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, testAccount);
+                pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(
+                    1,
+                    testAccount
+                );
             } else {
                 pirexGmxGlp.depositGlpWithERC20(
                     address(WBTC),
@@ -185,7 +188,7 @@ contract Helper is Test {
         // Simulate minting for GMX by impersonating the admin in the timelock contract
         // Using the current values as they do change based on which block is pinned for tests
         ITimelock gmxTimeLock = ITimelock(GMX.gov());
-            address timelockAdmin = gmxTimeLock.admin();
+        address timelockAdmin = gmxTimeLock.admin();
 
         vm.startPrank(timelockAdmin);
 

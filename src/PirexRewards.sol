@@ -272,7 +272,7 @@ contract PirexRewards is Owned {
     }
 
     /**
-        @notice Update global rewards accrual state
+        @notice Update user rewards accrual state
         @param  producerToken  ERC20    Rewards-producing token
         @param  user           address  User address
     */
