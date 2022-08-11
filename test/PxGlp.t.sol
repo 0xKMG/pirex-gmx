@@ -6,8 +6,50 @@ import {Helper} from "./Helper.t.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract PxGlpTest is Helper {
+    event SetPirexRewards(address pirexRewards);
+
     /*//////////////////////////////////////////////////////////////
-                        mint TESTS
+                            setPirexRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller does not have the admin role
+     */
+    function testCannotSetPirexRewardsNoAdminRole() external {
+        address _pirexRewards = address(this);
+        address caller = testAccounts[0];
+
+        vm.startPrank(caller);
+        vm.expectRevert(
+            bytes(
+                abi.encodePacked(
+                    "AccessControl: account ",
+                    Strings.toHexString(uint160(caller), 20),
+                    " is missing role ",
+                    Strings.toHexString(uint256(pxGlp.DEFAULT_ADMIN_ROLE()), 32)
+                )
+            )
+        );
+
+        pxGlp.setPirexRewards(_pirexRewards);
+    }
+
+    function testSetPirexRewards() external {
+        address _pirexRewards = address(this);
+
+        assertTrue(_pirexRewards != address(pxGlp.pirexRewards()));
+
+        vm.expectEmit(false, false, false, true, address(pxGlp));
+
+        emit SetPirexRewards(_pirexRewards);
+
+        pxGlp.setPirexRewards(_pirexRewards);
+
+        assertEq(_pirexRewards, address(pxGlp.pirexRewards()));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                mint TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**

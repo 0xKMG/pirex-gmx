@@ -6,9 +6,11 @@ import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessContr
 import {PirexRewards} from "src/PirexRewards.sol";
 
 contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
-    PirexRewards public immutable pirexRewards;
+    PirexRewards public pirexRewards;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    event SetPirexRewards(address pirexRewards);
 
     error ZeroAddress();
     error ZeroAmount();
@@ -22,6 +24,21 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         pirexRewards = PirexRewards(_pirexRewards);
 
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    /**
+        @notice Set PirexRewards contract
+        @param  _pirexRewards  address  PirexRewards contract address
+     */
+    function setPirexRewards(address _pirexRewards)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if (_pirexRewards == address(0)) revert ZeroAddress();
+
+        pirexRewards = PirexRewards(_pirexRewards);
+
+        emit SetPirexRewards(_pirexRewards);
     }
 
     /**
