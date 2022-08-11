@@ -72,11 +72,17 @@ contract PirexRewards is Owned {
         uint256[] rewardAmounts
     );
     event Claim(ERC20 indexed producerToken, address indexed user);
+    event SetRewardRecipientPrivileged(
+        address indexed lpContract,
+        address indexed recipient,
+        ERC20 indexed rewardToken
+    );
 
     error ZeroAddress();
     error ZeroAmount();
     error EmptyArray();
     error NoRewardRecipient();
+    error NotContract();
 
     constructor() Owned(msg.sender) {}
 
@@ -358,5 +364,31 @@ contract PirexRewards is Owned {
 
             rewardTokens[i].safeTransfer(recipient, amount);
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        ⚠️ PRIVILEGED METHODS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Privileged method for setting the reward recipient for a contract
+        @notice This should ONLY be used to forward rewards for Pirex-GMX LP contracts
+        @notice In production, we will have a 2nd multisig which reduces risk of abuse
+        @param  lpContract    address  Pirex-GMX LP contract
+        @param  recipient     address  Rewards recipient
+        @param  rewardToken   ERC20    Reward token contract
+    */
+    function setRewardRecipientPrivileged(
+        address lpContract,
+        address recipient,
+        ERC20 rewardToken
+    ) external onlyOwner {
+        if (lpContract.code.length == 0) revert NotContract();
+        if (recipient == address(0)) revert ZeroAddress();
+        if (address(rewardToken) == address(0)) revert ZeroAddress();
+
+        rewardRecipients[lpContract][rewardToken] = recipient;
+
+        emit SetRewardRecipientPrivileged(lpContract, recipient, rewardToken);
     }
 }

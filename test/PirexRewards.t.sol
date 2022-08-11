@@ -20,6 +20,11 @@ contract PirexRewardsTest is Helper {
         ERC20 indexed rewardToken
     );
     event PopRewardToken(ERC20 indexed producerToken);
+    event SetRewardRecipientPrivileged(
+        address indexed lpContract,
+        address indexed recipient,
+        ERC20 indexed rewardToken
+    );
 
     /**
         @notice Getter for a producerToken's global state
@@ -959,7 +964,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        claim TESTS
+                            claim TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -1093,5 +1098,115 @@ contract PirexRewardsTest is Helper {
                 WETH.balanceOf(recipient) - recipientBalanceDeduction
             );
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    privilegedSetRewardRecipient TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is not authorized
+     */
+    function testCannotSetRewardRecipientPrivilegedNotAuthorized() external {
+        address lpContract = address(this);
+        address recipient = address(this);
+        ERC20 rewardToken = WETH;
+
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexRewards.setRewardRecipientPrivileged(
+            lpContract,
+            recipient,
+            rewardToken
+        );
+    }
+
+    /**
+        @notice Test tx reversion: lpContract is not a contract
+     */
+    function testCannotSetRewardRecipientPrivilegedLpContractNotContract()
+        external
+    {
+        // Any address w/o code works (even non-EOA, contract addresses not on Arbi)
+        address invalidLpContract = testAccounts[0];
+        address recipient = address(this);
+        ERC20 rewardToken = WETH;
+
+        vm.expectRevert(PirexRewards.NotContract.selector);
+
+        pirexRewards.setRewardRecipientPrivileged(
+            invalidLpContract,
+            recipient,
+            rewardToken
+        );
+    }
+
+    /**
+        @notice Test tx reversion: recipient is the zero address
+     */
+    function testCannotSetRewardRecipientPrivilegedRecipientZeroAddress()
+        external
+    {
+        address lpContract = address(this);
+        address invalidRecipient = address(0);
+        ERC20 rewardToken = WETH;
+
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
+
+        pirexRewards.setRewardRecipientPrivileged(
+            lpContract,
+            invalidRecipient,
+            rewardToken
+        );
+    }
+
+    /**
+        @notice Test tx reversion: rewardToken is the zero address
+     */
+    function testCannotSetRewardRecipientPrivilegedRewardTokenZeroAddress()
+        external
+    {
+        address lpContract = address(this);
+        address recipient = address(this);
+        ERC20 invalidRewardToken = ERC20(address(0));
+
+        vm.expectRevert(PirexRewards.ZeroAddress.selector);
+
+        pirexRewards.setRewardRecipientPrivileged(
+            lpContract,
+            recipient,
+            invalidRewardToken
+        );
+    }
+
+    /**
+        @notice Test tx reversion: rewardToken is the zero address
+     */
+    function testSetRewardRecipientPrivileged() external {
+        address lpContract = address(this);
+        address recipient = address(this);
+        ERC20 rewardToken = WETH;
+        address rewardRecipientBeforeSet = pirexRewards.getRewardRecipient(
+            lpContract,
+            rewardToken
+        );
+
+        assertEq(address(0), rewardRecipientBeforeSet);
+
+        vm.expectEmit(true, true, true, true, address(pirexRewards));
+
+        emit SetRewardRecipientPrivileged(lpContract, recipient, rewardToken);
+
+        pirexRewards.setRewardRecipientPrivileged(
+            lpContract,
+            recipient,
+            rewardToken
+        );
+
+        assertEq(
+            recipient,
+            pirexRewards.getRewardRecipient(lpContract, rewardToken)
+        );
     }
 }
