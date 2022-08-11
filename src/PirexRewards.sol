@@ -2,8 +2,8 @@
 pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IProducer} from "src/interfaces/IProducer.sol";
 
 /**
@@ -26,10 +26,11 @@ contract PirexRewards is Owned {
     }
 
     struct ProducerToken {
+        ERC20[] rewardTokens;
         GlobalState globalState;
         mapping(address => UserState) userStates;
         mapping(ERC20 => uint256) rewardStates;
-        ERC20[] rewardTokens;
+        mapping(address => mapping(ERC20 => address)) rewardRecipients;
     }
 
     // Pirex contract which produces rewards
@@ -38,16 +39,18 @@ contract PirexRewards is Owned {
     // Producer tokens mapped to their data
     mapping(ERC20 => ProducerToken) public producerTokens;
 
-    // Users mapped to reward tokens mapped to recipients
-    mapping(address => mapping(ERC20 => address)) public rewardRecipients;
-
     event SetProducer(address producer);
     event SetRewardRecipient(
         address indexed user,
-        address indexed recipient,
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken,
+        address recipient
+    );
+    event UnsetRewardRecipient(
+        address indexed user,
+        ERC20 indexed producerToken,
         ERC20 indexed rewardToken
     );
-    event UnsetRewardRecipient(address indexed user, ERC20 indexed rewardToken);
     event PushRewardToken(
         ERC20 indexed producerToken,
         ERC20 indexed rewardToken
@@ -74,11 +77,13 @@ contract PirexRewards is Owned {
     event Claim(ERC20 indexed producerToken, address indexed user);
     event SetRewardRecipientPrivileged(
         address indexed lpContract,
-        address indexed recipient,
-        ERC20 indexed rewardToken
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken,
+        address recipient
     );
     event UnsetRewardRecipientPrivileged(
         address indexed lpContract,
+        ERC20 indexed producerToken,
         ERC20 indexed rewardToken
     );
 
@@ -104,34 +109,53 @@ contract PirexRewards is Owned {
 
     /**
         @notice Set reward recipient for a reward token
-        @param  recipient    address  Rewards recipient
-        @param  rewardToken  ERC20    Reward token contract
+        @param  producerToken  ERC20    Producer token contract
+        @param  rewardToken    ERC20    Reward token contract
+        @param  recipient      address  Rewards recipient
     */
-    function setRewardRecipient(address recipient, ERC20 rewardToken) external {
-        if (recipient == address(0)) revert ZeroAddress();
+    function setRewardRecipient(
+        ERC20 producerToken,
+        ERC20 rewardToken,
+        address recipient
+    ) external {
+        if (address(producerToken) == address(0)) revert ZeroAddress();
         if (address(rewardToken) == address(0)) revert ZeroAddress();
+        if (recipient == address(0)) revert ZeroAddress();
 
-        rewardRecipients[msg.sender][rewardToken] = recipient;
+        producerTokens[producerToken].rewardRecipients[msg.sender][
+            rewardToken
+        ] = recipient;
 
-        emit SetRewardRecipient(msg.sender, recipient, rewardToken);
+        emit SetRewardRecipient(
+            msg.sender,
+            producerToken,
+            rewardToken,
+            recipient
+        );
     }
 
     /**
         @notice Unset reward recipient for a reward token
-        @param  rewardToken  ERC20  Reward token contract
+        @param  producerToken  ERC20  Producer token contract
+        @param  rewardToken    ERC20  Reward token contract
     */
-    function unsetRewardRecipient(ERC20 rewardToken) external {
+    function unsetRewardRecipient(ERC20 producerToken, ERC20 rewardToken)
+        external
+    {
+        if (address(producerToken) == address(0)) revert ZeroAddress();
         if (address(rewardToken) == address(0)) revert ZeroAddress();
 
-        rewardRecipients[msg.sender][rewardToken] = address(0);
+        delete producerTokens[producerToken].rewardRecipients[msg.sender][
+            rewardToken
+        ];
 
-        emit UnsetRewardRecipient(msg.sender, rewardToken);
+        emit UnsetRewardRecipient(msg.sender, producerToken, rewardToken);
     }
 
     /**
         @notice Push a reward token to a producer token's rewardTokens array
-        @param  producerToken  ERC20    Producer token contract
-        @param  rewardToken    ERC20    Reward token contract
+        @param  producerToken  ERC20  Producer token contract
+        @param  rewardToken    ERC20  Reward token contract
     */
     function pushRewardToken(ERC20 producerToken, ERC20 rewardToken)
         external
@@ -147,7 +171,7 @@ contract PirexRewards is Owned {
 
     /**
         @notice Push a reward token to a producer token's rewardTokens array
-        @param  producerToken  ERC20    Producer token contract
+        @param  producerToken  ERC20  Producer token contract
     */
     function popRewardToken(ERC20 producerToken) external onlyOwner {
         if (address(producerToken) == address(0)) revert ZeroAddress();
@@ -210,16 +234,18 @@ contract PirexRewards is Owned {
 
     /**
         @notice Getter for rewardRecipients
-        @param  user         address  User
-        @param  rewardToken  ERC20    Reward token contract
-        @return              address  Reward recipient
+        @param  user           address  User
+        @param  producerToken  ERC20    Producer token contract
+        @param  rewardToken    ERC20    Reward token contract
+        @return                address  Reward recipient
     */
-    function getRewardRecipient(address user, ERC20 rewardToken)
-        public
-        view
-        returns (address)
-    {
-        return rewardRecipients[user][rewardToken];
+    function getRewardRecipient(
+        address user,
+        ERC20 producerToken,
+        ERC20 rewardToken
+    ) public view returns (address) {
+        return
+            producerTokens[producerToken].rewardRecipients[user][rewardToken];
     }
 
     /**
@@ -291,8 +317,8 @@ contract PirexRewards is Owned {
     /**
         @notice Harvest rewards
         @return _producerTokens  ERC20[]  Producer token contracts
-        @return rewardTokens    ERC20[]  Reward token contracts
-        @return rewardAmounts   ERC20[]  Reward token amounts
+        @return rewardTokens     ERC20[]  Reward token contracts
+        @return rewardAmounts    ERC20[]  Reward token amounts
     */
     function harvest()
         public
@@ -355,7 +381,7 @@ contract PirexRewards is Owned {
         for (uint256 i; i < rLen; ++i) {
             ERC20 rewardToken = rewardTokens[i];
             address recipient = forwardRewards
-                ? rewardRecipients[user][rewardToken]
+                ? p.rewardRecipients[user][rewardToken]
                 : user;
             uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
                 globalRewards;
@@ -371,45 +397,64 @@ contract PirexRewards is Owned {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        ⚠️ PRIVILEGED METHODS
+                    ⚠️ NOTABLE PRIVILEGED METHODS ⚠️
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Privileged method for setting the reward recipient of a contract
         @notice This should ONLY be used to forward rewards for Pirex-GMX LP contracts
         @notice In production, we will have a 2nd multisig which reduces risk of abuse
-        @param  lpContract   address  Pirex-GMX LP contract
-        @param  recipient    address  Rewards recipient
-        @param  rewardToken  ERC20    Reward token contract
+        @param  lpContract     address  Pirex-GMX LP contract
+        @param  producerToken  ERC20    Producer token contract
+        @param  rewardToken    ERC20    Reward token contract
+        @param  recipient      address  Rewards recipient
     */
     function setRewardRecipientPrivileged(
         address lpContract,
-        address recipient,
-        ERC20 rewardToken
+        ERC20 producerToken,
+        ERC20 rewardToken,
+        address recipient
     ) external onlyOwner {
         if (lpContract.code.length == 0) revert NotContract();
-        if (recipient == address(0)) revert ZeroAddress();
+        if (address(producerToken) == address(0)) revert ZeroAddress();
         if (address(rewardToken) == address(0)) revert ZeroAddress();
+        if (recipient == address(0)) revert ZeroAddress();
 
-        rewardRecipients[lpContract][rewardToken] = recipient;
+        producerTokens[producerToken].rewardRecipients[lpContract][
+            rewardToken
+        ] = recipient;
 
-        emit SetRewardRecipientPrivileged(lpContract, recipient, rewardToken);
+        emit SetRewardRecipientPrivileged(
+            lpContract,
+            producerToken,
+            rewardToken,
+            recipient
+        );
     }
 
     /**
         @notice Privileged method for unsetting the reward recipient of a contract
-        @param  lpContract   address  Pirex-GMX LP contract
-        @param  rewardToken  ERC20    Reward token contract
+        @param  lpContract     address  Pirex-GMX LP contract
+        @param  producerToken  ERC20    Producer token contract
+        @param  rewardToken    ERC20    Reward token contract
     */
     function unsetRewardRecipientPrivileged(
         address lpContract,
+        ERC20 producerToken,
         ERC20 rewardToken
     ) external onlyOwner {
         if (lpContract.code.length == 0) revert NotContract();
+        if (address(producerToken) == address(0)) revert ZeroAddress();
         if (address(rewardToken) == address(0)) revert ZeroAddress();
 
-        rewardRecipients[lpContract][rewardToken] = address(0);
+        delete producerTokens[producerToken].rewardRecipients[lpContract][
+            rewardToken
+        ];
 
-        emit UnsetRewardRecipientPrivileged(lpContract, rewardToken);
+        emit UnsetRewardRecipientPrivileged(
+            lpContract,
+            producerToken,
+            rewardToken
+        );
     }
 }
