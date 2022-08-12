@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "forge-std/Test.sol";
+
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {Vault} from "src/external/Vault.sol";
+import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGmxGlpTest is Helper {
@@ -29,6 +32,11 @@ contract PirexGmxGlpTest is Helper {
         uint256 minRedemption,
         uint256 amount,
         uint256 redemption
+    );
+    event ClaimWETHRewards(
+        uint256 rewards,
+        uint256 gmxRewards,
+        uint256 glpRewards
     );
 
     /**
@@ -952,6 +960,85 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        calculateWETHRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test calculating of the WETH rewards produced by GMX
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+        @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
+        @param  gmxAmount       uint80  Amount of GMX to mint and deposit
+        @param  isGmx           bool    Whether or not to use GMX
+     */
+    function testCalculateWETHRewards(
+        uint32 secondsElapsed,
+        uint40 wbtcAmount,
+        uint80 gmxAmount,
+        bool isGmx
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(wbtcAmount != 0);
+        vm.assume(wbtcAmount < 100e8);
+        vm.assume(gmxAmount != 0);
+        vm.assume(gmxAmount < 1000000e18);
+
+        address pirexRewardsAddr = address(pirexRewards);
+        address pirexGmxGlpAddr = address(pirexGmxGlp);
+
+        // Due to issues with testing WETH rewards
+        if (isGmx) {
+            _mintGmx(gmxAmount);
+            GMX.approve(pirexGmxGlpAddr, gmxAmount);
+            pirexGmxGlp.depositGmx(gmxAmount, address(this));
+        } else {
+            _mintWbtc(wbtcAmount);
+            WBTC.approve(pirexGmxGlpAddr, wbtcAmount);
+            pirexGmxGlp.depositGlpWithERC20(
+                address(WBTC),
+                wbtcAmount,
+                1,
+                address(this)
+            );
+        }
+
+        // Ensure pirexRewards has a zero WETH balance to test balance changes
+        assertEq(0, WETH.balanceOf(pirexRewardsAddr));
+
+        vm.warp(block.timestamp + secondsElapsed);
+
+        uint256 expectedGmxWETHRewards = pirexGmxGlp.calculateWETHRewards(
+            isGmx
+        );
+
+        vm.startPrank(pirexRewardsAddr);
+
+        (
+            ERC20[2] memory producerTokens,
+            ERC20[2] memory rewardTokens,
+            uint256[2] memory rewardAmounts
+        ) = pirexGmxGlp.claimWETHRewards();
+
+        address producerTokenAddr = address(producerTokens[isGmx ? 0 : 1]);
+        address rewardTokenAddr = address(rewardTokens[isGmx ? 0 : 1]);
+        uint256 rewardAmount = rewardAmounts[isGmx ? 0 : 1];
+        uint256 wethBalance = WETH.balanceOf(pirexRewardsAddr);
+        address wethAddr = address(WETH);
+
+        if (isGmx) {
+            assertEq(address(pxGmx), producerTokenAddr);
+            assertEq(wethAddr, rewardTokenAddr);
+            assertEq(expectedGmxWETHRewards, rewardAmount);
+            assertEq(expectedGmxWETHRewards, wethBalance);
+        } else {
+            assertEq(address(pxGlp), producerTokenAddr);
+            assertEq(wethAddr, rewardTokenAddr);
+            assertEq(expectedGmxWETHRewards, rewardAmount);
+            assertEq(expectedGmxWETHRewards, wethBalance);
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         claimWETHRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -969,29 +1056,42 @@ contract PirexGmxGlpTest is Helper {
         @notice Test claiming WETH rewards earned solely from pxGLP
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
+        @param  gmxAmount       uint80  Amount of GMX to mint and deposit
+        @param  isGmx           bool    Whether or not to use GMX
      */
-    function testClaimWETHRewards(uint32 secondsElapsed, uint40 wbtcAmount)
-        external
-    {
+    function testClaimWETHRewards(
+        uint32 secondsElapsed,
+        uint40 wbtcAmount,
+        uint80 gmxAmount,
+        bool isGmx
+    ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
         vm.assume(wbtcAmount != 0);
         vm.assume(wbtcAmount < 100e8);
+        vm.assume(gmxAmount != 0);
+        vm.assume(gmxAmount < 1000000e18);
 
         address token = address(WBTC);
         uint256 minShares = 1;
         address pirexRewardsAddr = address(pirexRewards);
+        address pirexGmxGlpAddr = address(pirexGmxGlp);
 
-        // Mint pxGLP in order to begin accrual of GMX rewards
-        _mintWbtc(wbtcAmount);
-
-        WBTC.approve(address(pirexGmxGlp), wbtcAmount);
-        pirexGmxGlp.depositGlpWithERC20(
-            token,
-            wbtcAmount,
-            minShares,
-            address(this)
-        );
+        // Due to issues with testing WETH rewards
+        if (isGmx) {
+            _mintGmx(gmxAmount);
+            GMX.approve(pirexGmxGlpAddr, gmxAmount);
+            pirexGmxGlp.depositGmx(gmxAmount, address(this));
+        } else {
+            _mintWbtc(wbtcAmount);
+            WBTC.approve(pirexGmxGlpAddr, wbtcAmount);
+            pirexGmxGlp.depositGlpWithERC20(
+                token,
+                wbtcAmount,
+                minShares,
+                address(this)
+            );
+        }
 
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + secondsElapsed);
@@ -1003,16 +1103,18 @@ contract PirexGmxGlpTest is Helper {
         vm.prank(pirexRewardsAddr);
 
         (
-            ERC20[] memory producerTokens,
-            ERC20[] memory rewardTokens,
-            uint256[] memory rewardAmounts
+            ERC20[2] memory producerTokens,
+            ERC20[2] memory rewardTokens,
+            uint256[2] memory rewardAmounts
         ) = pirexGmxGlp.claimWETHRewards();
+        uint256 rewardsReceived = WETH.balanceOf(pirexRewardsAddr);
+        address wethAddr = address(WETH);
 
-        // Only test the first element since the second will later be pxGMX
-        assertEq(address(pxGlp), address(producerTokens[0]));
-
-        assertEq(address(WETH), address(rewardTokens[0]));
-        assertEq(WETH.balanceOf(pirexRewardsAddr), rewardAmounts[0]);
+        assertEq(address(pxGmx), address(producerTokens[0]));
+        assertEq(address(pxGlp), address(producerTokens[1]));
+        assertEq(wethAddr, address(rewardTokens[0]));
+        assertEq(wethAddr, address(rewardTokens[1]));
+        assertEq(rewardsReceived, rewardAmounts[0] + rewardAmounts[1]);
     }
 
     /*//////////////////////////////////////////////////////////////

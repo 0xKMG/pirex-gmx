@@ -10,7 +10,6 @@ import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
-import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
 import {IReader} from "src/interfaces/IReader.sol";
@@ -18,16 +17,17 @@ import {IGMX} from "src/interfaces/IGMX.sol";
 import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
+import {RewardTracker} from "src/external/RewardTracker.sol";
 
 contract Helper is Test {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
-    IRewardTracker public constant REWARD_TRACKER_GMX =
-        IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
-    IRewardTracker public constant REWARD_TRACKER_GLP =
-        IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
-    IRewardTracker public constant REWARD_TRACKER_MP =
-        IRewardTracker(0x4d268a7d4C16ceB5a606c173Bd974984343fea13);
+    RewardTracker public constant REWARD_TRACKER_GMX =
+        RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
+    RewardTracker public constant REWARD_TRACKER_GLP =
+        RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
+    RewardTracker public constant REWARD_TRACKER_MP =
+        RewardTracker(0x4d268a7d4C16ceB5a606c173Bd974984343fea13);
     IVaultReader internal constant VAULT_READER =
         IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
     IGlpManager internal constant GLP_MANAGER =
