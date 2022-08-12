@@ -70,9 +70,9 @@ contract PirexRewards is Owned {
         uint256 rewards
     );
     event Harvest(
-        ERC20[] producerTokens,
-        ERC20[] rewardTokens,
-        uint256[] rewardAmounts
+        ERC20[2] producerTokens,
+        ERC20[2] rewardTokens,
+        uint256[2] rewardAmounts
     );
     event Claim(ERC20 indexed producerToken, address indexed user);
     event SetRewardRecipientPrivileged(
@@ -334,9 +334,9 @@ contract PirexRewards is Owned {
     function harvest()
         public
         returns (
-            ERC20[] memory _producerTokens,
-            ERC20[] memory rewardTokens,
-            uint256[] memory rewardAmounts
+            ERC20[2] memory _producerTokens,
+            ERC20[2] memory rewardTokens,
+            uint256[2] memory rewardAmounts
         )
     {
         (_producerTokens, rewardTokens, rewardAmounts) = producer
