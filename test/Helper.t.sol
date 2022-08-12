@@ -26,6 +26,8 @@ contract Helper is Test {
         IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
     IRewardTracker public constant REWARD_TRACKER_GLP =
         IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
+    IRewardTracker public constant REWARD_TRACKER_MP =
+        IRewardTracker(0x4d268a7d4C16ceB5a606c173Bd974984343fea13);
     IVaultReader internal constant VAULT_READER =
         IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
     IGlpManager internal constant GLP_MANAGER =

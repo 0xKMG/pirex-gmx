@@ -1014,4 +1014,58 @@ contract PirexGmxGlpTest is Helper {
         assertEq(address(WETH), address(rewardTokens[0]));
         assertEq(WETH.balanceOf(pirexRewardsAddr), rewardAmounts[0]);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        compoundMultiplierPoints TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test compounding multiplier points
+        @param  gmxAmount  uint256  Amount of GMX
+     */
+    function testCompoundMultiplierPoints(uint256 gmxAmount) external {
+        vm.assume(gmxAmount > 0.001 ether);
+        vm.assume(gmxAmount < 10_000 ether);
+
+        // Mint then deposit some GMX in order to gain multiplier points (MP) later on
+        address receiver = address(this);
+
+        _mintGmx(gmxAmount);
+
+        uint256 preDepositStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
+            address(pirexGmxGlp)
+        );
+
+        GMX.approve(address(pirexGmxGlp), gmxAmount);
+
+        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+
+        uint256 postDepositStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
+            address(pirexGmxGlp)
+        );
+
+        assertEq(
+            postDepositStakedGMXBalance - preDepositStakedGMXBalance,
+            gmxAmount
+        );
+
+        // Time skip to accrue some multiplier points
+        vm.warp(block.timestamp + 1 hours);
+
+        uint256 claimableMp = REWARD_TRACKER_MP.claimable(address(pirexGmxGlp));
+
+        assertGt(claimableMp, 0);
+
+        pirexGmxGlp.compoundMultiplierPoints();
+
+        uint256 postCompoundStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
+            address(pirexGmxGlp)
+        );
+
+        // Compounded MP should be reflected in the latest staked amount of GMX
+        assertEq(
+            postCompoundStakedGMXBalance,
+            postDepositStakedGMXBalance + claimableMp
+        );
+    }
 }
