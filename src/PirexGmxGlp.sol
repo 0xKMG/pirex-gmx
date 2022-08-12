@@ -326,4 +326,19 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
             WETH.safeTransfer(msg.sender, wethRewards);
         }
     }
+
+    /**
+        @notice Claim and stake all available multiplier points
+     */
+    function compoundMultiplierPoints() external {
+        REWARD_ROUTER_V2.handleRewards(
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false
+        );
+    }
 }
