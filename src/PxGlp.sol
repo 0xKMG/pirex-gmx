@@ -3,25 +3,42 @@ pragma solidity 0.8.13;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {PxGlpRewards} from "./PxGlpRewards.sol";
+import {PirexRewards} from "src/PirexRewards.sol";
 
 contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
-    PxGlpRewards public immutable pxGlpRewards;
+    PirexRewards public pirexRewards;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    event SetPirexRewards(address pirexRewards);
 
     error ZeroAddress();
     error ZeroAmount();
 
     /**
-        @param  _pxGlpRewards  address  PxGlpRewards contract address
+        @param  _pirexRewards  address  PirexRewards contract address
     */
-    constructor(address _pxGlpRewards) {
-        if (_pxGlpRewards == address(0)) revert ZeroAddress();
+    constructor(address _pirexRewards) {
+        if (_pirexRewards == address(0)) revert ZeroAddress();
 
-        pxGlpRewards = PxGlpRewards(_pxGlpRewards);
+        pirexRewards = PirexRewards(_pirexRewards);
 
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    /**
+        @notice Set PirexRewards contract
+        @param  _pirexRewards  address  PirexRewards contract address
+     */
+    function setPirexRewards(address _pirexRewards)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
+        if (_pirexRewards == address(0)) revert ZeroAddress();
+
+        pirexRewards = PirexRewards(_pirexRewards);
+
+        emit SetPirexRewards(_pirexRewards);
     }
 
     /**
@@ -33,13 +50,11 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
-        // Update global reward accrual state before tokens are added to the supply
-        pxGlpRewards.globalAccrue();
-
         _mint(to, amount);
 
-        // Kick off reward accrual for user to snapshot post-mint balance
-        pxGlpRewards.userAccrue(to);
+        // Accrue global and user rewards and store post-mint supply for future accrual
+        pirexRewards.globalAccrue(this);
+        pirexRewards.userAccrue(this, to);
     }
 
     /**
@@ -51,13 +66,11 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         if (from == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
 
-        // Update global reward accrual state before tokens are removed from the supply
-        pxGlpRewards.globalAccrue();
-
         _burn(from, amount);
 
-        // Accrue user rewards and snapshot post-burn balance
-        pxGlpRewards.userAccrue(from);
+        // Accrue global and user rewards and store post-burn supply for future accrual
+        pirexRewards.globalAccrue(this);
+        pirexRewards.userAccrue(this, from);
     }
 
     /**
@@ -81,8 +94,8 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
         emit Transfer(msg.sender, to, amount);
 
         // Accrue rewards for sender, up to their current balance and kick off accrual for receiver
-        pxGlpRewards.userAccrue(msg.sender);
-        pxGlpRewards.userAccrue(to);
+        pirexRewards.userAccrue(this, msg.sender);
+        pirexRewards.userAccrue(this, to);
 
         return true;
     }
@@ -113,8 +126,8 @@ contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
 
         emit Transfer(from, to, amount);
 
-        pxGlpRewards.userAccrue(from);
-        pxGlpRewards.userAccrue(to);
+        pirexRewards.userAccrue(this, from);
+        pirexRewards.userAccrue(this, to);
 
         return true;
     }

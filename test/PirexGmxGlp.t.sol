@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {Vault} from "src/external/Vault.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGmxGlpTest is Helper {
+    event SetPirexRewards(address pirexRewards);
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
@@ -20,7 +22,6 @@ contract PirexGmxGlpTest is Helper {
         uint256 amount,
         uint256 assets
     );
-
     event RedeemGlp(
         address indexed caller,
         address indexed receiver,
@@ -219,33 +220,48 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        GMX-related TESTS
+                        setPirexRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test for verifying correctness of GLP buy minimum calculation
-        @param  etherAmount  uint72  Amount of ether in wei units
+        @notice Test tx reversion due to caller not being owner
      */
-    function testMintAndStakeGlpETH(uint72 etherAmount) external {
-        vm.assume(etherAmount > 0.001 ether);
-        vm.assume(etherAmount < 1_000 ether);
-        vm.deal(address(this), etherAmount);
+    function testCannotSetPirexRewardsUnauthorized() external {
+        address _pirexRewards = address(this);
 
-        assertEq(address(this).balance, etherAmount);
-        assertEq(FEE_STAKED_GLP.balanceOf(address(this)), 0);
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
 
-        uint256 minGlpWithSlippage = _calculateMinGlpAmount(
-            address(0),
-            etherAmount,
-            18
-        );
-        uint256 glpAmount = REWARD_ROUTER_V2.mintAndStakeGlpETH{
-            value: etherAmount
-        }(0, minGlpWithSlippage);
+        pirexGmxGlp.setPirexRewards(_pirexRewards);
+    }
 
-        assertEq(address(this).balance, 0);
-        assertGt(minGlpWithSlippage, 0);
-        assertGt(glpAmount, minGlpWithSlippage);
+    /**
+        @notice Test tx reversion due to _pirexRewards being zero
+     */
+    function testCannotSetPirexRewardsZeroAddress() external {
+        address invalidPirexRewards = address(0);
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.setPirexRewards(invalidPirexRewards);
+    }
+
+    /**
+        @notice Test setting pirexRewards
+     */
+    function testSetPirexRewards() external {
+        address pirexRewardsBefore = address(pirexGmxGlp.pirexRewards());
+        address _pirexRewards = address(this);
+
+        assertTrue(pirexRewardsBefore != _pirexRewards);
+
+        vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
+
+        emit SetPirexRewards(_pirexRewards);
+
+        pirexGmxGlp.setPirexRewards(_pirexRewards);
+
+        assertEq(_pirexRewards, address(pirexGmxGlp.pirexRewards()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -940,128 +956,62 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to the caller not being pxGlpRewards
+        @notice Test tx reversion: caller is not pirexRewards
      */
-    function testCannotClaimWETHRewardsNotPxGlpRewards() external {
-        vm.expectRevert(PirexGmxGlp.NotPxGlpRewards.selector);
+    function testCannotClaimWETHRewardsNotPirexRewards() external {
+        vm.prank(testAccounts[0]);
+        vm.expectRevert(PirexGmxGlp.NotPirexRewards.selector);
 
         pirexGmxGlp.claimWETHRewards();
     }
 
     /**
-        @notice Test claiming WETH rewards earned solely from GLP
+        @notice Test claiming WETH rewards earned solely from pxGLP
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+        @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
      */
-    function testClaimWETHRewardsWithoutStakedEsGmx() external {
+    function testClaimWETHRewards(uint32 secondsElapsed, uint40 wbtcAmount)
+        external
+    {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(wbtcAmount != 0);
+        vm.assume(wbtcAmount < 100e8);
+
         address token = address(WBTC);
-        uint256 tokenAmount = 10e8;
         uint256 minShares = 1;
-        address receiver = address(this);
+        address pirexRewardsAddr = address(pirexRewards);
 
         // Mint pxGLP in order to begin accrual of GMX rewards
-        _mintWbtc(tokenAmount);
-        WBTC.approve(address(pirexGmxGlp), tokenAmount);
+        _mintWbtc(wbtcAmount);
+
+        WBTC.approve(address(pirexGmxGlp), wbtcAmount);
         pirexGmxGlp.depositGlpWithERC20(
             token,
-            tokenAmount,
+            wbtcAmount,
             minShares,
-            receiver
+            address(this)
         );
 
         // Forward timestamp to produce rewards
-        vm.warp(block.timestamp + 10000);
+        vm.warp(block.timestamp + secondsElapsed);
 
-        address f = address(pxGlpRewards);
-        uint256 claimableFromGmx = REWARD_TRACKER_GMX.claimable(
-            address(pirexGmxGlp)
-        );
-        uint256 claimableFromGlp = REWARD_TRACKER_GLP.claimable(
-            address(pirexGmxGlp)
-        );
-        uint256 totalClaimable = claimableFromGmx + claimableFromGlp;
+        // Ensure pirexRewards has a zero WETH balance to test balance changes
+        assertEq(0, WETH.balanceOf(pirexRewardsAddr));
 
-        // Ensure pxGlpRewards has a zero WETH balance before testing balance changes
-        assertEq(WETH.balanceOf(f), 0);
+        // Impersonate pirexRewards and claim WETH rewards
+        vm.prank(pirexRewardsAddr);
 
-        // Impersonate pxGlpRewards and claim WETH rewards
-        vm.prank(f);
+        (
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
+        ) = pirexGmxGlp.claimWETHRewards();
 
-        (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGmxGlp
-            .claimWETHRewards();
-        uint256 totalFromGmxGlp = fromGmx + fromGlp;
+        // Only test the first element since the second will later be pxGMX
+        assertEq(address(pxGlp), address(producerTokens[0]));
 
-        // fromGmx should be zero since pirexGmxGlp should not have staked esGMX yet
-        assertEq(fromGmx, 0);
-
-        assertEq(WETH.balanceOf(f), weth);
-        assertEq(totalFromGmxGlp, weth);
-        assertEq(claimableFromGmx, fromGmx);
-        assertEq(claimableFromGlp, fromGlp);
-        assertEq(totalClaimable, totalFromGmxGlp);
-    }
-
-    /**
-        @notice Test claiming WETH rewards earned from GLP and staked esGMX
-     */
-    function testClaimWETHRewardsWithStakedEsGmx() external {
-        address token = address(WBTC);
-        uint256 tokenAmount = 10e8;
-        uint256 minShares = 1;
-        address receiver = address(this);
-
-        // Mint pxGLP in order to begin accrual of GMX rewards
-        _mintWbtc(tokenAmount);
-        WBTC.approve(address(pirexGmxGlp), tokenAmount);
-        pirexGmxGlp.depositGlpWithERC20(
-            token,
-            tokenAmount,
-            minShares,
-            receiver
-        );
-
-        // Forward timestamp to produce rewards
-        vm.warp(block.timestamp + 10000);
-
-        // Impersonate pirexGmxGlp and claim + stake esGMX to test WETH accrual
-        vm.prank(address(pirexGmxGlp));
-
-        // Only claim and stake esGMX for now
-        REWARD_ROUTER_V2.handleRewards(
-            false,
-            false,
-            true,
-            true,
-            false,
-            false,
-            false
-        );
-
-        vm.warp(block.timestamp + 10000);
-
-        address f = address(pxGlpRewards);
-        uint256 claimableFromGmx = REWARD_TRACKER_GMX.claimable(
-            address(pirexGmxGlp)
-        );
-        uint256 claimableFromGlp = REWARD_TRACKER_GLP.claimable(
-            address(pirexGmxGlp)
-        );
-        uint256 totalClaimable = claimableFromGmx + claimableFromGlp;
-
-        // Ensure pxGlpRewards has a zero WETH balance before testing balance changes
-        assertEq(WETH.balanceOf(f), 0);
-
-        vm.prank(f);
-
-        (uint256 fromGmx, uint256 fromGlp, uint256 weth) = pirexGmxGlp
-            .claimWETHRewards();
-        uint256 totalFromGmxGlp = fromGmx + fromGlp;
-
-        // fromGmx should now be non-zero due to WETH rewards from staked esGMX
-        assertGt(fromGmx, 0);
-
-        assertEq(WETH.balanceOf(f), weth);
-        assertEq(totalFromGmxGlp, weth);
-        assertEq(claimableFromGmx, fromGmx);
-        assertEq(claimableFromGlp, fromGlp);
-        assertEq(totalClaimable, totalFromGmxGlp);
+        assertEq(address(WETH), address(rewardTokens[0]));
+        assertEq(WETH.balanceOf(pirexRewardsAddr), rewardAmounts[0]);
     }
 }

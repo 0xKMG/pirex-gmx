@@ -8,7 +8,7 @@ import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
-import {PxGlpRewards} from "src/PxGlpRewards.sol";
+import {PirexRewards} from "src/PirexRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
@@ -52,7 +52,7 @@ contract Helper is Test {
     PirexGmxGlp internal immutable pirexGmxGlp;
     PxGmx internal immutable pxGmx;
     PxGlp internal immutable pxGlp;
-    PxGlpRewards internal immutable pxGlpRewards;
+    PirexRewards internal immutable pirexRewards;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -74,20 +74,20 @@ contract Helper is Test {
     receive() external payable {}
 
     constructor() {
-        pxGlpRewards = new PxGlpRewards();
+        pirexRewards = new PirexRewards();
         pxGmx = new PxGmx();
-        pxGlp = new PxGlp(address(pxGlpRewards));
+        pxGlp = new PxGlp(address(pirexRewards));
         pirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
-            address(pxGlpRewards),
+            address(pirexRewards),
             STAKED_GMX
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
-        pxGlpRewards.setStrategyForRewards(pxGlp);
-        pxGlpRewards.setPirexGmxGlp(pirexGmxGlp);
+        pirexGmxGlp.setPirexRewards(address(pirexRewards));
+        pirexRewards.setProducer(address(pirexGmxGlp));
     }
 
     /**
@@ -103,6 +103,81 @@ contract Helper is Test {
         );
 
         WBTC.bridgeMint(address(this), amount);
+    }
+
+    /**
+        @notice Mint pxGLP
+        @param  to      address  Recipient of pxGLP
+        @param  amount  uint256  Amount of pxGLP
+     */
+    function _mintPxGlp(address to, uint256 amount) internal {
+        vm.prank(address(pirexGmxGlp));
+
+        pxGlp.mint(to, amount);
+    }
+
+    /**
+        @notice Burn pxGLP
+        @param  from    address  Burn from account
+        @param  amount  uint256  Amount of pxGLP
+     */
+    function _burnPxGlp(address from, uint256 amount) internal {
+        vm.prank(address(pirexGmxGlp));
+
+        pxGlp.burn(from, amount);
+    }
+
+    /**
+        @notice Mint pxGLP for test accounts
+        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
+        @param  useETH      bool     Whether or not to use ETH as the source asset for minting GLP
+     */
+    function _mintForTestAccounts(uint256 multiplier, bool useETH) internal {
+        uint256 tLen = testAccounts.length;
+        uint256[] memory tokenAmounts = new uint256[](tLen);
+
+        // Conditionally set ETH or WBTC amounts and call the appropriate method for acquiring
+        if (useETH) {
+            tokenAmounts[0] = 1 ether * multiplier;
+            tokenAmounts[1] = 2 ether * multiplier;
+            tokenAmounts[2] = 3 ether * multiplier;
+
+            vm.deal(
+                address(this),
+                tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2]
+            );
+        } else {
+            tokenAmounts[0] = 1e8 * multiplier;
+            tokenAmounts[1] = 2e8 * multiplier;
+            tokenAmounts[2] = 3e8 * multiplier;
+            uint256 wBtcTotalAmount = tokenAmounts[0] +
+                tokenAmounts[1] +
+                tokenAmounts[2];
+
+            _mintWbtc(wBtcTotalAmount);
+            WBTC.approve(address(pirexGmxGlp), wBtcTotalAmount);
+        }
+
+        // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
+        for (uint256 i; i < tLen; ++i) {
+            uint256 tokenAmount = tokenAmounts[i];
+            address testAccount = testAccounts[i];
+
+            // Call the appropriate method based on the type of currency
+            if (useETH) {
+                pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(
+                    1,
+                    testAccount
+                );
+            } else {
+                pirexGmxGlp.depositGlpWithERC20(
+                    address(WBTC),
+                    tokenAmount,
+                    1,
+                    testAccount
+                );
+            }
+        }
     }
 
     /**
