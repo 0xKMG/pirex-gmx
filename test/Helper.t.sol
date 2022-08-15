@@ -110,14 +110,23 @@ contract Helper is Test {
     }
 
     /**
-        @notice Mint pxGLP
-        @param  to      address  Recipient of pxGLP
-        @param  amount  uint256  Amount of pxGLP
+        @notice Mint pxGMX or pxGLP
+        @param  to      address  Recipient of pxGMX/pxGLP
+        @param  amount  uint256  Amount of pxGMX/pxGLP
+        @param  useGmx  bool     Whether to mint GMX variant
      */
-    function _mintPxGlp(address to, uint256 amount) internal {
+    function _mintPx(
+        address to,
+        uint256 amount,
+        bool useGmx
+    ) internal {
         vm.prank(address(pirexGmxGlp));
 
-        pxGlp.mint(to, amount);
+        if (useGmx) {
+            pxGmx.mint(to, amount);
+        } else {
+            pxGlp.mint(to, amount);
+        }
     }
 
     /**
@@ -132,11 +141,56 @@ contract Helper is Test {
     }
 
     /**
+        @notice Mint pxGMX or pxGLP for test accounts
+        @param  useGmx      bool     Whether to use pxGMX
+        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
+        @param  useETH      bool     Whether or not to use ETH as the source asset for minting GLP
+
+     */
+    function _depositForTestAccounts(
+        bool useGmx,
+        uint256 multiplier,
+        bool useETH
+    ) internal {
+        if (useGmx) {
+            _depositForTestAccountsPxGmx(multiplier);
+        } else {
+            _depositForTestAccountsPxGlp(multiplier, useETH);
+        }
+    }
+
+    /**
+        @notice Mint pxGMX for test accounts
+        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
+     */
+    function _depositForTestAccountsPxGmx(uint256 multiplier) internal {
+        uint256 tLen = testAccounts.length;
+        uint256[] memory tokenAmounts = new uint256[](tLen);
+        tokenAmounts[0] = 1e18 * multiplier;
+        tokenAmounts[1] = 2e18 * multiplier;
+        tokenAmounts[2] = 3e18 * multiplier;
+        uint256 total = tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2];
+
+        _mintGmx(total);
+        GMX.approve(address(pirexGmxGlp), total);
+
+        // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
+        for (uint256 i; i < tLen; ++i) {
+            uint256 tokenAmount = tokenAmounts[i];
+            address testAccount = testAccounts[i];
+
+            pirexGmxGlp.depositGmx(tokenAmount, testAccount);
+        }
+    }
+
+    /**
         @notice Mint pxGLP for test accounts
         @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
         @param  useETH      bool     Whether or not to use ETH as the source asset for minting GLP
      */
-    function _mintForTestAccounts(uint256 multiplier, bool useETH) internal {
+    function _depositForTestAccountsPxGlp(uint256 multiplier, bool useETH)
+        internal
+    {
         uint256 tLen = testAccounts.length;
         uint256[] memory tokenAmounts = new uint256[](tLen);
 
