@@ -291,11 +291,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
 
     /**
         @notice Calculate the WETH rewards for either GMX or GLP
-        @param  isGmx  bool     Whether the calculation should be for GMX
-        @return        uint256  Amount of WETH rewards
+        @param  useGmx  bool     Whether the calculation should be for GMX
+        @return         uint256  Amount of WETH rewards
      */
-    function calculateWETHRewards(bool isGmx) public view returns (uint256) {
-        RewardTracker r = isGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+    function calculateWETHRewards(bool useGmx) public view returns (uint256) {
+        RewardTracker r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
         address distributor = r.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
