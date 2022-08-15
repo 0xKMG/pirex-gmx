@@ -1121,106 +1121,107 @@ contract PirexRewardsTest is Helper {
         pirexRewards.claim(producerToken, invalidUser);
     }
 
-    // /**
-    //     @notice Test claim
-    //     @param  secondsElapsed  uint32  Seconds to forward timestamp
-    //     @param  ethAmount       uint80  ETH amount used to mint pxGLP
-    //     @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
-    //     @param  useETH          bool    Whether to use ETH when minting
-    //     @param  forwardRewards  bool    Whether to forward rewards
-    //  */
-    // function testClaim(
-    //     uint32 secondsElapsed,
-    //     uint80 ethAmount,
-    //     uint8 multiplier,
-    //     bool useETH,
-    //     bool forwardRewards
-    // ) external {
-    //     vm.assume(secondsElapsed > 10);
-    //     vm.assume(secondsElapsed < 365 days);
-    //     vm.assume(ethAmount > 0.001 ether);
-    //     vm.assume(ethAmount < 10000 ether);
-    //     vm.assume(multiplier != 0);
-    //     vm.assume(multiplier < 10);
+    /**
+        @notice Test claim
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+        @param  ethAmount       uint80  ETH amount used to mint pxGLP
+        @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
+        @param  useETH          bool    Whether to use ETH when minting
+        @param  forwardRewards  bool    Whether to forward rewards
+     */
+    function testClaim(
+        uint32 secondsElapsed,
+        uint80 ethAmount,
+        uint8 multiplier,
+        bool useETH,
+        bool forwardRewards
+    ) external {
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+        vm.assume(ethAmount > 0.001 ether);
+        vm.assume(ethAmount < 10000 ether);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
 
-    //     _depositForTestAccountsPxGlp(multiplier, useETH);
+        _depositForTestAccountsPxGmx(multiplier);
+        _depositForTestAccountsPxGlp(multiplier, useETH);
 
-    //     vm.warp(block.timestamp + secondsElapsed);
+        vm.warp(block.timestamp + secondsElapsed);
 
-    //     // Add reward token and harvest rewards from Pirex contract
-    //     pirexRewards.addRewardToken(pxGmx, WETH);
-    //     pirexRewards.addRewardToken(pxGlp, WETH);
-    //     pirexRewards.harvest();
+        // Add reward token and harvest rewards from Pirex contract
+        pirexRewards.addRewardToken(pxGmx, WETH);
+        pirexRewards.addRewardToken(pxGlp, WETH);
+        pirexRewards.harvest();
 
-    //     for (uint256 i; i < testAccounts.length; ++i) {
-    //         address user = testAccounts[i];
-    //         address recipient = forwardRewards ? address(this) : user;
+        for (uint256 i; i < testAccounts.length; ++i) {
+            address recipient = forwardRewards ? address(this) : testAccounts[i];
 
-    //         if (forwardRewards) {
-    //             vm.startPrank(user);
+            if (forwardRewards) {
+                vm.startPrank(testAccounts[i]);
 
-    //             pirexRewards.setRewardRecipient(pxGmx, WETH, address(this));
-    //             pirexRewards.setRewardRecipient(pxGlp, WETH, address(this));
+                pirexRewards.setRewardRecipient(pxGmx, WETH, address(this));
+                pirexRewards.setRewardRecipient(pxGlp, WETH, address(this));
 
-    //             vm.stopPrank();
-    //         } else {
-    //             assertEq(0, WETH.balanceOf(user));
-    //         }
+                vm.stopPrank();
+            } else {
+                assertEq(0, WETH.balanceOf(testAccounts[i]));
+            }
 
-    //         pirexRewards.userAccrue(pxGmx, user);
-    //         pirexRewards.userAccrue(pxGlp, user);
+            pirexRewards.userAccrue(pxGmx, testAccounts[i]);
+            pirexRewards.userAccrue(pxGlp, testAccounts[i]);
 
-    //         (, , uint256 globalRewardsBeforeClaimPxGmx) = _getGlobalState(
-    //             pxGmx
-    //         );
-    //         (, , uint256 globalRewardsBeforeClaimPxGlp) = _getGlobalState(
-    //             pxGlp
-    //         );
-    //         (, , uint256 userRewardsBeforeClaimPxGmx) = pirexRewards
-    //             .getUserState(pxGmx, user);
-    //         (, , uint256 userRewardsBeforeClaimPxGlp) = pirexRewards
-    //             .getUserState(pxGlp, user);
-    //         uint256 expectedClaimAmountPxGmx = (pirexRewards.getRewardState(
-    //             pxGmx,
-    //             WETH
-    //         ) * _calculateUserRewards(pxGmx, user)) /
-    //             _calculateGlobalRewards(pxGmx);
-    //         uint256 expectedClaimAmountPxGlp = (pirexRewards.getRewardState(
-    //             pxGlp,
-    //             WETH
-    //         ) * _calculateUserRewards(pxGlp, user)) /
-    //             _calculateGlobalRewards(pxGlp);
+            (, , uint256 globalRewardsBeforeClaimPxGmx) = _getGlobalState(
+                pxGmx
+            );
+            (, , uint256 globalRewardsBeforeClaimPxGlp) = _getGlobalState(
+                pxGlp
+            );
+            (, , uint256 userRewardsBeforeClaimPxGmx) = pirexRewards
+                .getUserState(pxGmx, testAccounts[i]);
+            (, , uint256 userRewardsBeforeClaimPxGlp) = pirexRewards
+                .getUserState(pxGlp, testAccounts[i]);
 
-    //         // Deduct previous balance if rewards are forwarded
-    //         uint256 recipientBalanceDeduction = forwardRewards
-    //             ? WETH.balanceOf(recipient)
-    //             : 0;
+            // Sum of reward amounts that the user/recipient is entitled to
+            uint256 expectedClaimAmount = ((pirexRewards.getRewardState(
+                pxGmx,
+                WETH
+            ) * _calculateUserRewards(pxGmx, testAccounts[i])) /
+                _calculateGlobalRewards(pxGmx)) +
+                ((pirexRewards.getRewardState(pxGlp, WETH) *
+                    _calculateUserRewards(pxGlp, testAccounts[i])) /
+                    _calculateGlobalRewards(pxGlp));
 
-    //         pirexRewards.claim(pxGmx, user);
-    //         pirexRewards.claim(pxGlp, user);
+            // Deduct previous balance if rewards are forwarded
+            uint256 recipientBalanceDeduction = forwardRewards
+                ? WETH.balanceOf(recipient)
+                : 0;
 
-    //         (, , uint256 globalRewardsAfterClaimPxGmx) = _getGlobalState(pxGmx);
-    //         (, , uint256 globalRewardsAfterClaimPxGlp) = _getGlobalState(pxGlp);
-    //         (, , uint256 userRewardsAfterClaimPxGmx) = pirexRewards
-    //             .getUserState(pxGmx, user);
-    //         (, , uint256 userRewardsAfterClaimPxGlp) = pirexRewards
-    //             .getUserState(pxGlp, user);
+            pirexRewards.claim(pxGmx, testAccounts[i]);
+            pirexRewards.claim(pxGlp, testAccounts[i]);
 
-    //         assertEq(
-    //             globalRewardsBeforeClaimPxGmx - userRewardsBeforeClaimPxGmx,
-    //             globalRewardsAfterClaimPxGmx
-    //         );
-    //         assertEq(
-    //             globalRewardsBeforeClaimPxGlp - userRewardsBeforeClaimPxGlp,
-    //             globalRewardsAfterClaimPxGlp
-    //         );
-    //         assertEq(0, userRewardsAfterClaimPxGmx);
-    //         assertEq(
-    //             expectedClaimAmount,
-    //             rewardToken.balanceOf(recipient) - recipientBalanceDeduction
-    //         );
-    //     }
-    // }
+            (, , uint256 globalRewardsAfterClaimPxGmx) = _getGlobalState(pxGmx);
+            (, , uint256 globalRewardsAfterClaimPxGlp) = _getGlobalState(pxGlp);
+            (, , uint256 userRewardsAfterClaimPxGmx) = pirexRewards
+                .getUserState(pxGmx, testAccounts[i]);
+            (, , uint256 userRewardsAfterClaimPxGlp) = pirexRewards
+                .getUserState(pxGlp, testAccounts[i]);
+
+            assertEq(
+                globalRewardsBeforeClaimPxGmx - userRewardsBeforeClaimPxGmx,
+                globalRewardsAfterClaimPxGmx
+            );
+            assertEq(
+                globalRewardsBeforeClaimPxGlp - userRewardsBeforeClaimPxGlp,
+                globalRewardsAfterClaimPxGlp
+            );
+            assertEq(0, userRewardsAfterClaimPxGmx);
+            assertEq(0, userRewardsAfterClaimPxGlp);
+            assertEq(
+                expectedClaimAmount,
+                WETH.balanceOf(recipient) - recipientBalanceDeduction
+            );
+        }
+    }
 
     /*//////////////////////////////////////////////////////////////
                     setRewardRecipientPrivileged TESTS
