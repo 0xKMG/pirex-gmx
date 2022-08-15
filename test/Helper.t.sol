@@ -72,12 +72,14 @@ contract Helper is Test {
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
 
+    event SetPirexRewards(address pirexRewards);
+
     // For testing ETH transfers
     receive() external payable {}
 
     constructor() {
         pirexRewards = new PirexRewards();
-        pxGmx = new PxGmx();
+        pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
         pirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),

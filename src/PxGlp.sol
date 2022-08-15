@@ -6,9 +6,9 @@ import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessContr
 import {PirexRewards} from "src/PirexRewards.sol";
 
 contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
-    PirexRewards public pirexRewards;
-
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    PirexRewards public pirexRewards;
 
     event SetPirexRewards(address pirexRewards);
 

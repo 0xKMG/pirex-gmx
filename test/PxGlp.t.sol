@@ -6,8 +6,6 @@ import {Helper} from "./Helper.t.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract PxGlpTest is Helper {
-    event SetPirexRewards(address pirexRewards);
-
     /*//////////////////////////////////////////////////////////////
                             setPirexRewards TESTS
     //////////////////////////////////////////////////////////////*/
