@@ -303,10 +303,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 blockReward = pendingRewards > distributorBalance
             ? distributorBalance
             : pendingRewards;
-        uint256 supply = r.totalSupply();
         uint256 precision = r.PRECISION();
         uint256 _cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
-            ((blockReward * precision) / supply);
+            ((blockReward * precision) / r.totalSupply());
 
         if (_cumulativeRewardPerToken == 0) {
             return 0;
@@ -322,9 +321,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
 
     /**
         @notice Claim WETH rewards
-        @return producerTokens  ERC20[]    Producer tokens (pxGLP and pxGMX)
-        @return rewardTokens    ERC20[]    Reward token contract instances
-        @return rewardAmounts   uint256[]  Reward amounts from each producerToken
+        @return producerTokens  ERC20[2]    Producer tokens (pxGLP and pxGMX)
+        @return rewardTokens    ERC20[2]    Reward token contract instances
+        @return rewardAmounts   uint256[2]  Reward amounts from each producerToken
      */
     function claimWETHRewards()
         external
@@ -336,11 +335,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
     {
         if (msg.sender != pirexRewards) revert NotPirexRewards();
 
-        // Set the addresses of the px tokens responsible for the rewards
+        // Set a provide a list of producer and reward tokens for reward module state management
         producerTokens[0] = pxGmx;
         producerTokens[1] = pxGlp;
-
-        // Currently, not useful but this method will be generalized to handle other rewards
         rewardTokens[0] = WETH;
         rewardTokens[1] = WETH;
 
@@ -362,8 +359,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 rewards = WETH.balanceOf(address(this)) - wethBeforeClaim;
 
         if (rewards != 0) {
-            rewardAmounts[0] = gmxRewards;
-            rewardAmounts[1] = glpRewards;
+            // This may not be necessary and is more of a hedge against a discrepancy between
+            // the actual rewards and the calculated amounts. Needs further consideration
+            uint256 totalCalculatedRewards = gmxRewards + glpRewards;
+            rewardAmounts[0] = (gmxRewards * rewards) / totalCalculatedRewards;
+            rewardAmounts[1] = totalCalculatedRewards - rewardAmounts[0];
 
             WETH.safeTransfer(msg.sender, rewards);
         }
