@@ -369,6 +369,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
     /** 
         @notice Initiate contract migration (called by the old contract)
+        @param  newContract  address  Address of the new contract
     */
     function initiateMigration(address newContract)
         external
@@ -386,6 +387,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
     /** 
         @notice Complete contract migration (called by the new contract)
+        @param  oldContract  address  Address of the old contract
     */
     function completeMigration(address oldContract)
         external
