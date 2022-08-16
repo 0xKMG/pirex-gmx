@@ -1095,6 +1095,7 @@ contract PirexGmxGlpTest is Helper {
             expectedWETHRewardsGmx + expectedWETHRewardsGlp,
             rewardsReceived
         );
+        assertGt(rewardsReceived, 0);
     }
 
     /*//////////////////////////////////////////////////////////////

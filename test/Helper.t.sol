@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
@@ -257,5 +258,27 @@ contract Helper is Test {
         gmxTimeLock.processMint(address(GMX), address(this), amount);
 
         vm.stopPrank();
+    }
+
+    /**
+        @notice Encode error for role-related reversion tests
+        @param  caller  address  Method caller
+        @param  role    bytes32  Role
+        @return         bytes    Error bytes
+     */
+    function _encodeRoleError(address caller, bytes32 role)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return
+            bytes(
+                abi.encodePacked(
+                    "AccessControl: account ",
+                    Strings.toHexString(uint160(caller), 20),
+                    " is missing role ",
+                    Strings.toHexString(uint256(role), 32)
+                )
+            );
     }
 }

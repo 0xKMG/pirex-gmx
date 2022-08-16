@@ -3,10 +3,9 @@ pragma solidity 0.8.13;
 
 import {PxGmx} from "src/PxGmx.sol";
 import {Helper} from "./Helper.t.sol";
-import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract PxGmxTest is Helper {
-        /*//////////////////////////////////////////////////////////////
+    /*//////////////////////////////////////////////////////////////
                             setPirexRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -19,14 +18,7 @@ contract PxGmxTest is Helper {
 
         vm.startPrank(caller);
         vm.expectRevert(
-            bytes(
-                abi.encodePacked(
-                    "AccessControl: account ",
-                    Strings.toHexString(uint160(caller), 20),
-                    " is missing role ",
-                    Strings.toHexString(uint256(pxGlp.DEFAULT_ADMIN_ROLE()), 32)
-                )
-            )
+            _encodeRoleError(caller, pxGmx.DEFAULT_ADMIN_ROLE())
         );
 
         pxGlp.setPirexRewards(_pirexRewards);
@@ -58,14 +50,7 @@ contract PxGmxTest is Helper {
         uint256 amount = 1;
 
         vm.expectRevert(
-            bytes(
-                abi.encodePacked(
-                    "AccessControl: account ",
-                    Strings.toHexString(uint160(address(this)), 20),
-                    " is missing role ",
-                    Strings.toHexString(uint256(pxGmx.MINTER_ROLE()), 32)
-                )
-            )
+            _encodeRoleError(address(this), pxGmx.MINTER_ROLE())
         );
 
         pxGmx.mint(to, amount);
