@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
+import {Pausable} from "openzeppelin-contracts/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -9,8 +10,9 @@ import {IRewardRouterV2} from "./interfaces/IRewardRouterV2.sol";
 import {Vault} from "./external/Vault.sol";
 import {PxGlp} from "./PxGlp.sol";
 import {PxGmx} from "./PxGmx.sol";
+import {PirexRewards} from "./PirexRewards.sol";
 
-contract PirexGmxGlp is ReentrancyGuard, Owned {
+contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
 
     // Miscellaneous dependency contracts (e.g. GMX) and addresses
@@ -54,6 +56,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 amount,
         uint256 redemption
     );
+    event InitiateMigration(address newContract);
+    event CompleteMigration(address oldContract);
 
     error ZeroAmount();
     error ZeroAddress();
@@ -72,6 +76,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         address _pirexRewards,
         address stakedGmx
     ) Owned(msg.sender) {
+        // Started as being paused, and should only be unpaused after correctly setup
+        _pause();
+
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
         if (_pirexRewards == address(0)) revert ZeroAddress();
@@ -104,6 +111,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
      */
     function depositGmx(uint256 gmxAmount, address receiver)
         external
+        whenNotPaused
         nonReentrant
     {
         if (gmxAmount == 0) revert ZeroAmount();
@@ -129,6 +137,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
     function depositGlpWithETH(uint256 minShares, address receiver)
         external
         payable
+        whenNotPaused
         nonReentrant
         returns (uint256 assets)
     {
@@ -168,7 +177,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 tokenAmount,
         uint256 minShares,
         address receiver
-    ) external nonReentrant returns (uint256 assets) {
+    ) external whenNotPaused nonReentrant returns (uint256 assets) {
         if (token == address(0)) revert ZeroAddress();
         if (tokenAmount == 0) revert ZeroAmount();
         if (minShares == 0) revert ZeroAmount();
@@ -211,7 +220,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 amount,
         uint256 minRedemption,
         address receiver
-    ) external nonReentrant returns (uint256 redeemed) {
+    ) external whenNotPaused nonReentrant returns (uint256 redeemed) {
         if (amount == 0) revert ZeroAmount();
         if (minRedemption == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
@@ -249,7 +258,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 amount,
         uint256 minRedemption,
         address receiver
-    ) external nonReentrant returns (uint256 redeemed) {
+    ) external whenNotPaused nonReentrant returns (uint256 redeemed) {
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
         if (minRedemption == 0) revert ZeroAmount();
@@ -330,7 +339,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
     /**
         @notice Claim and stake all available multiplier points
      */
-    function compoundMultiplierPoints() external {
+    function compoundMultiplierPoints() external whenNotPaused {
         REWARD_ROUTER_V2.handleRewards(
             false,
             false,
@@ -340,5 +349,57 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
             false,
             false
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        EMERGENCY/MIGRATION LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /** 
+        @notice Set the contract's pause state
+        @param state  bool  Pause state
+    */
+    function setPauseState(bool state) external onlyOwner {
+        if (state) {
+            _pause();
+        } else {
+            _unpause();
+        }
+    }
+
+    /** 
+        @notice Initiate contract migration (called by the old contract)
+    */
+    function initiateMigration(address newContract)
+        external
+        whenPaused
+        onlyOwner
+    {
+        if (newContract == address(0)) revert ZeroAddress();
+
+        // Notify the reward router that the current/old contract is going to perform
+        // full account transfer to the specified new contract
+        REWARD_ROUTER_V2.signalTransfer(newContract);
+
+        emit InitiateMigration(newContract);
+    }
+
+    /** 
+        @notice Complete contract migration (called by the new contract)
+    */
+    function completeMigration(address oldContract)
+        external
+        whenPaused
+        onlyOwner
+    {
+        if (oldContract == address(0)) revert ZeroAddress();
+
+        // Trigger harvest to claim remaining rewards before the account transfer
+        PirexRewards(pirexRewards).harvest();
+
+        // Complete the full account transfer process
+        REWARD_ROUTER_V2.acceptTransfer(oldContract);
+
+        emit CompleteMigration(oldContract);
     }
 }

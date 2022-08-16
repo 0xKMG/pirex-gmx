@@ -90,6 +90,9 @@ contract Helper is Test {
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
         pirexGmxGlp.setPirexRewards(address(pirexRewards));
         pirexRewards.setProducer(address(pirexGmxGlp));
+
+        // Unpause after completing the setup
+        pirexGmxGlp.setPauseState(false);
     }
 
     /**

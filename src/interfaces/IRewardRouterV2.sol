@@ -39,4 +39,10 @@ interface IRewardRouterV2 {
         bool _shouldClaimWeth,
         bool _shouldConvertWethToEth
     ) external;
+
+    function signalTransfer(address _receiver) external;
+
+    function acceptTransfer(address _sender) external;
+
+    function pendingReceivers(address _sender) external returns (address);
 }
