@@ -225,6 +225,17 @@ contract PirexGmxGlpTest is Helper {
         return assets;
     }
 
+    /**
+        @notice Deposit GMX for pxGMX
+        @param  tokenAmount  uint256  Amount of token
+        @param  receiver     address  Receiver of pxGMX
+     */
+    function _depositGmx(uint256 tokenAmount, address receiver) internal {
+        _mintGmx(tokenAmount);
+        GMX.approve(address(pirexGmxGlp), tokenAmount);
+        pirexGmxGlp.depositGmx(tokenAmount, receiver);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         setPirexRewards TESTS
     //////////////////////////////////////////////////////////////*/
@@ -962,7 +973,7 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test calculating of the WETH rewards produced by GMX
+        @notice Test calculating WETH rewards produced by GMX and GLP
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
@@ -980,19 +991,9 @@ contract PirexGmxGlpTest is Helper {
         vm.assume(gmxAmount < 1000000e18);
 
         address pirexRewardsAddr = address(pirexRewards);
-        address pirexGmxGlpAddr = address(pirexGmxGlp);
 
-        _mintGmx(gmxAmount);
-        GMX.approve(pirexGmxGlpAddr, gmxAmount);
-        pirexGmxGlp.depositGmx(gmxAmount, address(this));
-        _mintWbtc(wbtcAmount);
-        WBTC.approve(pirexGmxGlpAddr, wbtcAmount);
-        pirexGmxGlp.depositGlpWithERC20(
-            address(WBTC),
-            wbtcAmount,
-            1,
-            address(this)
-        );
+        _depositGlpWithERC20(wbtcAmount, address(this));
+        _depositGmx(gmxAmount, address(this));
 
         // Ensure pirexRewards has a zero WETH balance to test balance changes
         assertEq(0, WETH.balanceOf(pirexRewardsAddr));
@@ -1004,14 +1005,14 @@ contract PirexGmxGlpTest is Helper {
             false
         );
 
-        vm.startPrank(pirexRewardsAddr);
+        vm.prank(pirexRewardsAddr);
 
         (
             ERC20[] memory producerTokens,
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         ) = pirexGmxGlp.claimWETHRewards();
-        uint256 wethBalance = WETH.balanceOf(pirexRewardsAddr);
+        uint256 wethReceived = WETH.balanceOf(pirexRewardsAddr);
         address wethAddr = address(WETH);
 
         assertEq(address(pxGmx), address(producerTokens[0]));
@@ -1020,7 +1021,8 @@ contract PirexGmxGlpTest is Helper {
         assertEq(wethAddr, address(rewardTokens[1]));
         assertEq(expectedWETHRewardsGmx, rewardAmounts[0]);
         assertEq(expectedWETHRewardsGlp, rewardAmounts[1]);
-        assertEq(expectedWETHRewardsGmx + expectedWETHRewardsGlp, wethBalance);
+        assertEq(expectedWETHRewardsGmx + expectedWETHRewardsGlp, wethReceived);
+        assertGt(wethReceived, 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1056,19 +1058,9 @@ contract PirexGmxGlpTest is Helper {
         vm.assume(gmxAmount < 1000000e18);
 
         address pirexRewardsAddr = address(pirexRewards);
-        address pirexGmxGlpAddr = address(pirexGmxGlp);
 
-        _mintGmx(gmxAmount);
-        GMX.approve(pirexGmxGlpAddr, gmxAmount);
-        pirexGmxGlp.depositGmx(gmxAmount, address(this));
-        _mintWbtc(wbtcAmount);
-        WBTC.approve(pirexGmxGlpAddr, wbtcAmount);
-        pirexGmxGlp.depositGlpWithERC20(
-            address(WBTC),
-            wbtcAmount,
-            1,
-            address(this)
-        );
+        _depositGlpWithERC20(wbtcAmount, address(this));
+        _depositGmx(gmxAmount, address(this));
 
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + secondsElapsed);
