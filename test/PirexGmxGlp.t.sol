@@ -30,6 +30,8 @@ contract PirexGmxGlpTest is Helper {
         uint256 amount,
         uint256 redemption
     );
+    event InitiateMigration(address newContract);
+    event CompleteMigration(address oldContract);
 
     /**
         @notice Get minimum price for whitelisted token
@@ -1287,6 +1289,10 @@ contract PirexGmxGlpTest is Helper {
 
         assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
 
+        vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
+
+        emit InitiateMigration(newContract);
+
         pirexGmxGlp.initiateMigration(newContract);
 
         // Should properly set the pendingReceivers state
@@ -1380,10 +1386,7 @@ contract PirexGmxGlpTest is Helper {
 
         vm.deal(address(this), etherAmount);
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
-            1,
-            receiver
-        );
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
 
         // Store the staked balances for later validations
         uint256 oldContractStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
@@ -1413,6 +1416,10 @@ contract PirexGmxGlpTest is Helper {
 
         // Should properly set the pendingReceivers state
         assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), newContract);
+
+        vm.expectEmit(false, false, false, true, address(newPirexGmxGlp));
+
+        emit CompleteMigration(oldContract);
 
         // Complete the migration using the new contract
         newPirexGmxGlp.completeMigration(oldContract);
