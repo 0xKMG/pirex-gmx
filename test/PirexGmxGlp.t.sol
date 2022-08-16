@@ -1005,18 +1005,15 @@ contract PirexGmxGlpTest is Helper {
 
         vm.warp(block.timestamp + secondsElapsed);
 
-        uint256 expectedGmxWETHRewards = pirexGmxGlp.calculateWETHRewards(
-            useGmx
-        );
+        uint256 expectedWETHRewards = pirexGmxGlp.calculateWETHRewards(useGmx);
 
         vm.startPrank(pirexRewardsAddr);
 
         (
-            ERC20[2] memory producerTokens,
-            ERC20[2] memory rewardTokens,
-            uint256[2] memory rewardAmounts
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
         ) = pirexGmxGlp.claimWETHRewards();
-
         address producerTokenAddr = address(producerTokens[useGmx ? 0 : 1]);
         address rewardTokenAddr = address(rewardTokens[useGmx ? 0 : 1]);
         uint256 rewardAmount = rewardAmounts[useGmx ? 0 : 1];
@@ -1026,13 +1023,13 @@ contract PirexGmxGlpTest is Helper {
         if (useGmx) {
             assertEq(address(pxGmx), producerTokenAddr);
             assertEq(wethAddr, rewardTokenAddr);
-            assertEq(expectedGmxWETHRewards, rewardAmount);
-            assertEq(expectedGmxWETHRewards, wethBalance);
+            assertEq(expectedWETHRewards, rewardAmount);
+            assertEq(expectedWETHRewards, wethBalance);
         } else {
             assertEq(address(pxGlp), producerTokenAddr);
             assertEq(wethAddr, rewardTokenAddr);
-            assertEq(expectedGmxWETHRewards, rewardAmount);
-            assertEq(expectedGmxWETHRewards, wethBalance);
+            assertEq(expectedWETHRewards, rewardAmount);
+            assertEq(expectedWETHRewards, wethBalance);
         }
     }
 
@@ -1098,9 +1095,9 @@ contract PirexGmxGlpTest is Helper {
         vm.prank(pirexRewardsAddr);
 
         (
-            ERC20[2] memory producerTokens,
-            ERC20[2] memory rewardTokens,
-            uint256[2] memory rewardAmounts
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
         ) = pirexGmxGlp.claimWETHRewards();
         uint256 rewardsReceived = WETH.balanceOf(pirexRewardsAddr);
         address wethAddr = address(WETH);

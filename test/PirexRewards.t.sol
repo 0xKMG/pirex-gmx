@@ -36,6 +36,11 @@ contract PirexRewardsTest is Helper {
         ERC20 indexed producerToken,
         ERC20 indexed rewardToken
     );
+    event Harvest(
+        ERC20[] producerTokens,
+        ERC20[] rewardTokens,
+        uint256[] rewardAmounts
+    );
 
     /**
         @notice Getter for a producer token's global state
@@ -763,10 +768,25 @@ contract PirexRewardsTest is Helper {
         uint256 expectedGlobalLastUpdate = block.timestamp;
         uint256 expectedGlobalLastSupply = pxGlp.totalSupply();
         uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
+        ERC20[] memory expectedProducerTokens = new ERC20[](2);
+        ERC20[] memory expectedRewardTokens = new ERC20[](2);
+        uint256[] memory expectedRewardAmounts = new uint256[](2);
+
+        expectedProducerTokens[0] = pxGmx;
+        expectedProducerTokens[1] = pxGlp;
+        expectedRewardTokens[0] = WETH;
+        expectedRewardTokens[1] = WETH;
+        expectedRewardAmounts[0] = pirexGmxGlp.calculateWETHRewards(true);
+        expectedRewardAmounts[1] =  pirexGmxGlp.calculateWETHRewards(false);
+
+        vm.expectEmit(true, true, true, true, address(pirexRewards));
+
+        emit Harvest(expectedProducerTokens, expectedRewardTokens, expectedRewardAmounts);
+
         (
-            ERC20[2] memory producerTokens,
-            ERC20[2] memory rewardTokens,
-            uint256[2] memory rewardAmounts
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
         ) = pirexRewards.harvest();
         (
             uint256 lastUpdate,
@@ -1154,7 +1174,9 @@ contract PirexRewardsTest is Helper {
         pirexRewards.harvest();
 
         for (uint256 i; i < testAccounts.length; ++i) {
-            address recipient = forwardRewards ? address(this) : testAccounts[i];
+            address recipient = forwardRewards
+                ? address(this)
+                : testAccounts[i];
 
             if (forwardRewards) {
                 vm.startPrank(testAccounts[i]);

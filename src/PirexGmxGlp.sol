@@ -321,23 +321,25 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
 
     /**
         @notice Claim WETH rewards
-        @return producerTokens  ERC20[2]    Producer tokens (pxGLP and pxGMX)
-        @return rewardTokens    ERC20[2]    Reward token contract instances
-        @return rewardAmounts   uint256[2]  Reward amounts from each producerToken
+        @return producerTokens  ERC20[]    Producer tokens (pxGLP and pxGMX)
+        @return rewardTokens    ERC20[]    Reward token contract instances
+        @return rewardAmounts   uint256[]  Reward amounts from each producerToken
      */
     function claimWETHRewards()
         external
         returns (
-            ERC20[2] memory producerTokens,
-            ERC20[2] memory rewardTokens,
-            uint256[2] memory rewardAmounts
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
         )
     {
         if (msg.sender != pirexRewards) revert NotPirexRewards();
 
         // Set a provide a list of producer and reward tokens for reward module state management
+        producerTokens = new ERC20[](2);
         producerTokens[0] = pxGmx;
         producerTokens[1] = pxGlp;
+        rewardTokens = new ERC20[](2);
         rewardTokens[0] = WETH;
         rewardTokens[1] = WETH;
 
@@ -357,6 +359,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         );
 
         uint256 rewards = WETH.balanceOf(address(this)) - wethBeforeClaim;
+        rewardAmounts = new uint256[](2);
 
         if (rewards != 0) {
             // This may not be necessary and is more of a hedge against a discrepancy between

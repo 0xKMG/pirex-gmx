@@ -7,8 +7,8 @@ interface IProducer {
     function claimWETHRewards()
         external
         returns (
-            ERC20[2] memory producerTokens,
-            ERC20[2] memory rewardTokens,
-            uint256[2] memory rewardAmounts
+            ERC20[] memory producerTokens,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
         );
 }
