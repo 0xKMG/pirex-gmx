@@ -23,7 +23,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
     RewardTracker public constant REWARD_TRACKER_GLP =
         RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
-    Vault public constant VAULT =
+    Vault public constant GMX_VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public constant GLP_MANAGER =
         0x321F653eED006AD1C29D174e17d96351BDe22649;
@@ -185,7 +185,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         if (tokenAmount == 0) revert ZeroAmount();
         if (minShares == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
-        if (!VAULT.whitelistedTokens(token)) revert InvalidToken(token);
+        if (!GMX_VAULT.whitelistedTokens(token)) revert InvalidToken(token);
 
         ERC20 t = ERC20(token);
 
@@ -266,7 +266,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         if (amount == 0) revert ZeroAmount();
         if (minRedemption == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
-        if (!VAULT.whitelistedTokens(token)) revert InvalidToken(token);
+        if (!GMX_VAULT.whitelistedTokens(token)) revert InvalidToken(token);
 
         // Burn pxGLP before unstaking the underlying GLP
         pxGlp.burn(receiver, amount);
@@ -335,11 +335,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
     {
         if (msg.sender != pirexRewards) revert NotPirexRewards();
 
-        // Set a provide a list of producer and reward tokens for reward module state management
         producerTokens = new ERC20[](2);
+        rewardTokens = new ERC20[](2);
+        rewardAmounts = new uint256[](2);
         producerTokens[0] = pxGmx;
         producerTokens[1] = pxGlp;
-        rewardTokens = new ERC20[](2);
         rewardTokens[0] = WETH;
         rewardTokens[1] = WETH;
 
@@ -359,7 +359,6 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         );
 
         uint256 rewards = WETH.balanceOf(address(this)) - wethBeforeClaim;
-        rewardAmounts = new uint256[](2);
 
         if (rewards != 0) {
             // This may not be necessary and is more of a hedge against a discrepancy between
