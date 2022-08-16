@@ -1427,7 +1427,7 @@ contract PirexGmxGlpTest is Helper {
         // Should properly clear the pendingReceivers state
         assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
 
-        // Confirm that the staked token balances are corrrect
+        // Confirm that the staked token balances are correct
         assertEq(REWARD_TRACKER_GMX.balanceOf(oldContract), 0);
         assertEq(FEE_STAKED_GLP.balanceOf(oldContract), 0);
         assertEq(
