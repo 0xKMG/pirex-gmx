@@ -12,6 +12,7 @@ import {RewardTracker} from "src/external/RewardTracker.sol";
 import {Vault} from "src/external/Vault.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
+import {PirexRewards} from "src/PirexRewards.sol";
 
 contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
