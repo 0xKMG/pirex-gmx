@@ -3,9 +3,41 @@ pragma solidity 0.8.13;
 
 import {PxGmx} from "src/PxGmx.sol";
 import {Helper} from "./Helper.t.sol";
-import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 
 contract PxGmxTest is Helper {
+    /*//////////////////////////////////////////////////////////////
+                            setPirexRewards TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller does not have the admin role
+     */
+    function testCannotSetPirexRewardsNoAdminRole() external {
+        address _pirexRewards = address(this);
+        address caller = testAccounts[0];
+
+        vm.startPrank(caller);
+        vm.expectRevert(
+            _encodeRoleError(caller, pxGmx.DEFAULT_ADMIN_ROLE())
+        );
+
+        pxGlp.setPirexRewards(_pirexRewards);
+    }
+
+    function testSetPirexRewards() external {
+        address _pirexRewards = address(this);
+
+        assertTrue(_pirexRewards != address(pxGlp.pirexRewards()));
+
+        vm.expectEmit(false, false, false, true, address(pxGlp));
+
+        emit SetPirexRewards(_pirexRewards);
+
+        pxGlp.setPirexRewards(_pirexRewards);
+
+        assertEq(_pirexRewards, address(pxGlp.pirexRewards()));
+    }
+
     /*//////////////////////////////////////////////////////////////
                         mint TESTS
     //////////////////////////////////////////////////////////////*/
@@ -18,14 +50,7 @@ contract PxGmxTest is Helper {
         uint256 amount = 1;
 
         vm.expectRevert(
-            bytes(
-                abi.encodePacked(
-                    "AccessControl: account ",
-                    Strings.toHexString(uint160(address(this)), 20),
-                    " is missing role ",
-                    Strings.toHexString(uint256(pxGmx.MINTER_ROLE()), 32)
-                )
-            )
+            _encodeRoleError(address(this), pxGmx.MINTER_ROLE())
         );
 
         pxGmx.mint(to, amount);

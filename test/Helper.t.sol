@@ -5,12 +5,12 @@ import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
+import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
-import {IRewardTracker} from "src/interfaces/IRewardTracker.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
 import {IReader} from "src/interfaces/IReader.sol";
@@ -18,16 +18,17 @@ import {IGMX} from "src/interfaces/IGMX.sol";
 import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
+import {RewardTracker} from "src/external/RewardTracker.sol";
 
 contract Helper is Test {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
-    IRewardTracker public constant REWARD_TRACKER_GMX =
-        IRewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
-    IRewardTracker public constant REWARD_TRACKER_GLP =
-        IRewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
-    IRewardTracker public constant REWARD_TRACKER_MP =
-        IRewardTracker(0x4d268a7d4C16ceB5a606c173Bd974984343fea13);
+    RewardTracker public constant REWARD_TRACKER_GMX =
+        RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
+    RewardTracker public constant REWARD_TRACKER_GLP =
+        RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
+    RewardTracker public constant REWARD_TRACKER_MP =
+        RewardTracker(0x4d268a7d4C16ceB5a606c173Bd974984343fea13);
     IVaultReader internal constant VAULT_READER =
         IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
     IGlpManager internal constant GLP_MANAGER =
@@ -72,12 +73,14 @@ contract Helper is Test {
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
 
+    event SetPirexRewards(address pirexRewards);
+
     // For testing ETH transfers
     receive() external payable {}
 
     constructor() {
         pirexRewards = new PirexRewards();
-        pxGmx = new PxGmx();
+        pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
         pirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
@@ -111,14 +114,23 @@ contract Helper is Test {
     }
 
     /**
-        @notice Mint pxGLP
-        @param  to      address  Recipient of pxGLP
-        @param  amount  uint256  Amount of pxGLP
+        @notice Mint pxGMX or pxGLP
+        @param  to      address  Recipient of pxGMX/pxGLP
+        @param  amount  uint256  Amount of pxGMX/pxGLP
+        @param  useGmx  bool     Whether to mint GMX variant
      */
-    function _mintPxGlp(address to, uint256 amount) internal {
+    function _mintPx(
+        address to,
+        uint256 amount,
+        bool useGmx
+    ) internal {
         vm.prank(address(pirexGmxGlp));
 
-        pxGlp.mint(to, amount);
+        if (useGmx) {
+            pxGmx.mint(to, amount);
+        } else {
+            pxGlp.mint(to, amount);
+        }
     }
 
     /**
@@ -133,11 +145,56 @@ contract Helper is Test {
     }
 
     /**
+        @notice Mint pxGMX or pxGLP for test accounts
+        @param  useGmx      bool     Whether to use pxGMX
+        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
+        @param  useETH      bool     Whether or not to use ETH as the source asset for minting GLP
+
+     */
+    function _depositForTestAccounts(
+        bool useGmx,
+        uint256 multiplier,
+        bool useETH
+    ) internal {
+        if (useGmx) {
+            _depositForTestAccountsPxGmx(multiplier);
+        } else {
+            _depositForTestAccountsPxGlp(multiplier, useETH);
+        }
+    }
+
+    /**
+        @notice Mint pxGMX for test accounts
+        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
+     */
+    function _depositForTestAccountsPxGmx(uint256 multiplier) internal {
+        uint256 tLen = testAccounts.length;
+        uint256[] memory tokenAmounts = new uint256[](tLen);
+        tokenAmounts[0] = 1e18 * multiplier;
+        tokenAmounts[1] = 2e18 * multiplier;
+        tokenAmounts[2] = 3e18 * multiplier;
+        uint256 total = tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2];
+
+        _mintGmx(total);
+        GMX.approve(address(pirexGmxGlp), total);
+
+        // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
+        for (uint256 i; i < tLen; ++i) {
+            uint256 tokenAmount = tokenAmounts[i];
+            address testAccount = testAccounts[i];
+
+            pirexGmxGlp.depositGmx(tokenAmount, testAccount);
+        }
+    }
+
+    /**
         @notice Mint pxGLP for test accounts
         @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
         @param  useETH      bool     Whether or not to use ETH as the source asset for minting GLP
      */
-    function _mintForTestAccounts(uint256 multiplier, bool useETH) internal {
+    function _depositForTestAccountsPxGlp(uint256 multiplier, bool useETH)
+        internal
+    {
         uint256 tLen = testAccounts.length;
         uint256[] memory tokenAmounts = new uint256[](tLen);
 
@@ -204,5 +261,27 @@ contract Helper is Test {
         gmxTimeLock.processMint(address(GMX), address(this), amount);
 
         vm.stopPrank();
+    }
+
+    /**
+        @notice Encode error for role-related reversion tests
+        @param  caller  address  Method caller
+        @param  role    bytes32  Role
+        @return         bytes    Error bytes
+     */
+    function _encodeRoleError(address caller, bytes32 role)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return
+            bytes(
+                abi.encodePacked(
+                    "AccessControl: account ",
+                    Strings.toHexString(uint160(caller), 20),
+                    " is missing role ",
+                    Strings.toHexString(uint256(role), 32)
+                )
+            );
     }
 }
