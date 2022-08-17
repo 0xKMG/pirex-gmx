@@ -363,9 +363,10 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         if (rewards != 0) {
             // This may not be necessary and is more of a hedge against a discrepancy between
             // the actual rewards and the calculated amounts. Needs further consideration
-            uint256 totalCalculatedRewards = gmxRewards + glpRewards;
-            rewardAmounts[0] = (gmxRewards * rewards) / totalCalculatedRewards;
-            rewardAmounts[1] = totalCalculatedRewards - rewardAmounts[0];
+            rewardAmounts[0] =
+                (gmxRewards * rewards) /
+                (gmxRewards + glpRewards);
+            rewardAmounts[1] = rewards - rewardAmounts[0];
 
             WETH.safeTransfer(msg.sender, rewards);
         }
