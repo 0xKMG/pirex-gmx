@@ -319,7 +319,7 @@ contract PirexGmxGlpTest is Helper {
         @notice Test tx reversion due to receiver being the zero address
      */
     function testCannotDepositGmxZeroReceiver() external {
-        uint256 gmxAmount = 1 ether;
+        uint256 gmxAmount = 1e18;
         address invalidReceiver = address(0);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
@@ -331,7 +331,7 @@ contract PirexGmxGlpTest is Helper {
         @notice Test tx reversion due to insufficient GMX balance
      */
     function testCannotDepositGmxInsufficientBalance() external {
-        uint256 invalidGmxAmount = 1 ether;
+        uint256 invalidGmxAmount = 1e18;
         uint256 mintAmount = invalidGmxAmount / 2;
         address receiver = address(this);
 
@@ -348,8 +348,8 @@ contract PirexGmxGlpTest is Helper {
         @param  gmxAmount  uint256  Amount of GMX
      */
     function testDepositGmx(uint256 gmxAmount) external {
-        vm.assume(gmxAmount > 0.001 ether);
-        vm.assume(gmxAmount < 10_000 ether);
+        vm.assume(gmxAmount > 1e15);
+        vm.assume(gmxAmount < 1e22);
 
         address receiver = address(this);
 
@@ -1217,8 +1217,8 @@ contract PirexGmxGlpTest is Helper {
         @param  gmxAmount  uint256  Amount of GMX
      */
     function testCompoundMultiplierPoints(uint256 gmxAmount) external {
-        vm.assume(gmxAmount > 0.001 ether);
-        vm.assume(gmxAmount < 10_000 ether);
+        vm.assume(gmxAmount > 1e15);
+        vm.assume(gmxAmount < 1e22);
 
         // Mint then deposit some GMX in order to gain multiplier points (MP) later on
         address receiver = address(this);
@@ -1443,7 +1443,7 @@ contract PirexGmxGlpTest is Helper {
             address(pxGmx),
             address(pxGlp),
             address(pirexRewards),
-            STAKED_GMX
+            address(STAKED_GMX)
         );
 
         vm.expectRevert("RewardRouter: transfer not signalled");
@@ -1456,12 +1456,13 @@ contract PirexGmxGlpTest is Helper {
      */
     function testCompleteMigration() external {
         // Perform GMX deposit for balance tests after migration
-        uint256 gmxAmount = 1 ether;
+        uint256 gmxAmount = 1e18;
         address receiver = address(this);
+        address oldContract = address(pirexGmxGlp);
 
         _mintGmx(gmxAmount);
 
-        GMX.approve(address(pirexGmxGlp), gmxAmount);
+        GMX.approve(oldContract, gmxAmount);
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
 
         // Perform GLP deposit for balance tests after migration
@@ -1471,13 +1472,15 @@ contract PirexGmxGlpTest is Helper {
 
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
 
+        // Time skip to bypass the cooldown duration
+        vm.warp(block.timestamp + 1 days);
+
         // Store the staked balances for later validations
-        uint256 oldContractStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
-            address(pirexGmxGlp)
-        );
-        uint256 oldContractStakedGLPBalance = FEE_STAKED_GLP.balanceOf(
-            address(pirexGmxGlp)
-        );
+        uint256 oldStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
+        uint256 oldStakedGLPBalance = FEE_STAKED_GLP.balanceOf(oldContract);
+        uint256 oldEsGMXClaimable = STAKED_GMX.claimable(oldContract) +
+            FEE_STAKED_GLP.claimable(oldContract);
+        uint256 oldMPBalance = REWARD_TRACKER_MP.claimable(oldContract);
 
         // Pause the contract before proceeding
         pirexGmxGlp.setPauseState(true);
@@ -1487,10 +1490,9 @@ contract PirexGmxGlpTest is Helper {
             address(pxGmx),
             address(pxGlp),
             address(pirexRewards),
-            STAKED_GMX
+            address(STAKED_GMX)
         );
 
-        address oldContract = address(pirexGmxGlp);
         address newContract = address(newPirexGmxGlp);
 
         assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
@@ -1510,16 +1512,20 @@ contract PirexGmxGlpTest is Helper {
         // Should properly clear the pendingReceivers state
         assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
 
-        // Confirm that the staked token balances are correct
+        // Confirm that the token balances and claimables for old contract are correct
         assertEq(REWARD_TRACKER_GMX.balanceOf(oldContract), 0);
         assertEq(FEE_STAKED_GLP.balanceOf(oldContract), 0);
+        assertEq(STAKED_GMX.claimable(oldContract), 0);
+        assertEq(FEE_STAKED_GLP.claimable(oldContract), 0);
+        assertEq(REWARD_TRACKER_MP.claimable(oldContract), 0);
+
+        // Confirm that the staked token balances for new contract are correct
+        // For Staked GMX balance, due to compounding in the migration,
+        // all pending claimable esGMX and MP are automatically staked
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(newContract),
-            oldContractStakedGMXBalance
+            oldStakedGMXBalance + oldEsGMXClaimable + oldMPBalance
         );
-        assertEq(
-            FEE_STAKED_GLP.balanceOf(newContract),
-            oldContractStakedGLPBalance
-        );
+        assertEq(FEE_STAKED_GLP.balanceOf(newContract), oldStakedGLPBalance);
     }
 }
