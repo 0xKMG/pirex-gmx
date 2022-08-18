@@ -1217,13 +1217,17 @@ contract PirexGmxGlpTest is Helper {
             false,
             false
         );
+        uint256 expectedWETHRewards = expectedWETHRewardsGmx +
+            expectedWETHRewardsGlp;
+        uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
+            expectedEsGmxRewardsGlp;
 
         vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
 
         // Limited variable counts due to stack-too-deep issue
         emit ClaimRewards(
-            expectedWETHRewardsGmx + expectedWETHRewardsGlp,
-            expectedEsGmxRewardsGmx + expectedEsGmxRewardsGlp,
+            expectedWETHRewards,
+            expectedEsGmxRewards,
             expectedWETHRewardsGmx,
             expectedWETHRewardsGlp,
             expectedEsGmxRewardsGmx,
@@ -1238,37 +1242,28 @@ contract PirexGmxGlpTest is Helper {
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         ) = pirexGmxGlp.claimRewards();
-        address wethAddr = address(WETH);
-        address pxGlpAddr = address(pxGlp);
-        address pxGmxAddr = address(pxGmx);
 
-        assertEq(pxGmxAddr, address(producerTokens[0]));
-        assertEq(pxGlpAddr, address(producerTokens[1]));
-        assertEq(pxGmxAddr, address(producerTokens[2]));
-        assertEq(pxGlpAddr, address(producerTokens[3]));
-        assertEq(wethAddr, address(rewardTokens[0]));
-        assertEq(wethAddr, address(rewardTokens[1]));
-        assertEq(pxGmxAddr, address(rewardTokens[2]));
-        assertEq(pxGmxAddr, address(rewardTokens[3]));
+        assertEq(address(pxGmx), address(producerTokens[0]));
+        assertEq(address(pxGlp), address(producerTokens[1]));
+        assertEq(address(pxGmx), address(producerTokens[2]));
+        assertEq(address(pxGlp), address(producerTokens[3]));
+        assertEq(address(WETH), address(rewardTokens[0]));
+        assertEq(address(WETH), address(rewardTokens[1]));
+        assertEq(address(pxGmx), address(rewardTokens[2]));
+        assertEq(address(pxGmx), address(rewardTokens[3]));
         assertEq(expectedWETHRewardsGmx, rewardAmounts[0]);
         assertEq(expectedWETHRewardsGlp, rewardAmounts[1]);
         assertEq(expectedEsGmxRewardsGmx, rewardAmounts[2]);
         assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
-        assertGt(expectedWETHRewardsGmx + expectedWETHRewardsGlp, 0);
-        assertGt(expectedEsGmxRewardsGmx + expectedEsGmxRewardsGlp, 0);
-        assertEq(
-            WETH.balanceOf(pirexRewardsAddr),
-            expectedWETHRewardsGmx + expectedWETHRewardsGlp
-        );
-        assertEq(
-            pxGmx.balanceOf(pirexRewardsAddr),
-            expectedEsGmxRewardsGmx + expectedEsGmxRewardsGlp
-        );
+        assertGt(expectedWETHRewards, 0);
+        assertGt(expectedEsGmxRewards, 0);
+        assertEq(WETH.balanceOf(pirexRewardsAddr), expectedWETHRewards);
+        assertEq(pxGmx.balanceOf(pirexRewardsAddr), expectedEsGmxRewards);
 
         // Claiming esGMX rewards should also be staked immediately
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)),
-            previousStakedGmxBalance + expectedEsGmxRewardsGlp + expectedEsGmxRewardsGmx
+            previousStakedGmxBalance + expectedEsGmxRewards
         );
     }
 
