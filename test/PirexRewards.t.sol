@@ -103,6 +103,9 @@ contract PirexRewardsTest is Helper {
         return rewards + lastBalance * (block.timestamp - lastUpdate);
     }
 
+    /**
+        @notice Perform assertions for global state
+    */
     function _assertGlobalState(
         ERC20 producerToken,
         uint256 expectedLastUpdate,
