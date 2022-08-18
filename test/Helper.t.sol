@@ -29,6 +29,10 @@ contract Helper is Test {
         RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
     RewardTracker public constant REWARD_TRACKER_MP =
         RewardTracker(0x4d268a7d4C16ceB5a606c173Bd974984343fea13);
+    RewardTracker internal constant FEE_STAKED_GLP =
+        RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
+    RewardTracker internal constant STAKED_GMX =
+        RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
     IVaultReader internal constant VAULT_READER =
         IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
     IGlpManager internal constant GLP_MANAGER =
@@ -39,18 +43,12 @@ contract Helper is Test {
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     IGMX internal constant GMX =
         IGMX(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
-    IERC20 internal constant REWARD_TRACKER =
-        IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     IERC20 internal constant USDG =
         IERC20(0x45096e7aA921f27590f8F19e457794EB09678141);
-    IERC20 FEE_STAKED_GLP = IERC20(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     IWBTC internal constant WBTC =
         IWBTC(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
     ERC20 internal constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
-
-    address internal constant STAKED_GMX =
-        0x908C4D94D34924765f1eDc22A1DD098397c59dD4;
 
     PirexGmxGlp internal immutable pirexGmxGlp;
     PxGmx internal immutable pxGmx;
@@ -85,14 +83,16 @@ contract Helper is Test {
         pirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
-            address(pirexRewards),
-            STAKED_GMX
+            address(pirexRewards)
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
         pirexGmxGlp.setPirexRewards(address(pirexRewards));
         pirexRewards.setProducer(address(pirexGmxGlp));
+
+        // Unpause after completing the setup
+        pirexGmxGlp.setPauseState(false);
     }
 
     /**

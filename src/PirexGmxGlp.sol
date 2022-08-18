@@ -2,6 +2,7 @@
 pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
+import {Pausable} from "openzeppelin-contracts/contracts/security/Pausable.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -11,8 +12,9 @@ import {RewardTracker} from "src/external/RewardTracker.sol";
 import {Vault} from "src/external/Vault.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
+import {PirexRewards} from "src/PirexRewards.sol";
 
-contract PirexGmxGlp is ReentrancyGuard, Owned {
+contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
 
     // Miscellaneous dependency contracts (e.g. GMX) and addresses
@@ -23,6 +25,10 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
     RewardTracker public constant REWARD_TRACKER_GLP =
         RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
+    RewardTracker public constant FEE_STAKED_GLP =
+        RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
+    RewardTracker public constant STAKED_GMX =
+        RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
     Vault public constant GMX_VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public constant GLP_MANAGER =
@@ -31,6 +37,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
+    ERC20 public constant ESGMX =
+        ERC20(0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA);
 
     // Pirex token contract(s)
     PxGmx public immutable pxGmx;
@@ -61,6 +69,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 amount,
         uint256 redemption
     );
+    event InitiateMigration(address newContract);
+    event CompleteMigration(address oldContract);
     event ClaimWETHRewards(
         uint256 rewards,
         uint256 gmxRewards,
@@ -76,25 +86,25 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         @param  _pxGmx         address  PxGmx contract address
         @param  _pxGlp         address  PxGlp contract address
         @param  _pirexRewards  address  PirexRewards contract address
-        @param  stakedGmx      address  StakedGmx contract address
     */
     constructor(
         address _pxGmx,
         address _pxGlp,
-        address _pirexRewards,
-        address stakedGmx
+        address _pirexRewards
     ) Owned(msg.sender) {
+        // Started as being paused, and should only be unpaused after correctly setup
+        _pause();
+
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
         if (_pirexRewards == address(0)) revert ZeroAddress();
-        if (stakedGmx == address(0)) revert ZeroAddress();
 
         pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
         pirexRewards = _pirexRewards;
 
         // Pre-approving stakedGmx contract for staking GMX on behalf of our vault
-        GMX.safeApprove(stakedGmx, type(uint256).max);
+        GMX.safeApprove(address(STAKED_GMX), type(uint256).max);
     }
 
     /**
@@ -116,6 +126,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
      */
     function depositGmx(uint256 gmxAmount, address receiver)
         external
+        whenNotPaused
         nonReentrant
     {
         if (gmxAmount == 0) revert ZeroAmount();
@@ -141,6 +152,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
     function depositGlpWithETH(uint256 minShares, address receiver)
         external
         payable
+        whenNotPaused
         nonReentrant
         returns (uint256 assets)
     {
@@ -180,7 +192,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 tokenAmount,
         uint256 minShares,
         address receiver
-    ) external nonReentrant returns (uint256 assets) {
+    ) external whenNotPaused nonReentrant returns (uint256 assets) {
         if (token == address(0)) revert ZeroAddress();
         if (tokenAmount == 0) revert ZeroAmount();
         if (minShares == 0) revert ZeroAmount();
@@ -223,7 +235,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 amount,
         uint256 minRedemption,
         address receiver
-    ) external nonReentrant returns (uint256 redeemed) {
+    ) external whenNotPaused nonReentrant returns (uint256 redeemed) {
         if (amount == 0) revert ZeroAmount();
         if (minRedemption == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
@@ -261,7 +273,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         uint256 amount,
         uint256 minRedemption,
         address receiver
-    ) external nonReentrant returns (uint256 redeemed) {
+    ) external whenNotPaused nonReentrant returns (uint256 redeemed) {
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
         if (minRedemption == 0) revert ZeroAmount();
@@ -290,16 +302,27 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
     }
 
     /**
-        @notice Calculate the WETH rewards for either GMX or GLP
+        @notice Calculate the WETH/esGMX rewards for either GMX or GLP
+        @param  isWeth  bool     Whether to calculate WETH or esGMX rewards
         @param  useGmx  bool     Whether the calculation should be for GMX
-        @return         uint256  Amount of WETH rewards
+        @return         uint256  Amount of WETH/esGMX rewards
      */
-    function calculateWETHRewards(bool useGmx) public view returns (uint256) {
-        RewardTracker r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+    function calculateRewards(bool isWeth, bool useGmx)
+        public
+        view
+        returns (uint256)
+    {
+        RewardTracker r;
+        if (isWeth) {
+            r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+        } else {
+            r = useGmx ? STAKED_GMX : FEE_STAKED_GLP;
+        }
         address distributor = r.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
-        uint256 distributorBalance = WETH.balanceOf(distributor);
+        ERC20 token = (isWeth ? WETH : ESGMX);
+        uint256 distributorBalance = token.balanceOf(distributor);
         uint256 blockReward = pendingRewards > distributorBalance
             ? distributorBalance
             : pendingRewards;
@@ -344,8 +367,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
         rewardTokens[1] = WETH;
 
         uint256 wethBeforeClaim = WETH.balanceOf(address(this));
-        uint256 gmxRewards = calculateWETHRewards(true);
-        uint256 glpRewards = calculateWETHRewards(false);
+        uint256 gmxRewards = calculateRewards(true, true);
+        uint256 glpRewards = calculateRewards(true, false);
 
         // Claim only WETH rewards to keep gas to a minimum - may change in generalized version
         REWARD_ROUTER_V2.handleRewards(
@@ -377,7 +400,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
     /**
         @notice Claim and stake all available multiplier points
      */
-    function compoundMultiplierPoints() external {
+    function compoundMultiplierPoints() external whenNotPaused {
         REWARD_ROUTER_V2.handleRewards(
             false,
             false,
@@ -387,5 +410,59 @@ contract PirexGmxGlp is ReentrancyGuard, Owned {
             false,
             false
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        EMERGENCY/MIGRATION LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /** 
+        @notice Set the contract's pause state
+        @param state  bool  Pause state
+    */
+    function setPauseState(bool state) external onlyOwner {
+        if (state) {
+            _pause();
+        } else {
+            _unpause();
+        }
+    }
+
+    /** 
+        @notice Initiate contract migration (called by the old contract)
+        @param  newContract  address  Address of the new contract
+    */
+    function initiateMigration(address newContract)
+        external
+        whenPaused
+        onlyOwner
+    {
+        if (newContract == address(0)) revert ZeroAddress();
+
+        // Notify the reward router that the current/old contract is going to perform
+        // full account transfer to the specified new contract
+        REWARD_ROUTER_V2.signalTransfer(newContract);
+
+        emit InitiateMigration(newContract);
+    }
+
+    /** 
+        @notice Complete contract migration (called by the new contract)
+        @param  oldContract  address  Address of the old contract
+    */
+    function completeMigration(address oldContract)
+        external
+        whenPaused
+        onlyOwner
+    {
+        if (oldContract == address(0)) revert ZeroAddress();
+
+        // Trigger harvest to claim remaining rewards before the account transfer
+        PirexRewards(pirexRewards).harvest();
+
+        // Complete the full account transfer process
+        REWARD_ROUTER_V2.acceptTransfer(oldContract);
+
+        emit CompleteMigration(oldContract);
     }
 }

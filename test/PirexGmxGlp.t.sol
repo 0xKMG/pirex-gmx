@@ -31,6 +31,8 @@ contract PirexGmxGlpTest is Helper {
         uint256 amount,
         uint256 redemption
     );
+    event InitiateMigration(address newContract);
+    event CompleteMigration(address oldContract);
     event ClaimWETHRewards(
         uint256 rewards,
         uint256 gmxRewards,
@@ -286,6 +288,22 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotDepositGmxPaused() external {
+        pirexGmxGlp.setPauseState(true);
+
+        uint256 gmxAmount = 1;
+        address receiver = address(this);
+
+        _mintGmx(gmxAmount);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+    }
+
+    /**
         @notice Test tx reversion due to msg.value being zero
      */
     function testCannotDepositGmxZeroValue() external {
@@ -301,7 +319,7 @@ contract PirexGmxGlpTest is Helper {
         @notice Test tx reversion due to receiver being the zero address
      */
     function testCannotDepositGmxZeroReceiver() external {
-        uint256 gmxAmount = 1 ether;
+        uint256 gmxAmount = 1e18;
         address invalidReceiver = address(0);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
@@ -313,7 +331,7 @@ contract PirexGmxGlpTest is Helper {
         @notice Test tx reversion due to insufficient GMX balance
      */
     function testCannotDepositGmxInsufficientBalance() external {
-        uint256 invalidGmxAmount = 1 ether;
+        uint256 invalidGmxAmount = 1e18;
         uint256 mintAmount = invalidGmxAmount / 2;
         address receiver = address(this);
 
@@ -330,8 +348,8 @@ contract PirexGmxGlpTest is Helper {
         @param  gmxAmount  uint256  Amount of GMX
      */
     function testDepositGmx(uint256 gmxAmount) external {
-        vm.assume(gmxAmount > 0.001 ether);
-        vm.assume(gmxAmount < 10_000 ether);
+        vm.assume(gmxAmount > 1e15);
+        vm.assume(gmxAmount < 1e22);
 
         address receiver = address(this);
 
@@ -367,6 +385,23 @@ contract PirexGmxGlpTest is Helper {
     /*//////////////////////////////////////////////////////////////
                         depositGlpWithETH TESTS
     //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotDepositGlpWithETHPaused() external {
+        pirexGmxGlp.setPauseState(true);
+
+        uint256 etherAmount = 1;
+        uint256 minShares = 1;
+        address receiver = address(this);
+
+        vm.deal(address(this), etherAmount);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(minShares, receiver);
+    }
 
     /**
         @notice Test tx reversion due to msg.value being zero
@@ -492,6 +527,30 @@ contract PirexGmxGlpTest is Helper {
     /*//////////////////////////////////////////////////////////////
                         depositGlpWithERC20 TESTS
     //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotDepositGlpWithERC20TokenPaused() external {
+        pirexGmxGlp.setPauseState(true);
+
+        address token = address(WBTC);
+        uint256 tokenAmount = 1;
+        uint256 minShares = 1;
+        address receiver = address(this);
+
+        _mintWbtc(tokenAmount);
+        WBTC.approve(address(pirexGmxGlp), tokenAmount);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexGmxGlp.depositGlpWithERC20(
+            token,
+            tokenAmount,
+            minShares,
+            receiver
+        );
+    }
 
     /**
         @notice Test tx reversion due to token being the zero address
@@ -683,6 +742,27 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotRedeemPxGlpForETHPaused() external {
+        uint256 etherAmount = 1 ether;
+        address receiver = address(this);
+
+        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 minRedemption = _calculateMinRedemptionAmount(
+            address(WETH),
+            assets
+        );
+
+        // Pause after deposit
+        pirexGmxGlp.setPauseState(true);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexGmxGlp.redeemPxGlpForETH(assets, minRedemption, receiver);
+    }
+
+    /**
         @notice Test tx reversion due to msg.value being zero
      */
     function testCannotRedeemPxGlpForETHZeroValue() external {
@@ -792,6 +872,25 @@ contract PirexGmxGlpTest is Helper {
     /*//////////////////////////////////////////////////////////////
                         redeemPxGlpForERC20 TESTS
     //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotRedeemPxGlpForERC20TokenPaused() external {
+        uint256 etherAmount = 1 ether;
+        address receiver = address(this);
+        address token = address(WBTC);
+
+        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
+
+        // Pause after deposit
+        pirexGmxGlp.setPauseState(true);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexGmxGlp.redeemPxGlpForERC20(token, assets, minRedemption, receiver);
+    }
 
     /**
         @notice Test tx reversion due to token being the zero address
@@ -969,7 +1068,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        calculateWETHRewards TESTS
+                        calculateRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -978,7 +1077,7 @@ contract PirexGmxGlpTest is Helper {
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
      */
-    function testCalculateWETHRewards(
+    function testCalculateRewards(
         uint32 secondsElapsed,
         uint40 wbtcAmount,
         uint80 gmxAmount
@@ -1000,8 +1099,12 @@ contract PirexGmxGlpTest is Helper {
 
         vm.warp(block.timestamp + secondsElapsed);
 
-        uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateWETHRewards(true);
-        uint256 expectedWETHRewardsGlp = pirexGmxGlp.calculateWETHRewards(
+        uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateRewards(
+            true,
+            true
+        );
+        uint256 expectedWETHRewardsGlp = pirexGmxGlp.calculateRewards(
+            true,
             false
         );
 
@@ -1068,8 +1171,12 @@ contract PirexGmxGlpTest is Helper {
         // Ensure pirexRewards has a zero WETH balance to test balance changes
         assertEq(0, WETH.balanceOf(pirexRewardsAddr));
 
-        uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateWETHRewards(true);
-        uint256 expectedWETHRewardsGlp = pirexGmxGlp.calculateWETHRewards(
+        uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateRewards(
+            true,
+            true
+        );
+        uint256 expectedWETHRewardsGlp = pirexGmxGlp.calculateRewards(
+            true,
             false
         );
 
@@ -1103,12 +1210,23 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
+        @notice Test tx reversion if contract is paused
+     */
+    function testCannotCompoundMultiplierPointsPaused() external {
+        pirexGmxGlp.setPauseState(true);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexGmxGlp.compoundMultiplierPoints();
+    }
+
+    /**
         @notice Test compounding multiplier points
         @param  gmxAmount  uint256  Amount of GMX
      */
     function testCompoundMultiplierPoints(uint256 gmxAmount) external {
-        vm.assume(gmxAmount > 0.001 ether);
-        vm.assume(gmxAmount < 10_000 ether);
+        vm.assume(gmxAmount > 1e15);
+        vm.assume(gmxAmount < 1e22);
 
         // Mint then deposit some GMX in order to gain multiplier points (MP) later on
         address receiver = address(this);
@@ -1150,5 +1268,270 @@ contract PirexGmxGlpTest is Helper {
             postCompoundStakedGMXBalance,
             postDepositStakedGMXBalance + claimableMp
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setPauseState TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being owner
+     */
+    function testCannotSetPauseStateUnauthorized() external {
+        vm.prank(testAccounts[0]);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexGmxGlp.setPauseState(true);
+    }
+
+    /**
+        @notice Test tx reversion if unpausing when not paused
+     */
+    function testCannotSetPauseStateNotPaused() external {
+        assertEq(pirexGmxGlp.paused(), false);
+
+        vm.expectRevert("Pausable: not paused");
+
+        pirexGmxGlp.setPauseState(false);
+    }
+
+    /**
+        @notice Test tx reversion if pausing when paused
+     */
+    function testCannotSetPauseStatePaused() external {
+        pirexGmxGlp.setPauseState(true);
+
+        assertEq(pirexGmxGlp.paused(), true);
+
+        vm.expectRevert("Pausable: paused");
+
+        pirexGmxGlp.setPauseState(true);
+    }
+
+    /**
+        @notice Test setting pause state
+     */
+    function testSetPauseState() external {
+        assertEq(pirexGmxGlp.paused(), false);
+
+        pirexGmxGlp.setPauseState(true);
+
+        assertEq(pirexGmxGlp.paused(), true);
+
+        pirexGmxGlp.setPauseState(false);
+
+        assertEq(pirexGmxGlp.paused(), false);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        initiateMigration TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is not paused
+     */
+    function testCannotInitiateMigrationNotPaused() external {
+        assertEq(pirexGmxGlp.paused(), false);
+
+        address newContract = address(this);
+
+        vm.expectRevert("Pausable: not paused");
+
+        pirexGmxGlp.initiateMigration(newContract);
+    }
+
+    /**
+        @notice Test tx reversion due to caller not being owner
+     */
+    function testCannotInitiateMigrationUnauthorized() external {
+        pirexGmxGlp.setPauseState(true);
+
+        address newContract = address(this);
+
+        vm.prank(testAccounts[0]);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexGmxGlp.initiateMigration(newContract);
+    }
+
+    /**
+        @notice Test tx reversion due to newContract being zero
+     */
+    function testCannotInitiateMigrationZeroAddress() external {
+        pirexGmxGlp.setPauseState(true);
+
+        address invalidNewContract = address(0);
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.initiateMigration(invalidNewContract);
+    }
+
+    /**
+        @notice Test initiating migration
+     */
+    function testInitiateMigration() external {
+        pirexGmxGlp.setPauseState(true);
+
+        address oldContract = address(pirexGmxGlp);
+        address newContract = address(this);
+
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
+
+        vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
+
+        emit InitiateMigration(newContract);
+
+        pirexGmxGlp.initiateMigration(newContract);
+
+        // Should properly set the pendingReceivers state
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), newContract);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        completeMigration TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if contract is not paused
+     */
+    function testCannotCompleteMigrationNotPaused() external {
+        assertEq(pirexGmxGlp.paused(), false);
+
+        address oldContract = address(this);
+
+        vm.expectRevert("Pausable: not paused");
+
+        pirexGmxGlp.completeMigration(oldContract);
+    }
+
+    /**
+        @notice Test tx reversion due to caller not being owner
+     */
+    function testCannotCompleteMigrationUnauthorized() external {
+        pirexGmxGlp.setPauseState(true);
+
+        address oldContract = address(pirexGmxGlp);
+
+        vm.prank(testAccounts[0]);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexGmxGlp.completeMigration(oldContract);
+    }
+
+    /**
+        @notice Test tx reversion due to oldContract being zero
+     */
+    function testCannotCompleteMigrationZeroAddress() external {
+        pirexGmxGlp.setPauseState(true);
+
+        address invalidOldContract = address(0);
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.completeMigration(invalidOldContract);
+    }
+
+    /**
+        @notice Test tx reversion due to the caller not being the assigned new contract
+     */
+    function testCannotCompleteMigrationInvalidNewContract() external {
+        pirexGmxGlp.setPauseState(true);
+
+        address oldContract = address(pirexGmxGlp);
+        address newContract = address(this);
+
+        pirexGmxGlp.initiateMigration(newContract);
+
+        // Deploy a test contract but not being assigned as the migration target
+        PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
+            address(pxGmx),
+            address(pxGlp),
+            address(pirexRewards)
+        );
+
+        vm.expectRevert("RewardRouter: transfer not signalled");
+
+        newPirexGmxGlp.completeMigration(oldContract);
+    }
+
+    /**
+        @notice Test completing migration
+     */
+    function testCompleteMigration() external {
+        // Perform GMX deposit for balance tests after migration
+        uint256 gmxAmount = 1e18;
+        address receiver = address(this);
+        address oldContract = address(pirexGmxGlp);
+
+        _mintGmx(gmxAmount);
+
+        GMX.approve(oldContract, gmxAmount);
+        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+
+        // Perform GLP deposit for balance tests after migration
+        uint256 etherAmount = 1 ether;
+
+        vm.deal(address(this), etherAmount);
+
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
+
+        // Time skip to bypass the cooldown duration
+        vm.warp(block.timestamp + 1 days);
+
+        // Store the staked balances for later validations
+        uint256 oldStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
+        uint256 oldStakedGLPBalance = FEE_STAKED_GLP.balanceOf(oldContract);
+        uint256 oldEsGMXClaimable = pirexGmxGlp.calculateRewards(false, true) +
+            pirexGmxGlp.calculateRewards(false, false);
+        uint256 oldMPBalance = REWARD_TRACKER_MP.claimable(oldContract);
+
+        // Pause the contract before proceeding
+        pirexGmxGlp.setPauseState(true);
+
+        // Deploy the new contract for migration tests
+        PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
+            address(pxGmx),
+            address(pxGlp),
+            address(pirexRewards)
+        );
+
+        address newContract = address(newPirexGmxGlp);
+
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
+
+        pirexGmxGlp.initiateMigration(newContract);
+
+        // Should properly set the pendingReceivers state
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), newContract);
+
+        vm.expectEmit(false, false, false, true, address(newPirexGmxGlp));
+
+        emit CompleteMigration(oldContract);
+
+        // Complete the migration using the new contract
+        newPirexGmxGlp.completeMigration(oldContract);
+
+        // Should properly clear the pendingReceivers state
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
+
+        // Confirm that the token balances and claimables for old contract are correct
+        assertEq(REWARD_TRACKER_GMX.balanceOf(oldContract), 0);
+        assertEq(FEE_STAKED_GLP.balanceOf(oldContract), 0);
+        assertEq(STAKED_GMX.claimable(oldContract), 0);
+        assertEq(FEE_STAKED_GLP.claimable(oldContract), 0);
+        assertEq(REWARD_TRACKER_MP.claimable(oldContract), 0);
+
+        // Confirm that the staked token balances for new contract are correct
+        // For Staked GMX balance, due to compounding in the migration,
+        // all pending claimable esGMX and MP are automatically staked
+        assertEq(
+            REWARD_TRACKER_GMX.balanceOf(newContract),
+            oldStakedGMXBalance + oldEsGMXClaimable + oldMPBalance
+        );
+        assertEq(FEE_STAKED_GLP.balanceOf(newContract), oldStakedGLPBalance);
     }
 }
