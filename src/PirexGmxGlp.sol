@@ -25,6 +25,10 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
     RewardTracker public constant REWARD_TRACKER_GLP =
         RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
+    RewardTracker public constant FEE_STAKED_GLP =
+        RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
+    RewardTracker public constant STAKED_GMX =
+        RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
     Vault public constant GMX_VAULT =
         Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public constant GLP_MANAGER =
@@ -33,6 +37,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
+    ERC20 public constant ESGMX =
+        ERC20(0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA);
 
     // Pirex token contract(s)
     PxGmx public immutable pxGmx;
@@ -80,13 +86,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         @param  _pxGmx         address  PxGmx contract address
         @param  _pxGlp         address  PxGlp contract address
         @param  _pirexRewards  address  PirexRewards contract address
-        @param  stakedGmx      address  StakedGmx contract address
     */
     constructor(
         address _pxGmx,
         address _pxGlp,
-        address _pirexRewards,
-        address stakedGmx
+        address _pirexRewards
     ) Owned(msg.sender) {
         // Started as being paused, and should only be unpaused after correctly setup
         _pause();
@@ -94,14 +98,13 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
         if (_pirexRewards == address(0)) revert ZeroAddress();
-        if (stakedGmx == address(0)) revert ZeroAddress();
 
         pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
         pirexRewards = _pirexRewards;
 
         // Pre-approving stakedGmx contract for staking GMX on behalf of our vault
-        GMX.safeApprove(stakedGmx, type(uint256).max);
+        GMX.safeApprove(address(STAKED_GMX), type(uint256).max);
     }
 
     /**
@@ -299,16 +302,27 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Calculate the WETH rewards for either GMX or GLP
+        @notice Calculate the WETH/esGMX rewards for either GMX or GLP
+        @param  isWeth  bool     Whether to calculate WETH or esGMX rewards
         @param  useGmx  bool     Whether the calculation should be for GMX
-        @return         uint256  Amount of WETH rewards
+        @return         uint256  Amount of WETH/esGMX rewards
      */
-    function calculateWETHRewards(bool useGmx) public view returns (uint256) {
-        RewardTracker r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+    function calculateRewards(bool isWeth, bool useGmx)
+        public
+        view
+        returns (uint256)
+    {
+        RewardTracker r;
+        if (isWeth) {
+            r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+        } else {
+            r = useGmx ? STAKED_GMX : FEE_STAKED_GLP;
+        }
         address distributor = r.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
-        uint256 distributorBalance = WETH.balanceOf(distributor);
+        ERC20 token = (isWeth ? WETH : ESGMX);
+        uint256 distributorBalance = token.balanceOf(distributor);
         uint256 blockReward = pendingRewards > distributorBalance
             ? distributorBalance
             : pendingRewards;
@@ -353,8 +367,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         rewardTokens[1] = WETH;
 
         uint256 wethBeforeClaim = WETH.balanceOf(address(this));
-        uint256 gmxRewards = calculateWETHRewards(true);
-        uint256 glpRewards = calculateWETHRewards(false);
+        uint256 gmxRewards = calculateRewards(true, true);
+        uint256 glpRewards = calculateRewards(true, false);
 
         // Claim only WETH rewards to keep gas to a minimum - may change in generalized version
         REWARD_ROUTER_V2.handleRewards(

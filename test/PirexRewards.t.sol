@@ -776,12 +776,16 @@ contract PirexRewardsTest is Helper {
         expectedProducerTokens[1] = pxGlp;
         expectedRewardTokens[0] = WETH;
         expectedRewardTokens[1] = WETH;
-        expectedRewardAmounts[0] = pirexGmxGlp.calculateWETHRewards(true);
-        expectedRewardAmounts[1] =  pirexGmxGlp.calculateWETHRewards(false);
+        expectedRewardAmounts[0] = pirexGmxGlp.calculateRewards(true, true);
+        expectedRewardAmounts[1] = pirexGmxGlp.calculateRewards(true, false);
 
         vm.expectEmit(true, true, true, true, address(pirexRewards));
 
-        emit Harvest(expectedProducerTokens, expectedRewardTokens, expectedRewardAmounts);
+        emit Harvest(
+            expectedProducerTokens,
+            expectedRewardTokens,
+            expectedRewardAmounts
+        );
 
         (
             ERC20[] memory producerTokens,

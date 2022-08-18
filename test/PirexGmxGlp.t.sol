@@ -1068,7 +1068,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        calculateWETHRewards TESTS
+                        calculateRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -1077,7 +1077,7 @@ contract PirexGmxGlpTest is Helper {
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
      */
-    function testCalculateWETHRewards(
+    function testCalculateRewards(
         uint32 secondsElapsed,
         uint40 wbtcAmount,
         uint80 gmxAmount
@@ -1099,8 +1099,12 @@ contract PirexGmxGlpTest is Helper {
 
         vm.warp(block.timestamp + secondsElapsed);
 
-        uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateWETHRewards(true);
-        uint256 expectedWETHRewardsGlp = pirexGmxGlp.calculateWETHRewards(
+        uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateRewards(
+            true,
+            true
+        );
+        uint256 expectedWETHRewardsGlp = pirexGmxGlp.calculateRewards(
+            true,
             false
         );
 
@@ -1167,8 +1171,12 @@ contract PirexGmxGlpTest is Helper {
         // Ensure pirexRewards has a zero WETH balance to test balance changes
         assertEq(0, WETH.balanceOf(pirexRewardsAddr));
 
-        uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateWETHRewards(true);
-        uint256 expectedWETHRewardsGlp = pirexGmxGlp.calculateWETHRewards(
+        uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateRewards(
+            true,
+            true
+        );
+        uint256 expectedWETHRewardsGlp = pirexGmxGlp.calculateRewards(
+            true,
             false
         );
 
@@ -1442,8 +1450,7 @@ contract PirexGmxGlpTest is Helper {
         PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
-            address(pirexRewards),
-            address(STAKED_GMX)
+            address(pirexRewards)
         );
 
         vm.expectRevert("RewardRouter: transfer not signalled");
@@ -1478,8 +1485,8 @@ contract PirexGmxGlpTest is Helper {
         // Store the staked balances for later validations
         uint256 oldStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
         uint256 oldStakedGLPBalance = FEE_STAKED_GLP.balanceOf(oldContract);
-        uint256 oldEsGMXClaimable = STAKED_GMX.claimable(oldContract) +
-            FEE_STAKED_GLP.claimable(oldContract);
+        uint256 oldEsGMXClaimable = pirexGmxGlp.calculateRewards(false, true) +
+            pirexGmxGlp.calculateRewards(false, false);
         uint256 oldMPBalance = REWARD_TRACKER_MP.claimable(oldContract);
 
         // Pause the contract before proceeding
@@ -1489,8 +1496,7 @@ contract PirexGmxGlpTest is Helper {
         PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
-            address(pirexRewards),
-            address(STAKED_GMX)
+            address(pirexRewards)
         );
 
         address newContract = address(newPirexGmxGlp);

@@ -83,8 +83,7 @@ contract Helper is Test {
         pirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
-            address(pirexRewards),
-            address(STAKED_GMX)
+            address(pirexRewards)
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
