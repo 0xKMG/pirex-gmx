@@ -340,7 +340,7 @@ contract PirexRewards is Owned {
         )
     {
         (_producerTokens, rewardTokens, rewardAmounts) = producer
-            .claimWETHRewards();
+            .claimRewards();
         uint256 pLen = _producerTokens.length;
 
         // Iterate over the producer tokens and update reward state

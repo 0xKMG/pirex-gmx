@@ -33,10 +33,13 @@ contract PirexGmxGlpTest is Helper {
     );
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
-    event ClaimWETHRewards(
-        uint256 rewards,
-        uint256 gmxRewards,
-        uint256 glpRewards
+    event ClaimRewards(
+        uint256 wethRewards,
+        uint256 esGmxRewards,
+        uint256 gmxWethRewards,
+        uint256 glpWethRewards,
+        uint256 gmxEsGmxRewards,
+        uint256 glpEsGmxRewards
     );
 
     /**
@@ -1114,7 +1117,7 @@ contract PirexGmxGlpTest is Helper {
             ERC20[] memory producerTokens,
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
-        ) = pirexGmxGlp.claimWETHRewards();
+        ) = pirexGmxGlp.claimRewards();
         uint256 wethReceived = WETH.balanceOf(pirexRewardsAddr);
         address wethAddr = address(WETH);
 
@@ -1129,26 +1132,26 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        claimWETHRewards TESTS
+                        claimRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: caller is not pirexRewards
      */
-    function testCannotClaimWETHRewardsNotPirexRewards() external {
+    function testCannotClaimRewardsNotPirexRewards() external {
         vm.prank(testAccounts[0]);
         vm.expectRevert(PirexGmxGlp.NotPirexRewards.selector);
 
-        pirexGmxGlp.claimWETHRewards();
+        pirexGmxGlp.claimRewards();
     }
 
     /**
-        @notice Test claiming WETH rewards earned solely from pxGLP
+        @notice Test claiming both WETH and esGMX rewards
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
      */
-    function testClaimWETHRewards(
+    function testClaimRewards(
         uint32 secondsElapsed,
         uint40 wbtcAmount,
         uint80 gmxAmount
@@ -1170,6 +1173,11 @@ contract PirexGmxGlpTest is Helper {
 
         // Ensure pirexRewards has a zero WETH balance to test balance changes
         assertEq(0, WETH.balanceOf(pirexRewardsAddr));
+        assertEq(0, pxGmx.balanceOf(pirexRewardsAddr));
+
+        uint256 previousStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(
+            address(pirexGmxGlp)
+        );
 
         uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateRewards(
             true,
@@ -1179,6 +1187,29 @@ contract PirexGmxGlpTest is Helper {
             true,
             false
         );
+        uint256 expectedEsGmxRewardsGmx = pirexGmxGlp.calculateRewards(
+            false,
+            true
+        );
+        uint256 expectedEsGmxRewardsGlp = pirexGmxGlp.calculateRewards(
+            false,
+            false
+        );
+        uint256 expectedWETHRewards = expectedWETHRewardsGmx +
+            expectedWETHRewardsGlp;
+        uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
+            expectedEsGmxRewardsGlp;
+
+        vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
+
+        emit ClaimRewards(
+            expectedWETHRewards,
+            expectedEsGmxRewards,
+            expectedWETHRewardsGmx,
+            expectedWETHRewardsGlp,
+            expectedEsGmxRewardsGmx,
+            expectedEsGmxRewardsGlp
+        );
 
         // Impersonate pirexRewards and claim WETH rewards
         vm.prank(pirexRewardsAddr);
@@ -1187,7 +1218,7 @@ contract PirexGmxGlpTest is Helper {
             ERC20[] memory producerTokens,
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
-        ) = pirexGmxGlp.claimWETHRewards();
+        ) = pirexGmxGlp.claimRewards();
         uint256 rewardsReceived = WETH.balanceOf(pirexRewardsAddr);
         address wethAddr = address(WETH);
 
@@ -1203,6 +1234,14 @@ contract PirexGmxGlpTest is Helper {
             rewardsReceived
         );
         assertGt(rewardsReceived, 0);
+        assertEq(WETH.balanceOf(pirexRewardsAddr), expectedWETHRewards);
+        assertEq(pxGmx.balanceOf(pirexRewardsAddr), expectedEsGmxRewards);
+
+        // Claiming esGMX rewards should also be staked immediately
+        assertEq(
+            REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)),
+            previousStakedGmxBalance + expectedEsGmxRewards
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1483,11 +1522,11 @@ contract PirexGmxGlpTest is Helper {
         vm.warp(block.timestamp + 1 days);
 
         // Store the staked balances for later validations
-        uint256 oldStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
-        uint256 oldStakedGLPBalance = FEE_STAKED_GLP.balanceOf(oldContract);
-        uint256 oldEsGMXClaimable = pirexGmxGlp.calculateRewards(false, true) +
+        uint256 oldStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
+        uint256 oldStakedGlpBalance = FEE_STAKED_GLP.balanceOf(oldContract);
+        uint256 oldEsGmxClaimable = pirexGmxGlp.calculateRewards(false, true) +
             pirexGmxGlp.calculateRewards(false, false);
-        uint256 oldMPBalance = REWARD_TRACKER_MP.claimable(oldContract);
+        uint256 oldMpBalance = REWARD_TRACKER_MP.claimable(oldContract);
 
         // Pause the contract before proceeding
         pirexGmxGlp.setPauseState(true);
@@ -1530,8 +1569,8 @@ contract PirexGmxGlpTest is Helper {
         // all pending claimable esGMX and MP are automatically staked
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(newContract),
-            oldStakedGMXBalance + oldEsGMXClaimable + oldMPBalance
+            oldStakedGmxBalance + oldEsGmxClaimable + oldMpBalance
         );
-        assertEq(FEE_STAKED_GLP.balanceOf(newContract), oldStakedGLPBalance);
+        assertEq(FEE_STAKED_GLP.balanceOf(newContract), oldStakedGlpBalance);
     }
 }

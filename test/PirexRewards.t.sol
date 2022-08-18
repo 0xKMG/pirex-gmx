@@ -103,6 +103,23 @@ contract PirexRewardsTest is Helper {
         return rewards + lastBalance * (block.timestamp - lastUpdate);
     }
 
+    function _assertGlobalState(
+        ERC20 producerToken,
+        uint256 expectedLastUpdate,
+        uint256 expectedLastSupply,
+        uint256 expectedRewards
+    ) internal {
+        (
+            uint256 lastUpdate,
+            uint256 lastSupply,
+            uint256 rewards
+        ) = _getGlobalState(producerToken);
+
+        assertEq(expectedLastUpdate, lastUpdate);
+        assertEq(expectedLastSupply, lastSupply);
+        assertEq(expectedRewards, rewards);
+    }
+
     /*//////////////////////////////////////////////////////////////
                         setProducer TESTS
     //////////////////////////////////////////////////////////////*/
@@ -744,40 +761,64 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test harvesting WETH rewards produced by pxGLP
+        @notice Test harvesting both WETH and esGMX rewards produced by pxGMX and pxGLP
         @param  secondsElapsed  uint32  Seconds to forward timestamp
-        @param  ethAmount       uint80  ETH amount used to mint pxGLP
+        @param  ethAmount       uint80  Amount of ETH to mint pxGLP
+        @param  gmxAmount       uint80  Amount of GMX to deposit into pxGMX
      */
-    function testHarvest(uint32 secondsElapsed, uint80 ethAmount) external {
+    function testHarvest(
+        uint32 secondsElapsed,
+        uint80 ethAmount,
+        uint80 gmxAmount
+    ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
         vm.assume(ethAmount > 0.001 ether);
         vm.assume(ethAmount < 10000 ether);
+        vm.assume(gmxAmount != 0);
+        vm.assume(gmxAmount < 1000000e18);
 
         address user = address(this);
 
         vm.deal(user, ethAmount);
 
+        // Deposit GLP and GMX before proceeding
         pirexGmxGlp.depositGlpWithETH{value: ethAmount}(1, user);
 
+        _mintGmx(gmxAmount);
+        GMX.approve(address(pirexGmxGlp), gmxAmount);
+        pirexGmxGlp.depositGmx(gmxAmount, user);
+
+        // Time skip to accrue rewards
         vm.warp(block.timestamp + secondsElapsed);
 
         uint256 wethBalanceBeforeHarvest = WETH.balanceOf(
             address(pirexRewards)
         );
-        uint256 expectedGlobalLastUpdate = block.timestamp;
-        uint256 expectedGlobalLastSupply = pxGlp.totalSupply();
-        uint256 expectedGlobalRewards = _calculateGlobalRewards(pxGlp);
-        ERC20[] memory expectedProducerTokens = new ERC20[](2);
-        ERC20[] memory expectedRewardTokens = new ERC20[](2);
-        uint256[] memory expectedRewardAmounts = new uint256[](2);
+        uint256 pxGmxBalanceBeforeHarvest = pxGmx.balanceOf(
+            address(pirexRewards)
+        );
+        uint256 expectedLastUpdate = block.timestamp;
+        uint256 expectedGlpGlobalLastSupply = pxGlp.totalSupply();
+        uint256 expectedGlpGlobalRewards = _calculateGlobalRewards(pxGlp);
+        uint256 expectedGmxGlobalLastSupply = pxGmx.totalSupply();
+        uint256 expectedGmxGlobalRewards = _calculateGlobalRewards(pxGmx);
+        ERC20[] memory expectedProducerTokens = new ERC20[](4);
+        ERC20[] memory expectedRewardTokens = new ERC20[](4);
+        uint256[] memory expectedRewardAmounts = new uint256[](4);
 
         expectedProducerTokens[0] = pxGmx;
         expectedProducerTokens[1] = pxGlp;
+        expectedProducerTokens[2] = pxGmx;
+        expectedProducerTokens[3] = pxGlp;
         expectedRewardTokens[0] = WETH;
         expectedRewardTokens[1] = WETH;
+        expectedRewardTokens[2] = ERC20(pxGmx); // esGMX rewards are distributed as pxGMX
+        expectedRewardTokens[3] = ERC20(pxGmx);
         expectedRewardAmounts[0] = pirexGmxGlp.calculateRewards(true, true);
         expectedRewardAmounts[1] = pirexGmxGlp.calculateRewards(true, false);
+        expectedRewardAmounts[2] = pirexGmxGlp.calculateRewards(false, true);
+        expectedRewardAmounts[3] = pirexGmxGlp.calculateRewards(false, false);
 
         vm.expectEmit(true, true, true, true, address(pirexRewards));
 
@@ -792,24 +833,29 @@ contract PirexRewardsTest is Helper {
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         ) = pirexRewards.harvest();
-        (
-            uint256 lastUpdate,
-            uint256 lastSupply,
-            uint256 rewards
-        ) = _getGlobalState(pxGlp);
 
-        assertEq(expectedGlobalLastUpdate, lastUpdate);
-        assertEq(expectedGlobalLastSupply, lastSupply);
-        assertEq(expectedGlobalRewards, rewards);
+        // Asserts separately to avoid stack issues
+        _assertGlobalState(
+            pxGlp,
+            expectedLastUpdate,
+            expectedGlpGlobalLastSupply,
+            expectedGlpGlobalRewards
+        );
+        // Since esGMX is distributed as pxGMX, the total supply of pxGMX is also affected
+        _assertGlobalState(
+            pxGmx,
+            expectedLastUpdate,
+            expectedGmxGlobalLastSupply +
+                expectedRewardAmounts[2] +
+                expectedRewardAmounts[3],
+            expectedGmxGlobalRewards
+        );
 
-        uint256 totalRewards;
         uint256 pLen = producerTokens.length;
 
         for (uint256 i; i < pLen; ++i) {
             ERC20 p = producerTokens[i];
             uint256 rewardAmount = rewardAmounts[i];
-
-            totalRewards += rewardAmount;
 
             assertEq(
                 rewardAmount,
@@ -817,10 +863,14 @@ contract PirexRewardsTest is Helper {
             );
         }
 
-        // Check that the correct amount of WETH was transferred to the silo
+        // Check that the correct amount of WETH and pxGMX was transferred to the silo
         assertEq(
             WETH.balanceOf(address(pirexRewards)) - wethBalanceBeforeHarvest,
-            totalRewards
+            expectedRewardAmounts[0] + expectedRewardAmounts[1]
+        );
+        assertEq(
+            pxGmx.balanceOf(address(pirexRewards)) - pxGmxBalanceBeforeHarvest,
+            expectedRewardAmounts[2] + expectedRewardAmounts[3]
         );
     }
 
