@@ -1075,7 +1075,7 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test calculating WETH rewards produced by GMX and GLP
+        @notice Test calculating WETH and esGMX rewards produced by GMX and GLP
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
@@ -1097,8 +1097,9 @@ contract PirexGmxGlpTest is Helper {
         _depositGlpWithERC20(wbtcAmount, address(this));
         _depositGmx(gmxAmount, address(this));
 
-        // Ensure pirexRewards has a zero WETH balance to test balance changes
+        // Ensure pirexRewards has a zero WETH and pxGMX balance to test balance changes
         assertEq(0, WETH.balanceOf(pirexRewardsAddr));
+        assertEq(0, pxGmx.balanceOf(pirexRewardsAddr));
 
         vm.warp(block.timestamp + secondsElapsed);
 
@@ -1110,6 +1111,18 @@ contract PirexGmxGlpTest is Helper {
             true,
             false
         );
+        uint256 expectedEsGmxRewardsGmx = pirexGmxGlp.calculateRewards(
+            false,
+            true
+        );
+        uint256 expectedEsGmxRewardsGlp = pirexGmxGlp.calculateRewards(
+            false,
+            false
+        );
+        uint256 expectedWETHRewards = expectedWETHRewardsGmx +
+            expectedWETHRewardsGlp;
+        uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
+            expectedEsGmxRewardsGlp;
 
         vm.prank(pirexRewardsAddr);
 
@@ -1118,17 +1131,26 @@ contract PirexGmxGlpTest is Helper {
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         ) = pirexGmxGlp.claimRewards();
-        uint256 wethReceived = WETH.balanceOf(pirexRewardsAddr);
         address wethAddr = address(WETH);
+        address pxGlpAddr = address(pxGlp);
+        address pxGmxAddr = address(pxGmx);
 
-        assertEq(address(pxGmx), address(producerTokens[0]));
-        assertEq(address(pxGlp), address(producerTokens[1]));
+        assertEq(pxGmxAddr, address(producerTokens[0]));
+        assertEq(pxGlpAddr, address(producerTokens[1]));
+        assertEq(pxGmxAddr, address(producerTokens[2]));
+        assertEq(pxGlpAddr, address(producerTokens[3]));
         assertEq(wethAddr, address(rewardTokens[0]));
         assertEq(wethAddr, address(rewardTokens[1]));
+        assertEq(pxGmxAddr, address(rewardTokens[2]));
+        assertEq(pxGmxAddr, address(rewardTokens[3]));
         assertEq(expectedWETHRewardsGmx, rewardAmounts[0]);
         assertEq(expectedWETHRewardsGlp, rewardAmounts[1]);
-        assertEq(expectedWETHRewardsGmx + expectedWETHRewardsGlp, wethReceived);
-        assertGt(wethReceived, 0);
+        assertEq(expectedEsGmxRewardsGmx, rewardAmounts[2]);
+        assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
+        assertEq(WETH.balanceOf(pirexRewardsAddr), expectedWETHRewards);
+        assertEq(pxGmx.balanceOf(pirexRewardsAddr), expectedEsGmxRewards);
+        assertGt(expectedWETHRewards, 0);
+        assertGt(expectedEsGmxRewards, 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1195,16 +1217,13 @@ contract PirexGmxGlpTest is Helper {
             false,
             false
         );
-        uint256 expectedWETHRewards = expectedWETHRewardsGmx +
-            expectedWETHRewardsGlp;
-        uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
-            expectedEsGmxRewardsGlp;
 
         vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
 
+        // Limited variable counts due to stack-too-deep issue
         emit ClaimRewards(
-            expectedWETHRewards,
-            expectedEsGmxRewards,
+            expectedWETHRewardsGmx + expectedWETHRewardsGlp,
+            expectedEsGmxRewardsGmx + expectedEsGmxRewardsGlp,
             expectedWETHRewardsGmx,
             expectedWETHRewardsGlp,
             expectedEsGmxRewardsGmx,
@@ -1219,28 +1238,37 @@ contract PirexGmxGlpTest is Helper {
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         ) = pirexGmxGlp.claimRewards();
-        uint256 rewardsReceived = WETH.balanceOf(pirexRewardsAddr);
         address wethAddr = address(WETH);
+        address pxGlpAddr = address(pxGlp);
+        address pxGmxAddr = address(pxGmx);
 
-        assertEq(address(pxGmx), address(producerTokens[0]));
-        assertEq(address(pxGlp), address(producerTokens[1]));
+        assertEq(pxGmxAddr, address(producerTokens[0]));
+        assertEq(pxGlpAddr, address(producerTokens[1]));
+        assertEq(pxGmxAddr, address(producerTokens[2]));
+        assertEq(pxGlpAddr, address(producerTokens[3]));
         assertEq(wethAddr, address(rewardTokens[0]));
         assertEq(wethAddr, address(rewardTokens[1]));
+        assertEq(pxGmxAddr, address(rewardTokens[2]));
+        assertEq(pxGmxAddr, address(rewardTokens[3]));
         assertEq(expectedWETHRewardsGmx, rewardAmounts[0]);
         assertEq(expectedWETHRewardsGlp, rewardAmounts[1]);
-        assertEq(rewardsReceived, rewardAmounts[0] + rewardAmounts[1]);
+        assertEq(expectedEsGmxRewardsGmx, rewardAmounts[2]);
+        assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
+        assertGt(expectedWETHRewardsGmx + expectedWETHRewardsGlp, 0);
+        assertGt(expectedEsGmxRewardsGmx + expectedEsGmxRewardsGlp, 0);
         assertEq(
-            expectedWETHRewardsGmx + expectedWETHRewardsGlp,
-            rewardsReceived
+            WETH.balanceOf(pirexRewardsAddr),
+            expectedWETHRewardsGmx + expectedWETHRewardsGlp
         );
-        assertGt(rewardsReceived, 0);
-        assertEq(WETH.balanceOf(pirexRewardsAddr), expectedWETHRewards);
-        assertEq(pxGmx.balanceOf(pirexRewardsAddr), expectedEsGmxRewards);
+        assertEq(
+            pxGmx.balanceOf(pirexRewardsAddr),
+            expectedEsGmxRewardsGmx + expectedEsGmxRewardsGlp
+        );
 
         // Claiming esGMX rewards should also be staked immediately
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)),
-            previousStakedGmxBalance + expectedEsGmxRewards
+            previousStakedGmxBalance + expectedEsGmxRewardsGlp + expectedEsGmxRewardsGmx
         );
     }
 
