@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {PxGlp} from "src/PxGlp.sol";
+import {PxGlp} from "src/tokens/PxGlp.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PxGlpTest is Helper {

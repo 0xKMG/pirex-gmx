@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-interface IPxyGmx {
+interface IERC1155PresetMinterSupply {
     function mintBatch(
         address to,
         uint256[] memory ids,

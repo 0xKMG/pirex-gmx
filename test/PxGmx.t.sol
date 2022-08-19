@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {PxGmx} from "src/PxGmx.sol";
+import {PxGmx} from "src/tokens/PxGmx.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PxGmxTest is Helper {

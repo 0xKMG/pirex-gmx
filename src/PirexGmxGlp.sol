@@ -10,8 +10,8 @@ import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {Vault} from "src/external/Vault.sol";
-import {PxGlp} from "src/PxGlp.sol";
-import {PxGmx} from "src/PxGmx.sol";
+import {PxGmx} from "src/tokens/PxGmx.sol";
+import {PxGlp} from "src/tokens/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
 contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
