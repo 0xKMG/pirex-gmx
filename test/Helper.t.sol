@@ -98,11 +98,14 @@ contract Helper is Test {
             address(ypxGmx),
             address(ypxGlp)
         );
+        bytes32 minterRole = pxGmx.MINTER_ROLE();
 
-        pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
-        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
+        pxGmx.grantRole(minterRole, address(pirexGmxGlp));
+        pxGlp.grantRole(minterRole, address(pirexGmxGlp));
         pirexGmxGlp.setPirexRewards(address(pirexRewards));
         pirexRewards.setProducer(address(pirexGmxGlp));
+        ypxGmx.grantRole(minterRole, address(pirexFutures));
+        ypxGlp.grantRole(minterRole, address(pirexFutures));
 
         // Unpause after completing the setup
         pirexGmxGlp.setPauseState(false);
