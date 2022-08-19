@@ -10,6 +10,7 @@ import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
+import {PirexFutures} from "src/PirexFutures.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
@@ -54,6 +55,7 @@ contract Helper is Test {
     PxGmx internal immutable pxGmx;
     PxGlp internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
+    PirexFutures internal immutable pirexFutures;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -85,6 +87,7 @@ contract Helper is Test {
             address(pxGlp),
             address(pirexRewards)
         );
+        pirexFutures = new PirexFutures(address(pxGmx), address(pxGlp));
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
@@ -280,5 +283,11 @@ contract Helper is Test {
                     Strings.toHexString(uint256(role), 32)
                 )
             );
+    }
+
+    function _getExpiry(uint256 index) internal view returns (uint256) {
+        uint256 duration = pirexFutures.durations(index);
+
+        return duration + ((block.timestamp / duration) * duration);
     }
 }
