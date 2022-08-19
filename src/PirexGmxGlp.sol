@@ -71,16 +71,25 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     );
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
-    event ClaimWETHRewards(
-        uint256 rewards,
-        uint256 gmxRewards,
-        uint256 glpRewards
+    event ClaimRewards(
+        uint256 wethRewards,
+        uint256 esGmxRewards,
+        uint256 gmxWethRewards,
+        uint256 glpWethRewards,
+        uint256 gmxEsGmxRewards,
+        uint256 glpEsGmxRewards
     );
 
     error ZeroAmount();
     error ZeroAddress();
     error InvalidToken(address token);
     error NotPirexRewards();
+    error InvalidReward(address token);
+
+    modifier onlyPirexRewards() {
+        if (msg.sender != pirexRewards) revert NotPirexRewards();
+        _;
+    }
 
     /**
         @param  _pxGmx         address  PxGmx contract address
@@ -343,58 +352,107 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Claim WETH rewards
+        @notice Claim WETH/esGMX rewards
         @return producerTokens  ERC20[]    Producer tokens (pxGLP and pxGMX)
         @return rewardTokens    ERC20[]    Reward token contract instances
         @return rewardAmounts   uint256[]  Reward amounts from each producerToken
      */
-    function claimWETHRewards()
+    function claimRewards()
         external
+        onlyPirexRewards
         returns (
             ERC20[] memory producerTokens,
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         )
     {
-        if (msg.sender != pirexRewards) revert NotPirexRewards();
-
-        producerTokens = new ERC20[](2);
-        rewardTokens = new ERC20[](2);
-        rewardAmounts = new uint256[](2);
+        producerTokens = new ERC20[](4);
+        rewardTokens = new ERC20[](4);
+        rewardAmounts = new uint256[](4);
         producerTokens[0] = pxGmx;
         producerTokens[1] = pxGlp;
+        producerTokens[2] = pxGmx;
+        producerTokens[3] = pxGlp;
         rewardTokens[0] = WETH;
         rewardTokens[1] = WETH;
+        rewardTokens[2] = ERC20(pxGmx); // esGMX rewards distributed as pxGMX
+        rewardTokens[3] = ERC20(pxGmx);
 
         uint256 wethBeforeClaim = WETH.balanceOf(address(this));
-        uint256 gmxRewards = calculateRewards(true, true);
-        uint256 glpRewards = calculateRewards(true, false);
+        uint256 gmxWethRewards = calculateRewards(true, true);
+        uint256 glpWethRewards = calculateRewards(true, false);
 
-        // Claim only WETH rewards to keep gas to a minimum - may change in generalized version
+        uint256 esGmxBeforeClaim = STAKED_GMX.depositBalances(
+            address(this),
+            address(ESGMX)
+        );
+        uint256 gmxEsGmxRewards = calculateRewards(false, true);
+        uint256 glpEsGmxRewards = calculateRewards(false, false);
+
+        // Claim and stake claimable esGMX, while also claim WETH rewards
         REWARD_ROUTER_V2.handleRewards(
             false,
             false,
-            false,
-            false,
+            true,
+            true,
             false,
             true,
             false
         );
 
-        uint256 rewards = WETH.balanceOf(address(this)) - wethBeforeClaim;
+        uint256 wethRewards = WETH.balanceOf(address(this)) - wethBeforeClaim;
+        uint256 esGmxRewards = STAKED_GMX.depositBalances(
+            address(this),
+            address(ESGMX)
+        ) - esGmxBeforeClaim;
 
-        if (rewards != 0) {
+        if (wethRewards != 0) {
             // This may not be necessary and is more of a hedge against a discrepancy between
             // the actual rewards and the calculated amounts. Needs further consideration
             rewardAmounts[0] =
-                (gmxRewards * rewards) /
-                (gmxRewards + glpRewards);
-            rewardAmounts[1] = rewards - rewardAmounts[0];
-
-            WETH.safeTransfer(msg.sender, rewards);
+                (gmxWethRewards * wethRewards) /
+                (gmxWethRewards + glpWethRewards);
+            rewardAmounts[1] = wethRewards - rewardAmounts[0];
         }
 
-        emit ClaimWETHRewards(rewards, gmxRewards, glpRewards);
+        if (esGmxRewards != 0) {
+            rewardAmounts[2] =
+                (gmxEsGmxRewards * esGmxRewards) /
+                (gmxEsGmxRewards + glpEsGmxRewards);
+            rewardAmounts[3] = esGmxRewards - rewardAmounts[2];
+        }
+
+        emit ClaimRewards(
+            wethRewards,
+            esGmxRewards,
+            gmxWethRewards,
+            glpWethRewards,
+            gmxEsGmxRewards,
+            glpEsGmxRewards
+        );
+    }
+
+    /**
+        @notice Mint/transfer the specified reward token to the recipient
+        @param  recipient           address  Recipient of the claim
+        @param  rewardTokenAddress  address  Reward token address
+        @param  rewardAmount        uint256  Reward amount
+     */
+    function claimUserReward(
+        address recipient,
+        address rewardTokenAddress,
+        uint256 rewardAmount
+    ) external onlyPirexRewards {
+        if (rewardTokenAddress == address(0)) revert ZeroAddress();
+        if (recipient == address(0)) revert ZeroAddress();
+
+        if (rewardTokenAddress == address(pxGmx)) {
+            // Distribute esGMX rewards as pxGMX
+            pxGmx.mint(recipient, rewardAmount);
+        } else if (rewardTokenAddress == address(WETH)) {
+            // For WETH, we can directly transfer it
+            WETH.safeTransfer(recipient, rewardAmount);
+        }
     }
 
     /**
