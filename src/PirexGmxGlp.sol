@@ -443,6 +443,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address rewardTokenAddress,
         uint256 rewardAmount
     ) external onlyPirexRewards {
+        if (rewardTokenAddress == address(0)) revert ZeroAddress();
         if (recipient == address(0)) revert ZeroAddress();
 
         if (rewardTokenAddress == address(pxGmx)) {

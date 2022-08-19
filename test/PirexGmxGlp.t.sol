@@ -1280,7 +1280,7 @@ contract PirexGmxGlpTest is Helper {
     /**
         @notice Test tx reversion due to recipient being zero
      */
-    function testCannotClaimUserRewardZeroAddress() external {
+    function testCannotClaimUserRewardRecipientZeroAddress() external {
         address invalidRecipient = address(0);
         address rewardTokenAddress = address(WETH);
         uint256 rewardAmount = 1;
@@ -1292,6 +1292,25 @@ contract PirexGmxGlpTest is Helper {
         pirexGmxGlp.claimUserReward(
             invalidRecipient,
             rewardTokenAddress,
+            rewardAmount
+        );
+    }
+
+    /**
+        @notice Test tx reversion due to reward token being zero
+     */
+    function testCannotClaimUserRewardTokenZeroAddress() external {
+        address recipient = address(this);
+        address invalidRewardTokenAddress = address(0);
+        uint256 rewardAmount = 1;
+
+        vm.prank(address(pirexRewards));
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.claimUserReward(
+            recipient,
+            invalidRewardTokenAddress,
             rewardAmount
         );
     }

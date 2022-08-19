@@ -393,7 +393,7 @@ contract PirexRewards is Owned {
             uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
                 globalRewards;
 
-            if (amount > 0) {
+            if (amount != 0) {
                 // Update reward state (i.e. amount) to reflect reward tokens transferred out
                 p.rewardStates[rewardToken] -= amount;
 
