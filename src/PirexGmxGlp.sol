@@ -86,6 +86,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     error NotPirexRewards();
     error InvalidReward(address token);
 
+    modifier onlyPirexRewards() {
+        if (msg.sender != pirexRewards) revert NotPirexRewards();
+        _;
+    }
+
     /**
         @param  _pxGmx         address  PxGmx contract address
         @param  _pxGlp         address  PxGlp contract address
@@ -354,14 +359,13 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
      */
     function claimRewards()
         external
+        onlyPirexRewards
         returns (
             ERC20[] memory producerTokens,
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         )
     {
-        if (msg.sender != pirexRewards) revert NotPirexRewards();
-
         producerTokens = new ERC20[](4);
         rewardTokens = new ERC20[](4);
         rewardAmounts = new uint256[](4);
@@ -438,8 +442,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address recipient,
         address rewardTokenAddress,
         uint256 rewardAmount
-    ) external {
-        if (msg.sender != pirexRewards) revert NotPirexRewards();
+    ) external onlyPirexRewards {
         if (recipient == address(0)) revert ZeroAddress();
 
         if (rewardTokenAddress == address(pxGmx)) {
@@ -448,8 +451,6 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         } else if (rewardTokenAddress == address(WETH)) {
             // For WETH, we can directly transfer it
             WETH.safeTransfer(recipient, rewardAmount);
-        } else {
-            revert InvalidReward(rewardTokenAddress);
         }
     }
 

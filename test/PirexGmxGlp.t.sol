@@ -1297,30 +1297,6 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to the reward token address being invalid
-     */
-    function testCannotClaimUserRewardInvalidToken() external {
-        address recipient = address(this);
-        address invalidRewardTokenAddress = address(this);
-        uint256 rewardAmount = 1;
-
-        vm.prank(address(pirexRewards));
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                PirexGmxGlp.InvalidReward.selector,
-                invalidRewardTokenAddress
-            )
-        );
-
-        pirexGmxGlp.claimUserReward(
-            recipient,
-            invalidRewardTokenAddress,
-            rewardAmount
-        );
-    }
-
-    /**
         @notice Test claim user reward with valid reward tokens
         @param  wethAmount  uint80  Amount of claimable WETH
         @param  pxGmxAmount   uint80  Amount of claimable pxGMX
