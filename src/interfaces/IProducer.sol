@@ -11,4 +11,10 @@ interface IProducer {
             ERC20[] memory rewardTokens,
             uint256[] memory rewardAmounts
         );
+
+    function claimUserReward(
+        address recipient,
+        address rewardTokenAddress,
+        uint256 rewardAmount
+    ) external;
 }

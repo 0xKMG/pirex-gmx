@@ -7,6 +7,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {Vault} from "src/external/Vault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
+import {IWETH} from "src/interfaces/IWETH.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGmxGlpTest is Helper {
@@ -1097,10 +1098,6 @@ contract PirexGmxGlpTest is Helper {
         _depositGlpWithERC20(wbtcAmount, address(this));
         _depositGmx(gmxAmount, address(this));
 
-        // Ensure pirexRewards has a zero WETH and pxGMX balance to test balance changes
-        assertEq(0, WETH.balanceOf(pirexRewardsAddr));
-        assertEq(0, pxGmx.balanceOf(pirexRewardsAddr));
-
         vm.warp(block.timestamp + secondsElapsed);
 
         uint256 expectedWETHRewardsGmx = pirexGmxGlp.calculateRewards(
@@ -1147,8 +1144,6 @@ contract PirexGmxGlpTest is Helper {
         assertEq(expectedWETHRewardsGlp, rewardAmounts[1]);
         assertEq(expectedEsGmxRewardsGmx, rewardAmounts[2]);
         assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
-        assertEq(WETH.balanceOf(pirexRewardsAddr), expectedWETHRewards);
-        assertEq(pxGmx.balanceOf(pirexRewardsAddr), expectedEsGmxRewards);
         assertGt(expectedWETHRewards, 0);
         assertGt(expectedEsGmxRewards, 0);
     }
@@ -1192,10 +1187,6 @@ contract PirexGmxGlpTest is Helper {
 
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + secondsElapsed);
-
-        // Ensure pirexRewards has a zero WETH balance to test balance changes
-        assertEq(0, WETH.balanceOf(pirexRewardsAddr));
-        assertEq(0, pxGmx.balanceOf(pirexRewardsAddr));
 
         uint256 previousStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(
             address(pirexGmxGlp)
@@ -1257,14 +1248,115 @@ contract PirexGmxGlpTest is Helper {
         assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
         assertGt(expectedWETHRewards, 0);
         assertGt(expectedEsGmxRewards, 0);
-        assertEq(WETH.balanceOf(pirexRewardsAddr), expectedWETHRewards);
-        assertEq(pxGmx.balanceOf(pirexRewardsAddr), expectedEsGmxRewards);
 
         // Claiming esGMX rewards should also be staked immediately
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)),
             previousStakedGmxBalance + expectedEsGmxRewards
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        claimUserReward TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller is not pirexRewards
+     */
+    function testCannotClaimUserRewardNotPirexRewards() external {
+        address recipient = address(this);
+        address rewardTokenAddress = address(WETH);
+        uint256 rewardAmount = 1;
+
+        vm.expectRevert(PirexGmxGlp.NotPirexRewards.selector);
+
+        pirexGmxGlp.claimUserReward(
+            recipient,
+            rewardTokenAddress,
+            rewardAmount
+        );
+    }
+
+    /**
+        @notice Test tx reversion due to recipient being zero
+     */
+    function testCannotClaimUserRewardZeroAddress() external {
+        address invalidRecipient = address(0);
+        address rewardTokenAddress = address(WETH);
+        uint256 rewardAmount = 1;
+
+        vm.prank(address(pirexRewards));
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.claimUserReward(
+            invalidRecipient,
+            rewardTokenAddress,
+            rewardAmount
+        );
+    }
+
+    /**
+        @notice Test tx reversion due to the reward token address being invalid
+     */
+    function testCannotClaimUserRewardInvalidToken() external {
+        address recipient = address(this);
+        address invalidRewardTokenAddress = address(this);
+        uint256 rewardAmount = 1;
+
+        vm.prank(address(pirexRewards));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                PirexGmxGlp.InvalidReward.selector,
+                invalidRewardTokenAddress
+            )
+        );
+
+        pirexGmxGlp.claimUserReward(
+            recipient,
+            invalidRewardTokenAddress,
+            rewardAmount
+        );
+    }
+
+    /**
+        @notice Test claim user reward with valid reward tokens
+        @param  wethAmount  uint80  Amount of claimable WETH
+        @param  pxGmxAmount   uint80  Amount of claimable pxGMX
+     */
+    function testClaimUserReward(uint80 wethAmount, uint80 pxGmxAmount)
+        external
+    {
+        vm.assume(wethAmount > 0.001 ether);
+        vm.assume(wethAmount < 1_000 ether);
+        vm.assume(pxGmxAmount != 0);
+        vm.assume(pxGmxAmount < 1000000e18);
+
+        address user = address(this);
+
+        assertEq(0, WETH.balanceOf(user));
+        assertEq(0, pxGmx.balanceOf(user));
+
+        // Mint and transfers tokens for user claim tests
+        vm.deal(address(this), wethAmount);
+
+        IWETH(address(WETH)).depositTo{value: wethAmount}(address(pirexGmxGlp));
+
+        vm.prank(address(pirexGmxGlp));
+
+        pxGmx.mint(address(pirexGmxGlp), pxGmxAmount);
+
+        // Test claim via PirexRewards contract
+        vm.startPrank(address(pirexRewards));
+
+        pirexGmxGlp.claimUserReward(user, address(WETH), wethAmount);
+        pirexGmxGlp.claimUserReward(user, address(pxGmx), pxGmxAmount);
+
+        vm.stopPrank();
+
+        assertEq(WETH.balanceOf(user), wethAmount);
+        assertEq(pxGmx.balanceOf(user), pxGmxAmount);
     }
 
     /*//////////////////////////////////////////////////////////////

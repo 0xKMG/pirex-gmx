@@ -396,7 +396,7 @@ contract PirexRewards is Owned {
             // Update reward state (i.e. amount) to reflect reward tokens transferred out
             p.rewardStates[rewardToken] -= amount;
 
-            rewardTokens[i].safeTransfer(recipient, amount);
+            producer.claimUserReward(recipient, address(rewardToken), amount);
         }
     }
 

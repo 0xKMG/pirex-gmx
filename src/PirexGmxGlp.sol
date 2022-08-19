@@ -16,7 +16,6 @@ import {PirexRewards} from "src/PirexRewards.sol";
 
 contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
-    using SafeTransferLib for PxGmx;
 
     // Miscellaneous dependency contracts (e.g. GMX) and addresses
     // @TODO: Add a compound method for updating any that may change
@@ -85,6 +84,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     error ZeroAddress();
     error InvalidToken(address token);
     error NotPirexRewards();
+    error InvalidReward(address token);
 
     /**
         @param  _pxGmx         address  PxGmx contract address
@@ -409,8 +409,6 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
                 (gmxWethRewards * wethRewards) /
                 (gmxWethRewards + glpWethRewards);
             rewardAmounts[1] = wethRewards - rewardAmounts[0];
-
-            WETH.safeTransfer(msg.sender, wethRewards);
         }
 
         if (esGmxRewards != 0) {
@@ -418,10 +416,6 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
                 (gmxEsGmxRewards * esGmxRewards) /
                 (gmxEsGmxRewards + glpEsGmxRewards);
             rewardAmounts[3] = esGmxRewards - rewardAmounts[2];
-
-            // Distribute esGMX rewards as pxGMX
-            pxGmx.mint(address(this), esGmxRewards);
-            pxGmx.safeTransfer(msg.sender, esGmxRewards);
         }
 
         emit ClaimRewards(
@@ -432,6 +426,31 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             gmxEsGmxRewards,
             glpEsGmxRewards
         );
+    }
+
+    /**
+        @notice Mint/transfer the specified reward token to the recipient
+        @param  recipient           address  Recipient of the claim
+        @param  rewardTokenAddress  address  Reward token address
+        @param  rewardAmount        uint256  Reward amount
+     */
+    function claimUserReward(
+        address recipient,
+        address rewardTokenAddress,
+        uint256 rewardAmount
+    ) external {
+        if (msg.sender != pirexRewards) revert NotPirexRewards();
+        if (recipient == address(0)) revert ZeroAddress();
+
+        if (rewardTokenAddress == address(pxGmx)) {
+            // Distribute esGMX rewards as pxGMX
+            pxGmx.mint(recipient, rewardAmount);
+        } else if (rewardTokenAddress == address(WETH)) {
+            // For WETH, we can directly transfer it
+            WETH.safeTransfer(recipient, rewardAmount);
+        } else {
+            revert InvalidReward(rewardTokenAddress);
+        }
     }
 
     /**

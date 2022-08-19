@@ -795,12 +795,6 @@ contract PirexRewardsTest is Helper {
         // Time skip to accrue rewards
         vm.warp(block.timestamp + secondsElapsed);
 
-        uint256 wethBalanceBeforeHarvest = WETH.balanceOf(
-            address(pirexRewards)
-        );
-        uint256 pxGmxBalanceBeforeHarvest = pxGmx.balanceOf(
-            address(pirexRewards)
-        );
         uint256 expectedLastUpdate = block.timestamp;
         uint256 expectedGlpGlobalLastSupply = pxGlp.totalSupply();
         uint256 expectedGlpGlobalRewards = _calculateGlobalRewards(pxGlp);
@@ -844,13 +838,10 @@ contract PirexRewardsTest is Helper {
             expectedGlpGlobalLastSupply,
             expectedGlpGlobalRewards
         );
-        // Since esGMX is distributed as pxGMX, the total supply of pxGMX is also affected
         _assertGlobalState(
             pxGmx,
             expectedLastUpdate,
-            expectedGmxGlobalLastSupply +
-                expectedRewardAmounts[2] +
-                expectedRewardAmounts[3],
+            expectedGmxGlobalLastSupply,
             expectedGmxGlobalRewards
         );
 
@@ -865,16 +856,6 @@ contract PirexRewardsTest is Helper {
                 pirexRewards.getRewardState(p, rewardTokens[i])
             );
         }
-
-        // Check that the correct amount of WETH and pxGMX was transferred to the silo
-        assertEq(
-            WETH.balanceOf(address(pirexRewards)) - wethBalanceBeforeHarvest,
-            expectedRewardAmounts[0] + expectedRewardAmounts[1]
-        );
-        assertEq(
-            pxGmx.balanceOf(address(pirexRewards)) - pxGmxBalanceBeforeHarvest,
-            expectedRewardAmounts[2] + expectedRewardAmounts[3]
-        );
     }
 
     /*//////////////////////////////////////////////////////////////
