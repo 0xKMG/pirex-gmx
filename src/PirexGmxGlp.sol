@@ -416,7 +416,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
                         EMERGENCY/MIGRATION LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /** 
+    /**
         @notice Set the contract's pause state
         @param state  bool  Pause state
     */
@@ -428,7 +428,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         }
     }
 
-    /** 
+    /**
         @notice Initiate contract migration (called by the old contract)
         @param  newContract  address  Address of the new contract
     */
@@ -446,7 +446,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         emit InitiateMigration(newContract);
     }
 
-    /** 
+    /**
         @notice Complete contract migration (called by the new contract)
         @param  oldContract  address  Address of the old contract
     */

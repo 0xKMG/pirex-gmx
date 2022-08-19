@@ -1,4 +1,4 @@
-PirexFutures:testGetEpochForAnnualDuration() (gas: 12431)
-PirexFutures:testGetEpochForMonthDuration() (gas: 12365)
-PirexFutures:testGetEpochForQuarterDuration() (gas: 12386)
-PirexFutures:testGetEpochForSemiAnnualDuration() (gas: 12364)
+PirexFutures:testGetExpiryFor180DayDuration() (gas: 9232)
+PirexFutures:testGetExpiryFor30DayDuration() (gas: 9199)
+PirexFutures:testGetExpiryFor360DayDuration() (gas: 9200)
+PirexFutures:testGetExpiryFor90DayDuration() (gas: 9266)

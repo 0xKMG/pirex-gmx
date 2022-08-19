@@ -49,4 +49,8 @@ contract PirexFutures is Helper {
 
         assertEq(expectedTimestamp, pirexFutures.getExpiry(index));
     }
+
+    /*//////////////////////////////////////////////////////////////
+                            getExpiry TESTS
+    //////////////////////////////////////////////////////////////*/
 }
