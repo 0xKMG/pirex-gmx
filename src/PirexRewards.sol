@@ -340,7 +340,7 @@ contract PirexRewards is Owned {
         )
     {
         (_producerTokens, rewardTokens, rewardAmounts) = producer
-            .claimWETHRewards();
+            .claimRewards();
         uint256 pLen = _producerTokens.length;
 
         // Iterate over the producer tokens and update reward state
@@ -393,10 +393,12 @@ contract PirexRewards is Owned {
             uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
                 globalRewards;
 
-            // Update reward state (i.e. amount) to reflect reward tokens transferred out
-            p.rewardStates[rewardToken] -= amount;
+            if (amount != 0) {
+                // Update reward state (i.e. amount) to reflect reward tokens transferred out
+                p.rewardStates[rewardToken] -= amount;
 
-            rewardTokens[i].safeTransfer(recipient, amount);
+                producer.claimUserReward(recipient, address(rewardToken), amount);
+            }
         }
     }
 
