@@ -7,10 +7,11 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
-import {PxGmx} from "src/PxGmx.sol";
-import {PxGlp} from "src/PxGlp.sol";
+import {PxGmx} from "src/tokens/PxGmx.sol";
+import {PxGlp} from "src/tokens/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexFutures} from "src/PirexFutures.sol";
+import {ERC1155PresetMinterSupply} from "src/tokens/ERC1155PresetMinterSupply.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
@@ -56,6 +57,8 @@ contract Helper is Test {
     PxGlp internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
     PirexFutures internal immutable pirexFutures;
+    ERC1155PresetMinterSupply internal immutable ypxGmx;
+    ERC1155PresetMinterSupply internal immutable ypxGlp;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -82,12 +85,19 @@ contract Helper is Test {
         pirexRewards = new PirexRewards();
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
+        ypxGmx = new ERC1155PresetMinterSupply("");
+        ypxGlp = new ERC1155PresetMinterSupply("");
         pirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
             address(pirexRewards)
         );
-        pirexFutures = new PirexFutures(address(pxGmx), address(pxGlp));
+        pirexFutures = new PirexFutures(
+            address(pxGmx),
+            address(pxGlp),
+            address(ypxGmx),
+            address(ypxGlp)
+        );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));

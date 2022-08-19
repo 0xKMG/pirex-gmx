@@ -2,26 +2,54 @@
 pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
-import {ERC1155PresetMinterSupply} from "src/tokens/ERC1155PresetMinterSupply.sol";
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
+import {IERC1155PresetMinterSupply} from "src/interfaces/IERC1155PresetMinterSupply.sol";
 
 contract PirexFutures is Owned {
-    address public immutable pxGmx;
-    address public immutable pxGlp;
+    using SafeTransferLib for ERC20;
+
+    ERC20 public immutable pxGmx;
+    ERC20 public immutable pxGlp;
+    IERC1155PresetMinterSupply public immutable ypxGmx;
+    IERC1155PresetMinterSupply public immutable ypxGlp;
 
     uint256[] public durations = [30 days, 90 days, 180 days, 360 days];
 
+    event MintYield(
+        bool indexed useGmx,
+        uint256 indexed durationIndex,
+        uint256 periods,
+        uint256 assets,
+        address indexed receiver,
+        uint256[] tokenIds,
+        uint256[] amounts
+    );
+
     error ZeroAddress();
+    error ZeroAmount();
 
     /**
-        @param  _pxGmx  address  PxGmx contract address
-        @param  _pxGlp  address  PxGlp contract address
+        @param  _pxGmx   address  PxGmx contract address
+        @param  _pxGlp   address  PxGlp contract address
+        @param  _ypxGmx  address  YpxGmx contract address
+        @param  _ypxGlp  address  YpxGlp contract address
     */
-    constructor(address _pxGmx, address _pxGlp) Owned(msg.sender) {
+    constructor(
+        address _pxGmx,
+        address _pxGlp,
+        address _ypxGmx,
+        address _ypxGlp
+    ) Owned(msg.sender) {
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
+        if (_ypxGmx == address(0)) revert ZeroAddress();
+        if (_ypxGlp == address(0)) revert ZeroAddress();
 
-        pxGmx = _pxGmx;
-        pxGlp = _pxGlp;
+        pxGmx = ERC20(_pxGmx);
+        pxGlp = ERC20(_pxGlp);
+        ypxGmx = IERC1155PresetMinterSupply(_ypxGmx);
+        ypxGlp = IERC1155PresetMinterSupply(_ypxGlp);
     }
 
     /**
@@ -36,21 +64,23 @@ contract PirexFutures is Owned {
 
     /**
         @notice Mint secured future yield for a specified duration
-        @param  token          ERC1155PresetMinterSupply  Token contract
-        @param  tokenUri       bytes                      Token URI bytes
-        @param  durationIndex  uint256                    Duration index
-        @param  periods        uint256                    Number of expiry periods
-        @param  assets         uint256                    Futures amount
-        @param  receiver       address                    Receives futures
+        @param  useGmx         bool     Use pxGMX
+        @param  durationIndex  uint256  Duration index
+        @param  periods        uint256  Number of expiry periods
+        @param  assets         uint256  Futures amount
+        @param  receiver       address  Receives futures
     */
     function mintYield(
-        ERC1155PresetMinterSupply token,
-        bytes memory tokenUri,
+        bool useGmx,
         uint256 durationIndex,
         uint256 periods,
         uint256 assets,
         address receiver
     ) external {
+        if (periods == 0) revert ZeroAmount();
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
         uint256 duration = durations[durationIndex];
         uint256 startingExpiry = getExpiry(durationIndex);
         uint256[] memory tokenIds = new uint256[](periods);
@@ -73,6 +103,23 @@ contract PirexFutures is Owned {
             }
         }
 
-        token.mintBatch(receiver, tokenIds, amounts, tokenUri);
+        emit MintYield(
+            useGmx,
+            durationIndex,
+            periods,
+            assets,
+            receiver,
+            tokenIds,
+            amounts
+        );
+
+        // Secure productive assets and batch mint yield tokens
+        if (useGmx) {
+            pxGmx.safeTransferFrom(msg.sender, address(this), assets);
+            ypxGmx.mintBatch(receiver, tokenIds, amounts, "");
+        } else {
+            pxGlp.safeTransferFrom(msg.sender, address(this), assets);
+            ypxGlp.mintBatch(receiver, tokenIds, amounts, "");
+        }
     }
 }
