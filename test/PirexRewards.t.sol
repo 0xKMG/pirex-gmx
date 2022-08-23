@@ -1602,7 +1602,6 @@ contract PirexRewardsTest is Helper {
         // Setup a new set of contracts for testing upgradeability
         // as we can't use the existing one from the constructor (can't be upgraded)
         PirexRewards oldImplementation = new PirexRewards();
-        oldImplementation.initialize();
 
         // Deploy and setup the proxy (with a test account as admin)
         // Note that admin won't be able to fallback to the proxy's implementation methods
