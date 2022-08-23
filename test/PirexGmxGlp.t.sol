@@ -1599,6 +1599,7 @@ contract PirexGmxGlpTest is Helper {
         PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
+            address(pirexFees),
             address(pirexRewards)
         );
 
@@ -1645,6 +1646,7 @@ contract PirexGmxGlpTest is Helper {
         PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
+            address(pirexFees),
             address(pirexRewards)
         );
 

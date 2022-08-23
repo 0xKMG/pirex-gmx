@@ -82,12 +82,13 @@ contract Helper is Test {
         pirexRewards = new PirexRewards();
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
+        pirexFees = new PirexFees(testAccounts[0], testAccounts[1]);
         pirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
+            address(pirexFees),
             address(pirexRewards)
         );
-        pirexFees = new PirexFees(testAccounts[0], testAccounts[1]);
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));

@@ -10,8 +10,9 @@ import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {Vault} from "src/external/Vault.sol";
-import {PxGlp} from "src/PxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
+import {PxGlp} from "src/PxGlp.sol";
+import {PirexFees} from "src/PirexFees.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
 contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
@@ -43,6 +44,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     // Pirex token contract(s)
     PxGmx public immutable pxGmx;
     PxGlp public immutable pxGlp;
+    PirexFees public immutable pirexFees;
 
     // Pirex reward module contract
     address public pirexRewards;
@@ -94,11 +96,13 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     /**
         @param  _pxGmx         address  PxGmx contract address
         @param  _pxGlp         address  PxGlp contract address
+        @param  _pirexFees     address  PirexFees contract address
         @param  _pirexRewards  address  PirexRewards contract address
     */
     constructor(
         address _pxGmx,
         address _pxGlp,
+        address _pirexFees,
         address _pirexRewards
     ) Owned(msg.sender) {
         // Started as being paused, and should only be unpaused after correctly setup
@@ -107,9 +111,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
         if (_pirexRewards == address(0)) revert ZeroAddress();
+        if (_pirexFees == address(0)) revert ZeroAddress();
 
         pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
+        pirexFees = PirexFees(_pirexFees);
         pirexRewards = _pirexRewards;
 
         // Pre-approving stakedGmx contract for staking GMX on behalf of our vault
@@ -474,7 +480,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
                         EMERGENCY/MIGRATION LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /** 
+    /**
         @notice Set the contract's pause state
         @param state  bool  Pause state
     */
@@ -486,7 +492,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         }
     }
 
-    /** 
+    /**
         @notice Initiate contract migration (called by the old contract)
         @param  newContract  address  Address of the new contract
     */
@@ -504,7 +510,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         emit InitiateMigration(newContract);
     }
 
-    /** 
+    /**
         @notice Complete contract migration (called by the new contract)
         @param  oldContract  address  Address of the old contract
     */
