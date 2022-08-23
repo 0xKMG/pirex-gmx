@@ -9,9 +9,9 @@ import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PxGmx} from "src/tokens/PxGmx.sol";
 import {PxGlp} from "src/tokens/PxGlp.sol";
-import {PirexRewards} from "src/PirexRewards.sol";
-import {PirexFutures} from "src/PirexFutures.sol";
 import {ERC1155PresetMinterSupply} from "src/tokens/ERC1155PresetMinterSupply.sol";
+import {PirexRewards} from "src/PirexRewards.sol";
+import {PirexFutures} from "src/futures/PirexFutures.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
@@ -57,6 +57,8 @@ contract Helper is Test {
     PxGlp internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
     PirexFutures internal immutable pirexFutures;
+    ERC1155PresetMinterSupply internal immutable apxGmx;
+    ERC1155PresetMinterSupply internal immutable apxGlp;
     ERC1155PresetMinterSupply internal immutable ypxGmx;
     ERC1155PresetMinterSupply internal immutable ypxGlp;
 
@@ -85,6 +87,8 @@ contract Helper is Test {
         pirexRewards = new PirexRewards();
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
+        apxGmx = new ERC1155PresetMinterSupply("");
+        apxGlp = new ERC1155PresetMinterSupply("");
         ypxGmx = new ERC1155PresetMinterSupply("");
         ypxGlp = new ERC1155PresetMinterSupply("");
         pirexGmxGlp = new PirexGmxGlp(
@@ -95,6 +99,8 @@ contract Helper is Test {
         pirexFutures = new PirexFutures(
             address(pxGmx),
             address(pxGlp),
+            address(apxGmx),
+            address(apxGlp),
             address(ypxGmx),
             address(ypxGlp)
         );
@@ -102,10 +108,12 @@ contract Helper is Test {
 
         pxGmx.grantRole(minterRole, address(pirexGmxGlp));
         pxGlp.grantRole(minterRole, address(pirexGmxGlp));
-        pirexGmxGlp.setPirexRewards(address(pirexRewards));
-        pirexRewards.setProducer(address(pirexGmxGlp));
+        apxGmx.grantRole(minterRole, address(pirexFutures));
+        apxGlp.grantRole(minterRole, address(pirexFutures));
         ypxGmx.grantRole(minterRole, address(pirexFutures));
         ypxGlp.grantRole(minterRole, address(pirexFutures));
+        pirexGmxGlp.setPirexRewards(address(pirexRewards));
+        pirexRewards.setProducer(address(pirexGmxGlp));
 
         // Unpause after completing the setup
         pirexGmxGlp.setPauseState(false);
@@ -298,7 +306,12 @@ contract Helper is Test {
             );
     }
 
-    function _getExpiry(uint256 index) internal view returns (uint256) {
+    /**
+        @notice Calculate a futures maturity timestamp for testing purposes
+        @param  index  uint256  Duration index
+        @return        uint256  Maturity timestamp
+     */
+    function _calculateMaturity(uint256 index) internal view returns (uint256) {
         uint256 duration = pirexFutures.durations(index);
 
         return duration + ((block.timestamp / duration) * duration);
