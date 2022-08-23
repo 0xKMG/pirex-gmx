@@ -10,6 +10,7 @@ import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
+import {PirexFees} from "src/PirexFees.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
@@ -54,6 +55,7 @@ contract Helper is Test {
     PxGmx internal immutable pxGmx;
     PxGlp internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
+    PirexFees internal immutable pirexFees;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -85,6 +87,7 @@ contract Helper is Test {
             address(pxGlp),
             address(pirexRewards)
         );
+        pirexFees = new PirexFees(testAccounts[0], testAccounts[1]);
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
