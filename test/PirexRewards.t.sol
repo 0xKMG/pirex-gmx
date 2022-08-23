@@ -4,7 +4,9 @@ pragma solidity 0.8.13;
 import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
+import {TransparentUpgradeableProxy} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
+import {PirexRewardsMock} from "src/mocks/PirexRewardsMock.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexRewardsTest is Helper {
@@ -1586,6 +1588,71 @@ contract PirexRewardsTest is Helper {
                 producerToken,
                 rewardToken
             )
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        upgrade TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test upgrading the PirexRewards contract
+     */
+    function testUpgrade() external {
+        // Setup a new set of contracts for testing upgradeability
+        // as we can't use the existing one from the constructor (can't be upgraded)
+        PirexRewards oldImplementation = new PirexRewards();
+        oldImplementation.initialize();
+
+        // Deploy and setup the proxy (with a test account as admin)
+        // Note that admin won't be able to fallback to the proxy's implementation methods
+        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
+            address(oldImplementation),
+            testAccounts[0],
+            abi.encodeWithSelector(PirexRewards(address(0)).initialize.selector)
+        );
+        address proxyAddress = address(proxy);
+        PirexRewards pirexRewardsProxy = PirexRewards(proxyAddress);
+
+        pirexGmxGlp.setPirexRewards(proxyAddress);
+
+        // Simulate deposit to accrue rewards in which the reward data
+        // will be used later to test upgraded implementation
+        address receiver = address(this);
+        uint256 gmxAmount = 100e18;
+
+        _mintGmx(gmxAmount);
+        GMX.approve(address(pirexGmxGlp), gmxAmount);
+        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+
+        vm.warp(block.timestamp + 1 days);
+
+        pirexRewardsProxy.setProducer(address(pirexGmxGlp));
+        pirexRewardsProxy.harvest();
+
+        uint256 oldMethodResult = pirexRewardsProxy.getRewardState(
+            ERC20(address(pxGmx)),
+            WETH
+        );
+
+        assertGt(oldMethodResult, 0);
+
+        // Deploy and set a new implementation to the proxy as the admin
+        PirexRewardsMock newImplementation = new PirexRewardsMock();
+
+        vm.prank(testAccounts[0]);
+
+        proxy.upgradeTo(address(newImplementation));
+
+        // Confirm that the proxy implementation has been updated
+        // by attempting to call a new method only available in the new instance
+        // and also assert the returned value
+        assertEq(
+            PirexRewardsMock(proxyAddress).getRewardStateMock(
+                ERC20(address(pxGmx)),
+                WETH
+            ),
+            oldMethodResult * 2
         );
     }
 }
