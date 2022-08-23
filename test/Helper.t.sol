@@ -78,6 +78,7 @@ contract Helper is Test {
 
     constructor() {
         pirexRewards = new PirexRewards();
+        pirexRewards.initialize();
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
         pirexGmxGlp = new PirexGmxGlp(

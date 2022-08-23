@@ -134,7 +134,7 @@ contract PirexRewardsTest is Helper {
         address _producer = address(this);
 
         vm.prank(testAccounts[0]);
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.setProducer(_producer);
     }
@@ -1027,7 +1027,7 @@ contract PirexRewardsTest is Helper {
         ERC20 rewardToken = WETH;
 
         vm.prank(testAccounts[0]);
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.addRewardToken(producerToken, rewardToken);
     }
@@ -1094,7 +1094,7 @@ contract PirexRewardsTest is Helper {
         uint256 removalIndex = 0;
 
         vm.prank(testAccounts[0]);
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.removeRewardToken(producerToken, removalIndex);
     }
@@ -1297,7 +1297,7 @@ contract PirexRewardsTest is Helper {
         address recipient = address(this);
 
         vm.prank(testAccounts[0]);
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.setRewardRecipientPrivileged(
             lpContract,
@@ -1462,7 +1462,7 @@ contract PirexRewardsTest is Helper {
         ERC20 rewardToken = WETH;
 
         vm.prank(testAccounts[0]);
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.unsetRewardRecipientPrivileged(
             lpContract,
