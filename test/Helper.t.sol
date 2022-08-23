@@ -51,12 +51,6 @@ contract Helper is Test {
     ERC20 internal constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
-    PirexGmxGlp internal immutable pirexGmxGlp;
-    PxGmx internal immutable pxGmx;
-    PxGlp internal immutable pxGlp;
-    PirexRewards internal immutable pirexRewards;
-    PirexFees internal immutable pirexFees;
-
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
     uint256 internal constant FEE_BPS = 25;
@@ -67,11 +61,20 @@ contract Helper is Test {
     uint256 internal constant EXPANDED_GLP_DECIMALS = 18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
 
+    PirexGmxGlp internal immutable pirexGmxGlp;
+    PxGmx internal immutable pxGmx;
+    PxGlp internal immutable pxGlp;
+    PirexRewards internal immutable pirexRewards;
+    PirexFees internal immutable pirexFees;
+    uint256 internal immutable feeMax;
+
     address[3] internal testAccounts = [
         0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
         0xE36Ea790bc9d7AB70C55260C66D52b1eca985f84,
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
+
+    PirexGmxGlp.Fees[3] internal feeTypes;
 
     event SetPirexRewards(address pirexRewards);
 
@@ -97,6 +100,11 @@ contract Helper is Test {
 
         // Unpause after completing the setup
         pirexGmxGlp.setPauseState(false);
+
+        feeMax = pirexGmxGlp.FEE_MAX();
+        feeTypes[0] = PirexGmxGlp.Fees.Deposit;
+        feeTypes[1] = PirexGmxGlp.Fees.Redemption;
+        feeTypes[2] = PirexGmxGlp.Fees.Reward;
     }
 
     /**

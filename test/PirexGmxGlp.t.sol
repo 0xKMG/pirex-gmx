@@ -288,6 +288,62 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        setFee TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is not authorized
+     */
+    function testCannotSetFeeNotOwner() external {
+        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
+
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, 1);
+    }
+
+    /**
+        @notice Test tx reversion: fee amount exceeds the maximum
+     */
+    function testCannotSetFeeExceedsMax() external {
+        for (uint256 i; i < feeTypes.length; ++i) {
+            vm.expectRevert(PirexGmxGlp.InvalidFee.selector);
+
+            pirexGmxGlp.setFee(feeTypes[i], feeMax + 1);
+        }
+    }
+
+    /**
+        @notice Test setting fees for each type
+        @param  deposit     uint256  Deposit fee
+        @param  redemption  uint256  Redemption fee
+        @param  reward      uint256  Reward fee
+     */
+    function testSetFee(
+        uint256 deposit,
+        uint256 redemption,
+        uint256 reward
+    ) external {
+        vm.assume(deposit != 0);
+        vm.assume(deposit < feeMax);
+        vm.assume(redemption != 0);
+        vm.assume(redemption < feeMax);
+        vm.assume(reward != 0);
+        vm.assume(reward < feeMax);
+
+        assertEq(0, pirexGmxGlp.fees(feeTypes[0]));
+        assertEq(0, pirexGmxGlp.fees(feeTypes[1]));
+        assertEq(0, pirexGmxGlp.fees(feeTypes[2]));
+
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, deposit);
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Redemption, redemption);
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Reward, reward);
+
+        assertEq(deposit, pirexGmxGlp.fees(feeTypes[0]));
+        assertEq(redemption, pirexGmxGlp.fees(feeTypes[1]));
+        assertEq(reward, pirexGmxGlp.fees(feeTypes[2]));
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         depositGmx TESTS
     //////////////////////////////////////////////////////////////*/
 

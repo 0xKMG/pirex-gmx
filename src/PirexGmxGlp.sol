@@ -18,6 +18,13 @@ import {PirexRewards} from "src/PirexRewards.sol";
 contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
 
+    // Configurable fees
+    enum Fees {
+        Deposit,
+        Redemption,
+        Reward
+    }
+
     // Miscellaneous dependency contracts (e.g. GMX) and addresses
     // @TODO: Add a compound method for updating any that may change
     IRewardRouterV2 public constant REWARD_ROUTER_V2 =
@@ -41,6 +48,12 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     ERC20 public constant ESGMX =
         ERC20(0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA);
 
+    // Fee denominator
+    uint256 public constant FEE_DENOMINATOR = 1_000_000;
+
+    // Fee maximum
+    uint256 public constant FEE_MAX = 100_000;
+
     // Pirex token contract(s)
     PxGmx public immutable pxGmx;
     PxGlp public immutable pxGlp;
@@ -49,7 +62,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     // Pirex reward module contract
     address public pirexRewards;
 
+    // Fees (e.g. 5000 / 1000000 = 0.5%)
+    mapping(Fees => uint256) public fees;
+
     event SetPirexRewards(address pirexRewards);
+    event SetFee(Fees indexed f, uint256 fee);
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
@@ -87,6 +104,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     error InvalidToken(address token);
     error NotPirexRewards();
     error InvalidReward(address token);
+    error InvalidFee();
 
     modifier onlyPirexRewards() {
         if (msg.sender != pirexRewards) revert NotPirexRewards();
@@ -132,6 +150,19 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         pirexRewards = _pirexRewards;
 
         emit SetPirexRewards(_pirexRewards);
+    }
+
+    /**
+        @notice Set fee
+        @param  f    enum     Fee
+        @param  fee  uint256  Fee amount
+     */
+    function setFee(Fees f, uint256 fee) external onlyOwner {
+        if (fee > FEE_MAX) revert InvalidFee();
+
+        fees[f] = fee;
+
+        emit SetFee(f, fee);
     }
 
     /**
