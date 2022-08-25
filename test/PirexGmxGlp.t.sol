@@ -23,7 +23,8 @@ contract PirexGmxGlpTest is Helper {
         address indexed token,
         uint256 minShares,
         uint256 amount,
-        uint256 assets
+        uint256 assets,
+        uint256 feeAmount
     );
     event RedeemGlp(
         address indexed caller,
@@ -43,121 +44,6 @@ contract PirexGmxGlpTest is Helper {
         uint256 gmxEsGmxRewards,
         uint256 glpEsGmxRewards
     );
-
-    /**
-        @notice Get minimum price for whitelisted token
-        @param  token  address    Token
-        @return        uint256[]  Vault token info for token
-     */
-    function _getVaultTokenInfo(address token)
-        internal
-        view
-        returns (uint256[] memory)
-    {
-        address[] memory tokens = new address[](1);
-        tokens[0] = token;
-
-        return
-            VAULT_READER.getVaultTokenInfoV4(
-                address(VAULT),
-                POSITION_ROUTER,
-                address(WETH),
-                INFO_USDG_AMOUNT,
-                tokens
-            );
-    }
-
-    /**
-        @notice Get GLP price
-        @param  minPrice  bool     Whether to use minimum or maximum price
-        @return           uint256  GLP price
-     */
-    function _getGlpPrice(bool minPrice) internal view returns (uint256) {
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(FEE_STAKED_GLP);
-        uint256 aum = GLP_MANAGER.getAums()[minPrice ? 0 : 1];
-        uint256 glpSupply = READER.getTokenBalancesWithSupplies(
-            address(0),
-            tokens
-        )[1];
-
-        return (aum * 10**EXPANDED_GLP_DECIMALS) / glpSupply;
-    }
-
-    /**
-        @notice Get GLP buying fees
-        @param  tokenAmount  uint256    Token amount
-        @param  info         uint256[]  Token info
-        @param  incremental  bool       Whether the operation would increase USDG supply
-        @return              uint256    GLP buying fees
-     */
-    function _getFees(
-        uint256 tokenAmount,
-        uint256[] memory info,
-        bool incremental
-    ) internal view returns (uint256) {
-        uint256 initialAmount = info[2];
-        uint256 usdgDelta = ((tokenAmount * info[10]) / PRECISION);
-        uint256 nextAmount = initialAmount + usdgDelta;
-        if (!incremental) {
-            nextAmount = usdgDelta > initialAmount
-                ? 0
-                : initialAmount - usdgDelta;
-        }
-        uint256 targetAmount = (info[4] * USDG.totalSupply()) /
-            VAULT.totalTokenWeights();
-
-        if (targetAmount == 0) {
-            return FEE_BPS;
-        }
-
-        uint256 initialDiff = initialAmount > targetAmount
-            ? initialAmount - targetAmount
-            : targetAmount - initialAmount;
-        uint256 nextDiff = nextAmount > targetAmount
-            ? nextAmount - targetAmount
-            : targetAmount - nextAmount;
-
-        if (nextDiff < initialDiff) {
-            uint256 rebateBps = (TAX_BPS * initialDiff) / targetAmount;
-
-            return rebateBps > FEE_BPS ? 0 : FEE_BPS - rebateBps;
-        }
-
-        uint256 averageDiff = (initialDiff + nextDiff) / 2;
-
-        if (averageDiff > targetAmount) {
-            averageDiff = targetAmount;
-        }
-
-        return FEE_BPS + (TAX_BPS * averageDiff) / targetAmount;
-    }
-
-    /**
-        @notice Calculate the minimum amount of GLP received
-        @param  token     address  Token address
-        @param  amount    uint256  Amount of tokens
-        @param  decimals  uint256  Token decimals for expansion purposes
-        @return           uint256  Minimum GLP amount with slippage and decimal expansion
-     */
-    function _calculateMinGlpAmount(
-        address token,
-        uint256 amount,
-        uint256 decimals
-    ) internal view returns (uint256) {
-        uint256[] memory info = _getVaultTokenInfo(token);
-        uint256 glpAmount = (amount * info[10]) / _getGlpPrice(true);
-        uint256 minGlp = (glpAmount *
-            (BPS_DIVISOR - _getFees(amount, info, true))) / BPS_DIVISOR;
-        uint256 minGlpWithSlippage = (minGlp * (BPS_DIVISOR - SLIPPAGE)) /
-            BPS_DIVISOR;
-
-        // Expand min GLP amount decimals based on the input token's decimals
-        return
-            decimals == EXPANDED_GLP_DECIMALS
-                ? minGlpWithSlippage
-                : 10**(EXPANDED_GLP_DECIMALS - decimals) * minGlpWithSlippage;
-    }
 
     /**
         @notice Calculate the minimum amount of token to be redeemed from selling GLP
@@ -564,6 +450,7 @@ contract PirexGmxGlpTest is Helper {
             address(0),
             minShares,
             etherAmount,
+            0,
             0
         );
 
@@ -772,6 +659,7 @@ contract PirexGmxGlpTest is Helper {
             token,
             minShares,
             tokenAmount,
+            0,
             0
         );
 

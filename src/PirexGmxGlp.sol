@@ -79,7 +79,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address indexed token,
         uint256 minShares,
         uint256 amount,
-        uint256 assets
+        uint256 assets,
+        uint256 feeAmount
     );
     event RedeemGlp(
         address indexed caller,
@@ -215,7 +216,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             gmxAmount
         );
 
-        // Mint pxGMX equal to the specified amount of GMX
+        // Mint pxGMX equal to the GMX deposit amount sans fees
         pxGmx.mint(receiver, mintAmount);
 
         // Distribute fees in the form of pxGMX
@@ -250,8 +251,19 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minShares
         );
 
-        // Mint pxGLP based on the actual amount of GLP minted
-        pxGlp.mint(receiver, assets);
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAmounts(
+            Fees.Deposit,
+            assets
+        );
+
+        // Mint pxGLP equal to the GLP amount sans fees
+        pxGlp.mint(receiver, mintAmount);
+
+        // Distribute fees in the form of pxGLP
+        if (feeAmount != 0) {
+            pxGlp.mint(address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+        }
 
         emit DepositGlp(
             msg.sender,
@@ -259,7 +271,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             address(0),
             minShares,
             msg.value,
-            assets
+            assets,
+            feeAmount
         );
     }
 
@@ -296,7 +309,17 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minShares
         );
 
-        pxGlp.mint(receiver, assets);
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAmounts(
+            Fees.Deposit,
+            assets
+        );
+
+        pxGlp.mint(receiver, mintAmount);
+
+        if (feeAmount != 0) {
+            pxGlp.mint(address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+        }
 
         emit DepositGlp(
             msg.sender,
@@ -304,7 +327,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             token,
             minShares,
             tokenAmount,
-            assets
+            assets,
+            feeAmount
         );
     }
 

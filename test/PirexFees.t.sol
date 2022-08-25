@@ -22,6 +22,35 @@ contract PirexFeesTest is Test, Helper {
         uint256 feeAmount
     );
 
+    /**
+        @notice Get PirexFee variables that are frequently accessed
+        @return feeNumerator           uint256  Fee numerator (i.e. fee value)
+        @return feeDenominator         uint256  Fee denominator (PirexGmxGlp)
+        @return feePercentDenominator  uint256  Fee percent denominator (PirexFees)
+        @return treasuryPercent        uint256  Treasury fee percent
+        @return treasury               address  Treasury address
+        @return contributors           address  Contributors address
+     */
+    function _getPirexFeeVariables(PirexGmxGlp.Fees f)
+        internal
+        view
+        returns (
+            uint256 feeNumerator,
+            uint256 feeDenominator,
+            uint256 feePercentDenominator,
+            uint256 treasuryPercent,
+            address treasury,
+            address contributors
+        )
+    {
+        feeNumerator = pirexGmxGlp.fees(f);
+        feeDenominator = pirexGmxGlp.FEE_DENOMINATOR();
+        feePercentDenominator = pirexFees.PERCENT_DENOMINATOR();
+        treasuryPercent = pirexFees.treasuryPercent();
+        treasury = pirexFees.treasury();
+        contributors = pirexFees.contributors();
+    }
+
     /*//////////////////////////////////////////////////////////////
                         setFeeRecipient TESTS
     //////////////////////////////////////////////////////////////*/
@@ -115,8 +144,8 @@ contract PirexFeesTest is Test, Helper {
 
     /**
         @notice Test distributing fees for the depositGmx function
-        @param  depositFee  uint256  Deposit fee percent
-        @param  gmxAmount   uint96   GMX amount
+        @param  depositFee  uint24  Deposit fee percent
+        @param  gmxAmount   uint96  GMX amount
      */
     function testDistributeFeesDepositGmx(uint24 depositFee, uint96 gmxAmount)
         external
@@ -126,17 +155,21 @@ contract PirexFeesTest is Test, Helper {
         vm.assume(gmxAmount != 0);
         vm.assume(gmxAmount < 100000e18);
 
-        address receiver = address(this);
-
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, depositFee);
 
-        assertEq(depositFee, pirexGmxGlp.fees(PirexGmxGlp.Fees.Deposit));
+        address receiver = address(this);
+        (
+            uint256 feeNumerator,
+            uint256 feeDenominator,
+            uint256 feePercentDenominator,
+            uint256 treasuryPercent,
+            address treasury,
+            address contributors
+        ) = _getPirexFeeVariables(PirexGmxGlp.Fees.Deposit);
 
-        uint256 feePercentDenominator = pirexFees.PERCENT_DENOMINATOR();
-        uint256 treasuryPercent = pirexFees.treasuryPercent();
-        uint256 expectedFeeAmount = (gmxAmount *
-            pirexGmxGlp.fees(PirexGmxGlp.Fees.Deposit)) /
-            pirexGmxGlp.FEE_DENOMINATOR();
+        assertEq(depositFee, feeNumerator);
+
+        uint256 expectedFeeAmount = (gmxAmount * feeNumerator) / feeDenominator;
         uint256 expectedMintAmount = gmxAmount - expectedFeeAmount;
         uint256 expectedFeeAmountTreasury = (expectedFeeAmount *
             treasuryPercent) / feePercentDenominator;
@@ -144,8 +177,8 @@ contract PirexFeesTest is Test, Helper {
             expectedFeeAmountTreasury;
 
         assertEq(0, pxGmx.balanceOf(receiver));
-        assertEq(0, pxGmx.balanceOf(pirexFees.treasury()));
-        assertEq(0, pxGmx.balanceOf(pirexFees.contributors()));
+        assertEq(0, pxGmx.balanceOf(treasury));
+        assertEq(0, pxGmx.balanceOf(contributors));
 
         _mintGmx(gmxAmount);
         GMX.approve(address(pirexGmxGlp), gmxAmount);
@@ -156,19 +189,133 @@ contract PirexFeesTest is Test, Helper {
 
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
 
-        assertEq(expectedMintAmount, pxGmx.balanceOf(receiver));
-        assertEq(
-            expectedFeeAmountTreasury,
-            pxGmx.balanceOf(pirexFees.treasury())
-        );
-        assertEq(
-            expectedFeeAmountContributors,
-            pxGmx.balanceOf(pirexFees.contributors())
-        );
+        assertTrue(expectedMintAmount > 0);
         assertEq(
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
         );
+        assertEq(expectedMintAmount, pxGmx.balanceOf(receiver));
+        assertEq(expectedFeeAmountTreasury, pxGmx.balanceOf(treasury));
+        assertEq(expectedFeeAmountContributors, pxGmx.balanceOf(contributors));
         assertEq(expectedMintAmount + expectedFeeAmount, gmxAmount);
+    }
+
+    /**
+        @notice Test distributing fees for the depositGlpWithETH function
+        @param  depositFee  uint24  Deposit fee percent
+        @param  ethAmount   uint96  ETH amount
+     */
+    function testDistributeFeesDepositGlpWithETH(
+        uint24 depositFee,
+        uint96 ethAmount
+    ) external {
+        vm.assume(depositFee != 0);
+        vm.assume(depositFee < pirexGmxGlp.FEE_MAX());
+        vm.assume(ethAmount > 0.001 ether);
+        vm.assume(ethAmount < 10000 ether);
+
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, depositFee);
+
+        uint256 minShares = _calculateMinGlpAmount(address(0), ethAmount, 18);
+        address receiver = address(this);
+        (
+            uint256 feeNumerator,
+            uint256 feeDenominator,
+            uint256 feePercentDenominator,
+            uint256 treasuryPercent,
+            address treasury,
+            address contributors
+        ) = _getPirexFeeVariables(PirexGmxGlp.Fees.Deposit);
+
+        assertEq(depositFee, feeNumerator);
+        assertEq(0, pxGlp.balanceOf(receiver));
+        assertEq(0, pxGlp.balanceOf(treasury));
+        assertEq(0, pxGlp.balanceOf(contributors));
+
+        vm.deal(address(this), ethAmount);
+
+        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
+            minShares,
+            receiver
+        );
+        uint256 expectedFeeAmount = (assets * feeNumerator) / feeDenominator;
+        uint256 expectedMintAmount = assets - expectedFeeAmount;
+        uint256 expectedFeeAmountTreasury = (expectedFeeAmount *
+            treasuryPercent) / feePercentDenominator;
+        uint256 expectedFeeAmountContributors = expectedFeeAmount -
+            expectedFeeAmountTreasury;
+
+        assertTrue(expectedMintAmount > 0);
+        assertEq(
+            expectedFeeAmountTreasury + expectedFeeAmountContributors,
+            expectedFeeAmount
+        );
+        assertEq(expectedMintAmount, pxGlp.balanceOf(receiver));
+        assertEq(expectedFeeAmountTreasury, pxGlp.balanceOf(treasury));
+        assertEq(expectedFeeAmountContributors, pxGlp.balanceOf(contributors));
+        assertEq(expectedMintAmount + expectedFeeAmount, assets);
+    }
+
+    /**
+        @notice Test distributing fees for the depositGlpWithERC20 function
+        @param  depositFee  uint24  Deposit fee percent
+        @param  wbtcAmount  uint40  WBTC amount
+     */
+    function testDistributeFeesDepositGlpWithERC20(
+        uint24 depositFee,
+        uint40 wbtcAmount
+    ) external {
+        vm.assume(depositFee != 0);
+        vm.assume(depositFee < pirexGmxGlp.FEE_MAX());
+        vm.assume(wbtcAmount > 1e5);
+        vm.assume(wbtcAmount < 100e8);
+
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, depositFee);
+
+        uint256 minShares = _calculateMinGlpAmount(
+            address(WBTC),
+            wbtcAmount,
+            8
+        );
+        address receiver = address(this);
+        (
+            uint256 feeNumerator,
+            uint256 feeDenominator,
+            uint256 feePercentDenominator,
+            uint256 treasuryPercent,
+            address treasury,
+            address contributors
+        ) = _getPirexFeeVariables(PirexGmxGlp.Fees.Deposit);
+
+        assertEq(depositFee, feeNumerator);
+        assertEq(0, pxGlp.balanceOf(receiver));
+        assertEq(0, pxGlp.balanceOf(treasury));
+        assertEq(0, pxGlp.balanceOf(contributors));
+
+        _mintWbtc(wbtcAmount);
+        WBTC.approve(address(pirexGmxGlp), wbtcAmount);
+
+        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
+            address(WBTC),
+            wbtcAmount,
+            minShares,
+            receiver
+        );
+        uint256 expectedFeeAmount = (assets * feeNumerator) / feeDenominator;
+        uint256 expectedMintAmount = assets - expectedFeeAmount;
+        uint256 expectedFeeAmountTreasury = (expectedFeeAmount *
+            treasuryPercent) / feePercentDenominator;
+        uint256 expectedFeeAmountContributors = expectedFeeAmount -
+            expectedFeeAmountTreasury;
+
+        assertTrue(expectedMintAmount > 0);
+        assertEq(
+            expectedFeeAmountTreasury + expectedFeeAmountContributors,
+            expectedFeeAmount
+        );
+        assertEq(expectedMintAmount, pxGlp.balanceOf(receiver));
+        assertEq(expectedFeeAmountTreasury, pxGlp.balanceOf(treasury));
+        assertEq(expectedFeeAmountContributors, pxGlp.balanceOf(contributors));
+        assertEq(expectedMintAmount + expectedFeeAmount, assets);
     }
 }
