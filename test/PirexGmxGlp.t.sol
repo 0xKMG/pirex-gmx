@@ -14,7 +14,8 @@ contract PirexGmxGlpTest is Helper {
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
-        uint256 amount
+        uint256 gmxAmount,
+        uint256 feeAmount
     );
     event DepositGlp(
         address indexed caller,
@@ -429,7 +430,7 @@ contract PirexGmxGlpTest is Helper {
 
         vm.expectEmit(true, true, false, false, address(pirexGmxGlp));
 
-        emit DepositGmx(address(this), receiver, gmxAmount);
+        emit DepositGmx(address(this), receiver, gmxAmount, 0);
 
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
 

@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {PirexFees} from "src/PirexFees.sol";
+import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexFeesTest is Test, Helper {
@@ -14,6 +15,12 @@ contract PirexFeesTest is Test, Helper {
     event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
     event DistributeFees(address token, uint256 amount);
+    event DepositGmx(
+        address indexed caller,
+        address indexed receiver,
+        uint256 gmxAmount,
+        uint256 feeAmount
+    );
 
     /*//////////////////////////////////////////////////////////////
                         setFeeRecipient TESTS
@@ -100,5 +107,68 @@ contract PirexFeesTest is Test, Helper {
 
         pirexFees.setTreasuryPercent(percent);
         assertEq(pirexFees.treasuryPercent(), percent);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        distributeFees TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test distributing fees for the depositGmx function
+        @param  depositFee  uint256  Deposit fee percent
+        @param  gmxAmount   uint96   GMX amount
+     */
+    function testDistributeFeesDepositGmx(uint24 depositFee, uint96 gmxAmount)
+        external
+    {
+        vm.assume(depositFee != 0);
+        vm.assume(depositFee < pirexGmxGlp.FEE_MAX());
+        vm.assume(gmxAmount != 0);
+        vm.assume(gmxAmount < 100000e18);
+
+        address receiver = address(this);
+
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, depositFee);
+
+        assertEq(depositFee, pirexGmxGlp.fees(PirexGmxGlp.Fees.Deposit));
+
+        uint256 feePercentDenominator = pirexFees.PERCENT_DENOMINATOR();
+        uint256 treasuryPercent = pirexFees.treasuryPercent();
+        uint256 expectedFeeAmount = (gmxAmount *
+            pirexGmxGlp.fees(PirexGmxGlp.Fees.Deposit)) /
+            pirexGmxGlp.FEE_DENOMINATOR();
+        uint256 expectedMintAmount = gmxAmount - expectedFeeAmount;
+        uint256 expectedFeeAmountTreasury = (expectedFeeAmount *
+            treasuryPercent) / feePercentDenominator;
+        uint256 expectedFeeAmountContributors = expectedFeeAmount -
+            expectedFeeAmountTreasury;
+
+        assertEq(0, pxGmx.balanceOf(receiver));
+        assertEq(0, pxGmx.balanceOf(pirexFees.treasury()));
+        assertEq(0, pxGmx.balanceOf(pirexFees.contributors()));
+
+        _mintGmx(gmxAmount);
+        GMX.approve(address(pirexGmxGlp), gmxAmount);
+
+        vm.expectEmit(true, true, false, true, address(pirexGmxGlp));
+
+        emit DepositGmx(address(this), receiver, gmxAmount, expectedFeeAmount);
+
+        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+
+        assertEq(expectedMintAmount, pxGmx.balanceOf(receiver));
+        assertEq(
+            expectedFeeAmountTreasury,
+            pxGmx.balanceOf(pirexFees.treasury())
+        );
+        assertEq(
+            expectedFeeAmountContributors,
+            pxGmx.balanceOf(pirexFees.contributors())
+        );
+        assertEq(
+            expectedFeeAmountTreasury + expectedFeeAmountContributors,
+            expectedFeeAmount
+        );
+        assertEq(expectedMintAmount + expectedFeeAmount, gmxAmount);
     }
 }

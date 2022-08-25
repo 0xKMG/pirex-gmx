@@ -70,7 +70,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
-        uint256 amount
+        uint256 gmxAmount,
+        uint256 feeAmount
     );
     event DepositGlp(
         address indexed caller,
@@ -190,10 +191,22 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         REWARD_ROUTER_V2.stakeGmx(gmxAmount);
 
-        // Mint pxGMX equal to the specified amount of GMX
-        pxGmx.mint(receiver, gmxAmount);
+        uint256 feeAmount = (gmxAmount * fees[Fees.Deposit]) / FEE_DENOMINATOR;
+        uint256 mintAmount = gmxAmount - feeAmount;
 
-        emit DepositGmx(msg.sender, receiver, gmxAmount);
+        // The sum of the fee and mint amounts should never exceed the gmx amount
+        assert(feeAmount + mintAmount == gmxAmount);
+
+        // Mint pxGMX equal to the specified amount of GMX
+        pxGmx.mint(receiver, mintAmount);
+
+        // Distribute fees in the form of pxGMX
+        if (feeAmount != 0) {
+            pxGmx.mint(address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGmx), feeAmount);
+        }
+
+        emit DepositGmx(msg.sender, receiver, gmxAmount, feeAmount);
     }
 
     /**
