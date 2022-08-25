@@ -77,7 +77,9 @@ contract Helper is Test {
     receive() external payable {}
 
     constructor() {
+        // Use normal (non-upgradeable) instance for most tests (outside the upgrade test)
         pirexRewards = new PirexRewards();
+        pirexRewards.initialize();
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
         pirexGmxGlp = new PirexGmxGlp(
