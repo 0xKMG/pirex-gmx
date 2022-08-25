@@ -149,6 +149,25 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
+        @notice Calculate fee and mint amounts from a fee type and total asset amount
+        @param  f           Fees     Fee type
+        @param  amount      uint256  GMX/GLP amount
+        @return feeAmount   uint256  Fee amount
+        @return mintAmount  uint256  Mint amount
+     */
+    function _deriveAmounts(Fees f, uint256 amount)
+        internal
+        view
+        returns (uint256 feeAmount, uint256 mintAmount)
+    {
+        feeAmount = (amount * fees[f]) / FEE_DENOMINATOR;
+        mintAmount = amount - feeAmount;
+
+        // The sum of the fee and mint amounts should never exceed the asset amount
+        assert(feeAmount + mintAmount == amount);
+    }
+
+    /**
         @notice Set pirexRewards
         @param  _pirexRewards  address  PirexRewards contract address
      */
@@ -191,11 +210,10 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         REWARD_ROUTER_V2.stakeGmx(gmxAmount);
 
-        uint256 feeAmount = (gmxAmount * fees[Fees.Deposit]) / FEE_DENOMINATOR;
-        uint256 mintAmount = gmxAmount - feeAmount;
-
-        // The sum of the fee and mint amounts should never exceed the gmx amount
-        assert(feeAmount + mintAmount == gmxAmount);
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAmounts(
+            Fees.Deposit,
+            gmxAmount
+        );
 
         // Mint pxGMX equal to the specified amount of GMX
         pxGmx.mint(receiver, mintAmount);
