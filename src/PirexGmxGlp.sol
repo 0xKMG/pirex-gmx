@@ -136,8 +136,15 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         pirexFees = PirexFees(_pirexFees);
         pirexRewards = _pirexRewards;
 
-        // Pre-approving stakedGmx contract for staking GMX on behalf of our vault
-        GMX.safeApprove(address(STAKED_GMX), type(uint256).max);
+        uint256 maxAmount = type(uint256).max;
+
+        // Pre-approve the stakedGmx contract for staking GMX on behalf of our vault
+        GMX.safeApprove(address(STAKED_GMX), maxAmount);
+
+        // Pre-approve the pirexFees contract for fee token types
+        ERC20(pxGmx).safeApprove(_pirexFees, maxAmount);
+        ERC20(pxGlp).safeApprove(_pirexFees, maxAmount);
+        WETH.safeApprove(_pirexFees, maxAmount);
     }
 
     /**
