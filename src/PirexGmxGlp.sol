@@ -88,7 +88,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address indexed token,
         uint256 minRedemption,
         uint256 amount,
-        uint256 redemption
+        uint256 redemption,
+        uint256 feeAmount
     );
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
@@ -154,18 +155,18 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         @param  f           Fees     Fee type
         @param  amount      uint256  GMX/GLP amount
         @return feeAmount   uint256  Fee amount
-        @return mintAmount  uint256  Mint amount
+        @return userAmount  uint256  User amount (mint/burn/claim/etc.)
      */
     function _deriveAmounts(Fees f, uint256 amount)
         internal
         view
-        returns (uint256 feeAmount, uint256 mintAmount)
+        returns (uint256 feeAmount, uint256 userAmount)
     {
         feeAmount = (amount * fees[f]) / FEE_DENOMINATOR;
-        mintAmount = amount - feeAmount;
+        userAmount = amount - feeAmount;
 
         // The sum of the fee and mint amounts should never exceed the asset amount
-        assert(feeAmount + mintAmount == amount);
+        assert(feeAmount + userAmount == amount);
     }
 
     /**
@@ -308,7 +309,6 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             0,
             minShares
         );
-
         (uint256 feeAmount, uint256 mintAmount) = _deriveAmounts(
             Fees.Deposit,
             assets
@@ -348,8 +348,19 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (minRedemption == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
+        (uint256 feeAmount, uint256 burnAmount) = _deriveAmounts(
+            Fees.Redemption,
+            amount
+        );
+
         // Burn pxGLP before unstaking the underlying GLP
-        pxGlp.burn(receiver, amount);
+        pxGlp.burn(receiver, burnAmount);
+
+        // Distribute fees in pxGLP form
+        if (feeAmount != 0) {
+            ERC20(pxGlp).safeTransferFrom(msg.sender, address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+        }
 
         // Unstake and redeem the underlying GLP for ETH
         redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlpETH(
@@ -364,7 +375,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             address(0),
             minRedemption,
             amount,
-            redeemed
+            redeemed,
+            feeAmount
         );
     }
 
@@ -388,8 +400,18 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (receiver == address(0)) revert ZeroAddress();
         if (!GMX_VAULT.whitelistedTokens(token)) revert InvalidToken(token);
 
+        (uint256 feeAmount, uint256 burnAmount) = _deriveAmounts(
+            Fees.Redemption,
+            amount
+        );
+
         // Burn pxGLP before unstaking the underlying GLP
-        pxGlp.burn(receiver, amount);
+        pxGlp.burn(receiver, burnAmount);
+
+        if (feeAmount != 0) {
+            ERC20(pxGlp).safeTransferFrom(msg.sender, address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+        }
 
         // Unstake and redeem the underlying GLP for ERC20 token
         redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlp(
@@ -405,7 +427,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             token,
             minRedemption,
             amount,
-            redeemed
+            redeemed,
+            feeAmount
         );
     }
 

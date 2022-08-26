@@ -32,7 +32,8 @@ contract PirexGmxGlpTest is Helper {
         address indexed token,
         uint256 minRedemption,
         uint256 amount,
-        uint256 redemption
+        uint256 redemption,
+        uint256 feeAmount
     );
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
@@ -776,6 +777,7 @@ contract PirexGmxGlpTest is Helper {
             address(0),
             minRedemption,
             etherAmount,
+            0,
             0
         );
 
@@ -973,6 +975,7 @@ contract PirexGmxGlpTest is Helper {
             token,
             minRedemption,
             tokenAmount,
+            0,
             0
         );
 
