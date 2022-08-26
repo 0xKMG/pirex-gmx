@@ -46,29 +46,6 @@ contract PirexGmxGlpTest is Helper {
     );
 
     /**
-        @notice Calculate the minimum amount of token to be redeemed from selling GLP
-        @param  token     address  Token address
-        @param  amount    uint256  Amount of tokens
-        @return           uint256  Minimum GLP amount with slippage and decimal expansion
-     */
-    function _calculateMinRedemptionAmount(address token, uint256 amount)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256[] memory info = _getVaultTokenInfo(token);
-        uint256 usdgAmount = (amount * _getGlpPrice(false)) / PRECISION;
-        uint256 redemptionAmount = VAULT.getRedemptionAmount(token, usdgAmount);
-        uint256 minToken = (redemptionAmount *
-            (BPS_DIVISOR - _getFees(redemptionAmount, info, false))) /
-            BPS_DIVISOR;
-        uint256 minTokenWithSlippage = (minToken * (BPS_DIVISOR - SLIPPAGE)) /
-            BPS_DIVISOR;
-
-        return minTokenWithSlippage;
-    }
-
-    /**
         @notice Deposit ETH for pxGLP for testing purposes
         @param  etherAmount  uint256  Amount of ETH
         @param  receiver     address  Receiver of pxGLP

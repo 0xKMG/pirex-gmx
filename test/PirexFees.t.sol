@@ -24,12 +24,12 @@ contract PirexFeesTest is Test, Helper {
 
     /**
         @notice Get PirexFee variables that are frequently accessed
-        @return feeNumerator           uint256  Fee numerator (i.e. fee value)
-        @return feeDenominator         uint256  Fee denominator (PirexGmxGlp)
-        @return feePercentDenominator  uint256  Fee percent denominator (PirexFees)
-        @return treasuryPercent        uint256  Treasury fee percent
-        @return treasury               address  Treasury address
-        @return contributors           address  Contributors address
+        @return feeNumerator     uint256  Fee numerator (i.e. fee value)
+        @return feeDenominator   uint256  Fee denominator (PirexGmxGlp)
+        @return feePercent       uint256  Fee percent denominator (PirexFees)
+        @return treasuryPercent  uint256  Treasury fee percent
+        @return treasury         address  Treasury address
+        @return contributors     address  Contributors address
      */
     function _getPirexFeeVariables(PirexGmxGlp.Fees f)
         internal
@@ -37,7 +37,7 @@ contract PirexFeesTest is Test, Helper {
         returns (
             uint256 feeNumerator,
             uint256 feeDenominator,
-            uint256 feePercentDenominator,
+            uint256 feePercent,
             uint256 treasuryPercent,
             address treasury,
             address contributors
@@ -45,10 +45,48 @@ contract PirexFeesTest is Test, Helper {
     {
         feeNumerator = pirexGmxGlp.fees(f);
         feeDenominator = pirexGmxGlp.FEE_DENOMINATOR();
-        feePercentDenominator = pirexFees.PERCENT_DENOMINATOR();
+        feePercent = pirexFees.PERCENT_DENOMINATOR();
         treasuryPercent = pirexFees.treasuryPercent();
         treasury = pirexFees.treasury();
         contributors = pirexFees.contributors();
+    }
+
+    /**
+        @notice Calculate the expected PirexFee fee values
+        @param  assets                         uint256  Underlying GMX or GLP token assets
+        @param  feeNumerator                   uint256  Fee numerator
+        @param  feeDenominator                 uint256  Fee denominator
+        @param  feePercent                     uint256  Fee percent
+        @param  treasuryPercent                uint256  Treasury fee percent
+        @return expectedFeeAmount              uint256  Expected fee amount
+        @return expectedFeeAmountTreasury      uint256  Expected fee amount for treasury
+        @return expectedFeeAmountContributors  uint256  Expected fee amount for contributors
+        @return expectedUserAmount             uint256  Expected user amount (mint/burn/etc.)
+     */
+    function _calculateExpectedPirexFeeValues(
+        uint256 assets,
+        uint256 feeNumerator,
+        uint256 feeDenominator,
+        uint256 feePercent,
+        uint256 treasuryPercent
+    )
+        internal
+        pure
+        returns (
+            uint256 expectedFeeAmount,
+            uint256 expectedFeeAmountTreasury,
+            uint256 expectedFeeAmountContributors,
+            uint256 expectedUserAmount
+        )
+    {
+        expectedFeeAmount = (assets * feeNumerator) / feeDenominator;
+        expectedFeeAmountTreasury =
+            (expectedFeeAmount * treasuryPercent) /
+            feePercent;
+        expectedFeeAmountContributors =
+            expectedFeeAmount -
+            expectedFeeAmountTreasury;
+        expectedUserAmount = assets - expectedFeeAmount;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -144,7 +182,7 @@ contract PirexFeesTest is Test, Helper {
 
     /**
         @notice Test distributing fees for the depositGmx function
-        @param  depositFee  uint24  Deposit fee percent
+        @param  depositFee  uint24  Deposit fee
         @param  gmxAmount   uint96  GMX amount
      */
     function testDistributeFeesDepositGmx(uint24 depositFee, uint96 gmxAmount)
@@ -161,7 +199,7 @@ contract PirexFeesTest is Test, Helper {
         (
             uint256 feeNumerator,
             uint256 feeDenominator,
-            uint256 feePercentDenominator,
+            uint256 feePercent,
             uint256 treasuryPercent,
             address treasury,
             address contributors
@@ -169,12 +207,18 @@ contract PirexFeesTest is Test, Helper {
 
         assertEq(depositFee, feeNumerator);
 
-        uint256 expectedFeeAmount = (gmxAmount * feeNumerator) / feeDenominator;
-        uint256 expectedMintAmount = gmxAmount - expectedFeeAmount;
-        uint256 expectedFeeAmountTreasury = (expectedFeeAmount *
-            treasuryPercent) / feePercentDenominator;
-        uint256 expectedFeeAmountContributors = expectedFeeAmount -
-            expectedFeeAmountTreasury;
+        (
+            uint256 expectedFeeAmount,
+            uint256 expectedFeeAmountTreasury,
+            uint256 expectedFeeAmountContributors,
+            uint256 expectedMintAmount
+        ) = _calculateExpectedPirexFeeValues(
+                gmxAmount,
+                feeNumerator,
+                feeDenominator,
+                feePercent,
+                treasuryPercent
+            );
 
         assertEq(0, pxGmx.balanceOf(receiver));
         assertEq(0, pxGmx.balanceOf(treasury));
@@ -189,7 +233,7 @@ contract PirexFeesTest is Test, Helper {
 
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
 
-        assertTrue(expectedMintAmount > 0);
+        assertGt(expectedMintAmount, 0);
         assertEq(
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
@@ -202,7 +246,7 @@ contract PirexFeesTest is Test, Helper {
 
     /**
         @notice Test distributing fees for the depositGlpWithETH function
-        @param  depositFee  uint24  Deposit fee percent
+        @param  depositFee  uint24  Deposit fee
         @param  ethAmount   uint96  ETH amount
      */
     function testDistributeFeesDepositGlpWithETH(
@@ -221,7 +265,7 @@ contract PirexFeesTest is Test, Helper {
         (
             uint256 feeNumerator,
             uint256 feeDenominator,
-            uint256 feePercentDenominator,
+            uint256 feePercent,
             uint256 treasuryPercent,
             address treasury,
             address contributors
@@ -238,14 +282,20 @@ contract PirexFeesTest is Test, Helper {
             minShares,
             receiver
         );
-        uint256 expectedFeeAmount = (assets * feeNumerator) / feeDenominator;
-        uint256 expectedMintAmount = assets - expectedFeeAmount;
-        uint256 expectedFeeAmountTreasury = (expectedFeeAmount *
-            treasuryPercent) / feePercentDenominator;
-        uint256 expectedFeeAmountContributors = expectedFeeAmount -
-            expectedFeeAmountTreasury;
+        (
+            uint256 expectedFeeAmount,
+            uint256 expectedFeeAmountTreasury,
+            uint256 expectedFeeAmountContributors,
+            uint256 expectedMintAmount
+        ) = _calculateExpectedPirexFeeValues(
+                assets,
+                feeNumerator,
+                feeDenominator,
+                feePercent,
+                treasuryPercent
+            );
 
-        assertTrue(expectedMintAmount > 0);
+        assertGt(expectedMintAmount, 0);
         assertEq(
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
@@ -258,7 +308,7 @@ contract PirexFeesTest is Test, Helper {
 
     /**
         @notice Test distributing fees for the depositGlpWithERC20 function
-        @param  depositFee  uint24  Deposit fee percent
+        @param  depositFee  uint24  Deposit fee
         @param  wbtcAmount  uint40  WBTC amount
      */
     function testDistributeFeesDepositGlpWithERC20(
@@ -281,7 +331,7 @@ contract PirexFeesTest is Test, Helper {
         (
             uint256 feeNumerator,
             uint256 feeDenominator,
-            uint256 feePercentDenominator,
+            uint256 feePercent,
             uint256 treasuryPercent,
             address treasury,
             address contributors
@@ -301,14 +351,20 @@ contract PirexFeesTest is Test, Helper {
             minShares,
             receiver
         );
-        uint256 expectedFeeAmount = (assets * feeNumerator) / feeDenominator;
-        uint256 expectedMintAmount = assets - expectedFeeAmount;
-        uint256 expectedFeeAmountTreasury = (expectedFeeAmount *
-            treasuryPercent) / feePercentDenominator;
-        uint256 expectedFeeAmountContributors = expectedFeeAmount -
-            expectedFeeAmountTreasury;
+        (
+            uint256 expectedFeeAmount,
+            uint256 expectedFeeAmountTreasury,
+            uint256 expectedFeeAmountContributors,
+            uint256 expectedMintAmount
+        ) = _calculateExpectedPirexFeeValues(
+                assets,
+                feeNumerator,
+                feeDenominator,
+                feePercent,
+                treasuryPercent
+            );
 
-        assertTrue(expectedMintAmount > 0);
+        assertGt(expectedMintAmount, 0);
         assertEq(
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
