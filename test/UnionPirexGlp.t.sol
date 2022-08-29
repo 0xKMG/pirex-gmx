@@ -11,8 +11,11 @@ contract UnionPirexGlpTest is Helper {
     event PlatformUpdated(address indexed platform);
     event StrategySet(address indexed strategy);
 
+    /**
+        @notice Common setup for deposit and accruing reward
+     */
     function _setupForReward(
-        uint256 etherAmount,
+        uint80 etherAmount,
         uint80 rewardAmount,
         uint32 secondsElapsed
     ) internal returns (uint256) {
@@ -194,9 +197,9 @@ contract UnionPirexGlpTest is Helper {
 
     /**
         @notice Test calculating total assets
-        @param  etherAmount  uint256  Ether amount
+        @param  etherAmount  uint80  Ether amount
      */
-    function testTotalAssets(uint256 etherAmount) external {
+    function testTotalAssets(uint80 etherAmount) external {
         // Deposit into the UnionPirex to populate the assets
         vm.assume(etherAmount > 0.001 ether);
         vm.assume(etherAmount < 1_000 ether);
@@ -214,12 +217,12 @@ contract UnionPirexGlpTest is Helper {
 
     /**
         @notice Test calculating total assets with rewards
-        @param  etherAmount     uint256  Ether amount
-        @param  rewardAmount    uint80   Reward amount
-        @param  secondsElapsed  uint32   Seconds to forward timestamp
+        @param  etherAmount     uint80  Ether amount
+        @param  rewardAmount    uint80  Reward amount
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
     function testTotalAssetsWithReward(
-        uint256 etherAmount,
+        uint80 etherAmount,
         uint80 rewardAmount,
         uint32 secondsElapsed
     ) external {
@@ -249,12 +252,12 @@ contract UnionPirexGlpTest is Helper {
 
     /**
         @notice Test harvest
-        @param  etherAmount     uint256  Ether amount
-        @param  rewardAmount    uint80   Reward amount
-        @param  secondsElapsed  uint32   Seconds to forward timestamp
+        @param  etherAmount     uint80  Ether amount
+        @param  rewardAmount    uint80  Reward amount
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
     function testHarvest(
-        uint256 etherAmount,
+        uint80 etherAmount,
         uint80 rewardAmount,
         uint32 secondsElapsed
     ) external {
