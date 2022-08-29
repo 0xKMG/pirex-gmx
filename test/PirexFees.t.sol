@@ -3,7 +3,7 @@ pragma solidity 0.8.13;
 
 import "forge-std/Test.sol";
 
-import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexFees} from "src/PirexFees.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {Helper} from "./Helper.t.sol";
@@ -533,5 +533,109 @@ contract PirexFeesTest is Test, Helper {
             supplyBeforeRedemption - supplyAfterRedemption
         );
         assertEq(expectedBurnAmount + expectedFeeAmount, pxGlpBalance);
+    }
+
+    /**
+        @notice Test distributing fees for the redeemPxGlpForETH function
+        @param  rewardFee       uint24  Reward fee
+        @param  gmxAmount       uint96  Amount of pxGMX to get from the deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testDistributeFeesClaimUserReward(
+        uint24 rewardFee,
+        uint96 gmxAmount,
+        uint32 secondsElapsed
+    ) external {
+        vm.assume(rewardFee != 0);
+        vm.assume(rewardFee < pirexGmxGlp.FEE_MAX());
+        vm.assume(gmxAmount != 0);
+        vm.assume(gmxAmount < 100000e18);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        // Set up rewards state and accrual
+        pirexRewards.addRewardToken(pxGmx, pxGmx);
+        pirexRewards.addRewardToken(pxGmx, WETH);
+
+        // Mint pxGMX/GLP to accrue rewards and test fee distribution
+        _depositGmx(gmxAmount, address(this));
+
+        // Verify entire pxGMX supply is owned by this contract (gets all rewards)
+        assertEq(pxGmx.balanceOf(address(this)), pxGmx.totalSupply());
+
+        // Forward timestamp to begin accruing rewards
+        vm.warp(block.timestamp + secondsElapsed);
+
+        (
+            ,
+            ERC20[] memory rewardTokens,
+            uint256[] memory rewardAmounts
+        ) = pirexRewards.harvest();
+
+        assertEq(address(WETH), address(rewardTokens[0]));
+        assertEq(address(pxGmx), address(rewardTokens[2]));
+
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Reward, rewardFee);
+
+        (
+            uint256 expectedFeeAmountWeth,
+            uint256 expectedFeeAmountTreasuryWeth,
+            uint256 expectedFeeAmountContributorsWeth,
+            uint256 expectedClaimAmountWeth
+        ) = _calculateExpectedPirexFeeValues(
+                rewardAmounts[0],
+                pirexGmxGlp.fees(PirexGmxGlp.Fees.Reward),
+                pirexGmxGlp.FEE_DENOMINATOR(),
+                pirexFees.PERCENT_DENOMINATOR(),
+                pirexFees.treasuryPercent()
+            );
+        (
+            uint256 expectedFeeAmountPxGmx,
+            uint256 expectedFeeAmountTreasuryPxGmx,
+            uint256 expectedFeeAmountContributorsPxGmx,
+            uint256 expectedClaimAmountPxGmx
+        ) = _calculateExpectedPirexFeeValues(
+                rewardAmounts[2],
+                pirexGmxGlp.fees(PirexGmxGlp.Fees.Reward),
+                pirexGmxGlp.FEE_DENOMINATOR(),
+                pirexFees.PERCENT_DENOMINATOR(),
+                pirexFees.treasuryPercent()
+            );
+
+        // Pre-claim balance assertions to ensure we're (mostly) starting from a clean slate
+        assertEq(0, WETH.balanceOf(address(this)));
+        assertEq(0, pxGmx.balanceOf(address(this)) - gmxAmount);
+
+        pirexRewards.claim(pxGmx, address(this));
+
+        assertEq(
+            expectedFeeAmountTreasuryWeth + expectedFeeAmountContributorsWeth,
+            expectedFeeAmountWeth
+        );
+        assertEq(
+            expectedFeeAmountTreasuryWeth,
+            WETH.balanceOf(pirexFees.treasury())
+        );
+        assertEq(
+            expectedFeeAmountContributorsWeth,
+            WETH.balanceOf(pirexFees.contributors())
+        );
+        assertEq(expectedClaimAmountWeth, WETH.balanceOf(address(this)));
+        assertEq(
+            expectedFeeAmountTreasuryPxGmx + expectedFeeAmountContributorsPxGmx,
+            expectedFeeAmountPxGmx
+        );
+        assertEq(
+            expectedFeeAmountTreasuryPxGmx,
+            pxGmx.balanceOf(pirexFees.treasury())
+        );
+        assertEq(
+            expectedFeeAmountContributorsPxGmx,
+            pxGmx.balanceOf(pirexFees.contributors())
+        );
+        assertEq(
+            expectedClaimAmountPxGmx,
+            pxGmx.balanceOf(address(this)) - gmxAmount
+        );
     }
 }

@@ -157,7 +157,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         @return feeAmount   uint256  Fee amount
         @return userAmount  uint256  User amount (mint/burn/claim/etc.)
      */
-    function _deriveAmounts(Fees f, uint256 amount)
+    function _deriveAssetAmounts(Fees f, uint256 amount)
         internal
         view
         returns (uint256 feeAmount, uint256 userAmount)
@@ -212,7 +212,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         REWARD_ROUTER_V2.stakeGmx(gmxAmount);
 
-        (uint256 feeAmount, uint256 mintAmount) = _deriveAmounts(
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
             Fees.Deposit,
             gmxAmount
         );
@@ -252,7 +252,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minShares
         );
 
-        (uint256 feeAmount, uint256 mintAmount) = _deriveAmounts(
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
             Fees.Deposit,
             assets
         );
@@ -309,7 +309,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             0,
             minShares
         );
-        (uint256 feeAmount, uint256 mintAmount) = _deriveAmounts(
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
             Fees.Deposit,
             assets
         );
@@ -348,7 +348,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (minRedemption == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        (uint256 feeAmount, uint256 burnAmount) = _deriveAmounts(
+        (uint256 feeAmount, uint256 burnAmount) = _deriveAssetAmounts(
             Fees.Redemption,
             amount
         );
@@ -400,7 +400,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (receiver == address(0)) revert ZeroAddress();
         if (!GMX_VAULT.whitelistedTokens(token)) revert InvalidToken(token);
 
-        (uint256 feeAmount, uint256 burnAmount) = _deriveAmounts(
+        (uint256 feeAmount, uint256 burnAmount) = _deriveAssetAmounts(
             Fees.Redemption,
             amount
         );
@@ -568,12 +568,28 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (rewardTokenAddress == address(0)) revert ZeroAddress();
         if (recipient == address(0)) revert ZeroAddress();
 
+        (uint256 feeAmount, uint256 postFeeRewardAmount) = _deriveAssetAmounts(
+            Fees.Reward,
+            rewardAmount
+        );
+
         if (rewardTokenAddress == address(pxGmx)) {
-            // Distribute esGMX rewards as pxGMX
-            pxGmx.mint(recipient, rewardAmount);
+            // Mint pxGMX for the user - the analog for esGMX rewards
+            pxGmx.mint(recipient, postFeeRewardAmount);
         } else if (rewardTokenAddress == address(WETH)) {
-            // For WETH, we can directly transfer it
-            WETH.safeTransfer(recipient, rewardAmount);
+            WETH.safeTransfer(recipient, postFeeRewardAmount);
+        }
+
+        if (feeAmount != 0) {
+            // Mint the fees portion of the esGMX rewards
+            if (rewardTokenAddress == address(pxGmx))
+                pxGmx.mint(address(this), feeAmount);
+
+            pirexFees.distributeFees(
+                address(this),
+                rewardTokenAddress,
+                feeAmount
+            );
         }
     }
 

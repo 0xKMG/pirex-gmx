@@ -431,4 +431,65 @@ contract Helper is Test {
 
         return minTokenWithSlippage;
     }
+
+    /**
+        @notice Deposit ETH for pxGLP for testing purposes
+        @param  etherAmount  uint256  Amount of ETH
+        @param  receiver     address  Receiver of pxGLP
+        @return              uint256  Amount of pxGLP minted
+     */
+    function _depositGlpWithETH(uint256 etherAmount, address receiver)
+        internal
+        returns (uint256)
+    {
+        vm.deal(address(this), etherAmount);
+
+        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+            1,
+            receiver
+        );
+
+        // Time skip to bypass the cooldown duration
+        vm.warp(block.timestamp + 1 hours);
+
+        return assets;
+    }
+
+    /**
+        @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
+        @param  tokenAmount  uint256  Amount of token
+        @param  receiver     address  Receiver of pxGLP
+        @return              uint256  Amount of pxGLP minted
+     */
+    function _depositGlpWithERC20(uint256 tokenAmount, address receiver)
+        internal
+        returns (uint256)
+    {
+        _mintWbtc(tokenAmount);
+
+        WBTC.approve(address(pirexGmxGlp), tokenAmount);
+
+        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
+            address(WBTC),
+            tokenAmount,
+            1,
+            receiver
+        );
+
+        // Time skip to bypass the cooldown duration
+        vm.warp(block.timestamp + 1 hours);
+
+        return assets;
+    }
+
+    /**
+        @notice Deposit GMX for pxGMX
+        @param  tokenAmount  uint256  Amount of token
+        @param  receiver     address  Receiver of pxGMX
+     */
+    function _depositGmx(uint256 tokenAmount, address receiver) internal {
+        _mintGmx(tokenAmount);
+        GMX.approve(address(pirexGmxGlp), tokenAmount);
+        pirexGmxGlp.depositGmx(tokenAmount, receiver);
+    }
 }
