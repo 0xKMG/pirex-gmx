@@ -592,7 +592,7 @@ contract PirexRewardsTest is Helper {
 
     /**
         @notice Test correctness of reward accruals in the case of px token transfers
-        @param  tokenAmount      uin80   Amount of tokens to mint the sender
+        @param  tokenAmount      uint80  Amount of tokens to mint the sender
         @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
         @param  transferPercent  uint8   Percent for testing partial balance transfers
         @param  useTransfer      bool    Whether or not to use the transfer method
