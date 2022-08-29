@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {Owned} from "solmate/auth/Owned.sol";
+import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IProducer} from "src/interfaces/IProducer.sol";
@@ -10,7 +10,7 @@ import {IProducer} from "src/interfaces/IProducer.sol";
     Originally inspired by Flywheel V2 (thank you Tribe team):
     https://github.com/fei-protocol/flywheel-v2/blob/dbe3cb8/src/FlywheelCore.sol
 */
-contract PirexRewards is Owned {
+contract PirexRewards is OwnableUpgradeable {
     using SafeTransferLib for ERC20;
 
     struct GlobalState {
@@ -93,7 +93,9 @@ contract PirexRewards is Owned {
     error NoRewardRecipient();
     error NotContract();
 
-    constructor() Owned(msg.sender) {}
+    function initialize() public initializer {
+        __Ownable_init();
+    }
 
     /**
         @notice Set producer
