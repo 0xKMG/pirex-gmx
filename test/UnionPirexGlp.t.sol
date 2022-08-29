@@ -258,7 +258,11 @@ contract UnionPirexGlpTest is Helper {
         uint256 rewardAmount,
         uint256 secondsElapsed
     ) external {
-        uint256 assets = _setupForReward(etherAmount, rewardAmount, secondsElapsed);
+        uint256 assets = _setupForReward(
+            etherAmount,
+            rewardAmount,
+            secondsElapsed
+        );
 
         (uint256 totalSupply, uint256 rewards) = unionPirexGlpStrategy
             .totalSupplyWithRewards();
