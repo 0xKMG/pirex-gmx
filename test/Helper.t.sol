@@ -228,14 +228,16 @@ contract Helper is Test {
             if (useETH) {
                 pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(
                     1,
-                    testAccount
+                    testAccount,
+                    false
                 );
             } else {
                 pirexGmxGlp.depositGlpWithERC20(
                     address(WBTC),
                     tokenAmount,
                     1,
-                    testAccount
+                    testAccount,
+                    false
                 );
             }
         }

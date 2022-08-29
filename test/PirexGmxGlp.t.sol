@@ -20,6 +20,7 @@ contract PirexGmxGlpTest is Helper {
         address indexed caller,
         address indexed receiver,
         address indexed token,
+        bool shouldCompound,
         uint256 minShares,
         uint256 amount,
         uint256 assets
@@ -185,9 +186,10 @@ contract PirexGmxGlpTest is Helper {
         @notice Deposit ETH for pxGLP for testing purposes
         @param  etherAmount  uint256  Amount of ETH
         @param  receiver     address  Receiver of pxGLP
+        @param  compound     bool     Whether should compound
         @return              uint256  Amount of pxGLP minted
      */
-    function _depositGlpWithETH(uint256 etherAmount, address receiver)
+    function _depositGlpWithETH(uint256 etherAmount, address receiver, bool compound)
         internal
         returns (uint256)
     {
@@ -195,7 +197,8 @@ contract PirexGmxGlpTest is Helper {
 
         uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             1,
-            receiver
+            receiver,
+            compound
         );
 
         // Time skip to bypass the cooldown duration
@@ -208,9 +211,10 @@ contract PirexGmxGlpTest is Helper {
         @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
         @param  tokenAmount  uint256  Amount of token
         @param  receiver     address  Receiver of pxGLP
+        @param  compound     bool     Whether should compound
         @return              uint256  Amount of pxGLP minted
      */
-    function _depositGlpWithERC20(uint256 tokenAmount, address receiver)
+    function _depositGlpWithERC20(uint256 tokenAmount, address receiver, bool compound)
         internal
         returns (uint256)
     {
@@ -222,7 +226,8 @@ contract PirexGmxGlpTest is Helper {
             address(WBTC),
             tokenAmount,
             1,
-            receiver
+            receiver,
+            compound
         );
 
         // Time skip to bypass the cooldown duration
@@ -399,12 +404,13 @@ contract PirexGmxGlpTest is Helper {
         uint256 etherAmount = 1;
         uint256 minShares = 1;
         address receiver = address(this);
+        bool compound = false;
 
         vm.deal(address(this), etherAmount);
 
         vm.expectRevert("Pausable: paused");
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(minShares, receiver);
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(minShares, receiver, compound);
     }
 
     /**
@@ -413,10 +419,11 @@ contract PirexGmxGlpTest is Helper {
     function testCannotDepositGlpWithETHZeroValue() external {
         uint256 minShares = 1;
         address receiver = address(this);
+        bool compound = false;
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.depositGlpWithETH{value: 0}(minShares, receiver);
+        pirexGmxGlp.depositGlpWithETH{value: 0}(minShares, receiver, compound);
     }
 
     /**
@@ -426,13 +433,15 @@ contract PirexGmxGlpTest is Helper {
         uint256 etherAmount = 1 ether;
         uint256 invalidMinShares = 0;
         address receiver = address(this);
+        bool compound = false;
 
         vm.deal(address(this), etherAmount);
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             invalidMinShares,
-            receiver
+            receiver,
+            compound
         );
     }
 
@@ -443,13 +452,15 @@ contract PirexGmxGlpTest is Helper {
         uint256 etherAmount = 1 ether;
         uint256 minShares = 1;
         address invalidReceiver = address(0);
+        bool compound = false;
 
         vm.deal(address(this), etherAmount);
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             minShares,
-            invalidReceiver
+            invalidReceiver,
+            compound
         );
     }
 
@@ -464,13 +475,15 @@ contract PirexGmxGlpTest is Helper {
             18
         ) * 2;
         address receiver = address(this);
+        bool compound = false;
 
         vm.deal(address(this), etherAmount);
         vm.expectRevert(bytes("GlpManager: insufficient GLP output"));
 
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             invalidMinShares,
-            receiver
+            receiver,
+            compound
         );
     }
 
@@ -490,6 +503,7 @@ contract PirexGmxGlpTest is Helper {
             etherAmount,
             18
         );
+        bool compound = false;
         uint256 premintETHBalance = address(this).balance;
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
@@ -505,6 +519,7 @@ contract PirexGmxGlpTest is Helper {
             address(this),
             receiver,
             address(0),
+            compound,
             minShares,
             etherAmount,
             0
@@ -512,7 +527,8 @@ contract PirexGmxGlpTest is Helper {
 
         uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             minShares,
-            receiver
+            receiver,
+            compound
         );
         uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
             premintPxGlpUserBalance;
@@ -542,6 +558,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 tokenAmount = 1;
         uint256 minShares = 1;
         address receiver = address(this);
+        bool compound = false;
 
         _mintWbtc(tokenAmount);
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
@@ -552,7 +569,8 @@ contract PirexGmxGlpTest is Helper {
             token,
             tokenAmount,
             minShares,
-            receiver
+            receiver,
+            compound
         );
     }
 
@@ -564,6 +582,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 tokenAmount = 1;
         uint256 minShares = 1;
         address receiver = address(this);
+        bool compound = false;
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
@@ -571,7 +590,8 @@ contract PirexGmxGlpTest is Helper {
             invalidToken,
             tokenAmount,
             minShares,
-            receiver
+            receiver,
+            compound
         );
     }
 
@@ -583,6 +603,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 invalidTokenAmount = 0;
         uint256 minShares = 1;
         address receiver = address(this);
+        bool compound = false;
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
@@ -590,7 +611,8 @@ contract PirexGmxGlpTest is Helper {
             token,
             invalidTokenAmount,
             minShares,
-            receiver
+            receiver,
+            compound
         );
     }
 
@@ -602,6 +624,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 tokenAmount = 1;
         uint256 invalidMinShares = 0;
         address receiver = address(this);
+        bool compound = false;
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
@@ -609,7 +632,8 @@ contract PirexGmxGlpTest is Helper {
             token,
             tokenAmount,
             invalidMinShares,
-            receiver
+            receiver,
+            compound
         );
     }
 
@@ -621,6 +645,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 tokenAmount = 1;
         uint256 minShares = 1;
         address invalidReceiver = address(0);
+        bool compound = false;
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
@@ -628,7 +653,8 @@ contract PirexGmxGlpTest is Helper {
             token,
             tokenAmount,
             minShares,
-            invalidReceiver
+            invalidReceiver,
+            compound
         );
     }
 
@@ -640,6 +666,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 tokenAmount = 1;
         uint256 minShares = 1;
         address receiver = address(this);
+        bool compound = false;
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -652,7 +679,8 @@ contract PirexGmxGlpTest is Helper {
             invalidToken,
             tokenAmount,
             minShares,
-            receiver
+            receiver,
+            compound
         );
     }
 
@@ -668,6 +696,7 @@ contract PirexGmxGlpTest is Helper {
             8
         ) * 2;
         address receiver = address(this);
+        bool compound = false;
 
         _mintWbtc(tokenAmount);
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
@@ -678,7 +707,8 @@ contract PirexGmxGlpTest is Helper {
             token,
             tokenAmount,
             invalidMinShares,
-            receiver
+            receiver,
+            compound
         );
     }
 
@@ -695,6 +725,7 @@ contract PirexGmxGlpTest is Helper {
         address token = address(WBTC);
         uint256 minShares = 1;
         address receiver = address(this);
+        bool compound = false;
         uint256 minGlpAmount = _calculateMinGlpAmount(token, tokenAmount, 8);
         uint256 premintWBTCBalance = WBTC.balanceOf(address(this));
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
@@ -713,6 +744,7 @@ contract PirexGmxGlpTest is Helper {
             address(this),
             receiver,
             token,
+            compound,
             minShares,
             tokenAmount,
             0
@@ -722,7 +754,8 @@ contract PirexGmxGlpTest is Helper {
             token,
             tokenAmount,
             minShares,
-            receiver
+            receiver,
+            compound
         );
         uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
             premintPxGlpUserBalance;
@@ -752,7 +785,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 etherAmount = 1 ether;
         address receiver = address(this);
 
-        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 assets = _depositGlpWithETH(etherAmount, receiver, false);
         uint256 minRedemption = _calculateMinRedemptionAmount(
             address(WETH),
             assets
@@ -812,7 +845,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 etherAmount = 1 ether;
         address receiver = address(this);
 
-        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 assets = _depositGlpWithETH(etherAmount, receiver, false);
         uint256 invalidMinRedemption = _calculateMinRedemptionAmount(
             address(WETH),
             assets
@@ -835,7 +868,7 @@ contract PirexGmxGlpTest is Helper {
         address receiver = address(this);
 
         // Mint pxGLP with ETH before attempting to redeem back into ETH
-        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 assets = _depositGlpWithETH(etherAmount, receiver, false);
 
         uint256 previousETHBalance = receiver.balance;
         uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
@@ -885,7 +918,7 @@ contract PirexGmxGlpTest is Helper {
         address receiver = address(this);
         address token = address(WBTC);
 
-        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 assets = _depositGlpWithETH(etherAmount, receiver, false);
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
 
         // Pause after deposit
@@ -1004,7 +1037,7 @@ contract PirexGmxGlpTest is Helper {
         uint256 tokenAmount = 1e8;
         address receiver = address(this);
 
-        uint256 assets = _depositGlpWithERC20(tokenAmount, receiver);
+        uint256 assets = _depositGlpWithERC20(tokenAmount, receiver, false);
         uint256 invalidMinRedemption = _calculateMinRedemptionAmount(
             token,
             assets
@@ -1032,7 +1065,7 @@ contract PirexGmxGlpTest is Helper {
         address receiver = address(this);
 
         // Deposit using ERC20 to receive some pxGLP for redemption tests later
-        uint256 assets = _depositGlpWithERC20(tokenAmount, receiver);
+        uint256 assets = _depositGlpWithERC20(tokenAmount, receiver, false);
 
         uint256 previousWBTCBalance = WBTC.balanceOf(receiver);
         uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
@@ -1095,7 +1128,7 @@ contract PirexGmxGlpTest is Helper {
 
         address pirexRewardsAddr = address(pirexRewards);
 
-        _depositGlpWithERC20(wbtcAmount, address(this));
+        _depositGlpWithERC20(wbtcAmount, address(this), false);
         _depositGmx(gmxAmount, address(this));
 
         vm.warp(block.timestamp + secondsElapsed);
@@ -1182,7 +1215,7 @@ contract PirexGmxGlpTest is Helper {
 
         address pirexRewardsAddr = address(pirexRewards);
 
-        _depositGlpWithERC20(wbtcAmount, address(this));
+        _depositGlpWithERC20(wbtcAmount, address(this), false);
         _depositGmx(gmxAmount, address(this));
 
         // Forward timestamp to produce rewards
@@ -1626,7 +1659,7 @@ contract PirexGmxGlpTest is Helper {
 
         vm.deal(address(this), etherAmount);
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver, false);
 
         // Time skip to bypass the cooldown duration
         vm.warp(block.timestamp + 1 days);

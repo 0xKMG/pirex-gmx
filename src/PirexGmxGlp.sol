@@ -10,6 +10,7 @@ import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {Vault} from "src/external/Vault.sol";
+import {UnionPirexGlp} from "src/vaults/UnionPirexGlp.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
@@ -47,7 +48,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     // Pirex reward module contract
     address public pirexRewards;
 
+    // Union-Pirex contract(s)
+    UnionPirexGlp public unionPirexGlp;
+
     event SetPirexRewards(address pirexRewards);
+    event SetUnionPirexGlp(address unionPirexGlp);
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
@@ -57,6 +62,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address indexed caller,
         address indexed receiver,
         address indexed token,
+        bool shouldCompound,
         uint256 minShares,
         uint256 amount,
         uint256 assets
@@ -129,6 +135,27 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
+        @notice Set unionPirexGlp
+        @param  _unionPirexGlp  address  UnionPirexGlp contract address
+     */
+    function setUnionPirexGlp(address _unionPirexGlp) external onlyOwner {
+        if (_unionPirexGlp == address(0)) revert ZeroAddress();
+
+        // Revoke approval from the old contract and approve the new contract
+        ERC20 pxGlpERC20 = ERC20(address(pxGlp));
+        address oldUnionPirexGlp = address(unionPirexGlp);
+
+        if (oldUnionPirexGlp != address(0)) {
+            pxGlpERC20.safeApprove(oldUnionPirexGlp, 0);
+        }
+
+        unionPirexGlp = UnionPirexGlp(_unionPirexGlp);
+        pxGlpERC20.safeApprove(address(unionPirexGlp), type(uint256).max);
+
+        emit SetUnionPirexGlp(_unionPirexGlp);
+    }
+
+    /**
         @notice Deposit and stake GMX for pxGMX
         @param  gmxAmount  uint256  GMX amount
         @param  receiver   address  Recipient of pxGMX
@@ -154,17 +181,16 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Deposit ETH for pxGLP
-        @param  minShares  uint256  Minimum amount of GLP
-        @param  receiver   address  Recipient of pxGLP
-        @return assets     uint256  Amount of pxGLP
+        @param  minShares       uint256  Minimum amount of GLP
+        @param  receiver        address  Recipient of pxGLP
+        @param  shouldCompound  bool     Whether to auto-compound
+        @return assets          uint256  Amount of pxGLP
      */
-    function depositGlpWithETH(uint256 minShares, address receiver)
-        external
-        payable
-        whenNotPaused
-        nonReentrant
-        returns (uint256 assets)
-    {
+    function depositGlpWithETH(
+        uint256 minShares,
+        address receiver,
+        bool shouldCompound
+    ) external payable whenNotPaused nonReentrant returns (uint256 assets) {
         if (msg.value == 0) revert ZeroAmount();
         if (minShares == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
@@ -176,12 +202,18 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         );
 
         // Mint pxGLP based on the actual amount of GLP minted
-        pxGlp.mint(receiver, assets);
+        pxGlp.mint(shouldCompound ? address(this) : receiver, assets);
+
+        if (shouldCompound) {
+            // Transfer the minted pxGLP to the Union vault while the user receives the shares
+            unionPirexGlp.deposit(assets, receiver);
+        }
 
         emit DepositGlp(
             msg.sender,
             receiver,
             address(0),
+            shouldCompound,
             minShares,
             msg.value,
             assets
@@ -190,17 +222,19 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Deposit whitelisted ERC20 token for pxGLP
-        @param  token        address  GMX-whitelisted token for buying GLP
-        @param  tokenAmount  uint256  Whitelisted token amount
-        @param  minShares    uint256  Minimum amount of GLP
-        @param  receiver     address  Recipient of pxGLP
-        @return assets       uint256  Amount of pxGLP
+        @param  token           address  GMX-whitelisted token for buying GLP
+        @param  tokenAmount     uint256  Whitelisted token amount
+        @param  minShares       uint256  Minimum amount of GLP
+        @param  receiver        address  Recipient of pxGLP
+        @param  shouldCompound  bool     Whether to auto-compound
+        @return assets          uint256  Amount of pxGLP
      */
     function depositGlpWithERC20(
         address token,
         uint256 tokenAmount,
         uint256 minShares,
-        address receiver
+        address receiver,
+        bool shouldCompound
     ) external whenNotPaused nonReentrant returns (uint256 assets) {
         if (token == address(0)) revert ZeroAddress();
         if (tokenAmount == 0) revert ZeroAmount();
@@ -221,12 +255,18 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minShares
         );
 
-        pxGlp.mint(receiver, assets);
+        pxGlp.mint(shouldCompound ? address(this) : receiver, assets);
+
+        if (shouldCompound) {
+            // Transfer the minted pxGLP to the Union vault while the user receives the shares
+            unionPirexGlp.deposit(assets, receiver);
+        }
 
         emit DepositGlp(
             msg.sender,
             receiver,
             token,
+            shouldCompound,
             minShares,
             tokenAmount,
             assets
