@@ -14,7 +14,7 @@ contract UnionPirexGlpTest is Helper {
     function _setupForReward(
         uint256 etherAmount,
         uint256 rewardAmount,
-        uint256 secondsElapsed
+        uint32 secondsElapsed
     ) internal returns (uint256) {
         // Deposit into the UnionPirex to populate the assets
         vm.assume(etherAmount > 0.001 ether);
@@ -216,12 +216,12 @@ contract UnionPirexGlpTest is Helper {
         @notice Test calculating total assets with rewards
         @param  etherAmount     uint256  Ether amount
         @param  rewardAmount    uint256  Reward amount
-        @param  secondsElapsed  uint256  Seconds to forward timestamp
+        @param  secondsElapsed  uint32   Seconds to forward timestamp
      */
     function testTotalAssetsWithReward(
         uint256 etherAmount,
         uint256 rewardAmount,
-        uint256 secondsElapsed
+        uint32 secondsElapsed
     ) external {
         uint256 assets = _setupForReward(
             etherAmount,
@@ -251,12 +251,12 @@ contract UnionPirexGlpTest is Helper {
         @notice Test harvest
         @param  etherAmount     uint256  Ether amount
         @param  rewardAmount    uint256  Reward amount
-        @param  secondsElapsed  uint256  Seconds to forward timestamp
+        @param  secondsElapsed  uint32   Seconds to forward timestamp
      */
     function testHarvest(
         uint256 etherAmount,
         uint256 rewardAmount,
-        uint256 secondsElapsed
+        uint32 secondsElapsed
     ) external {
         uint256 assets = _setupForReward(
             etherAmount,
