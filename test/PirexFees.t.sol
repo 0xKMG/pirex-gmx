@@ -377,22 +377,23 @@ contract PirexFeesTest is Test, Helper {
 
     /**
         @notice Test distributing fees for the redeemPxGlpForETH function
-        @param  redemptionFee  uint24  Redemption fee
-        @param  ethAmount      uint96  ETH amount
+        @param  redemptionFee   uint24  Redemption fee
+        @param  ethAmount       uint96  ETH amount
+        @param  balanceDivisor  uint8   Divides balance to vary redemption amount
      */
     function testDistributeFeesRedeemPxGlpForETH(
         uint24 redemptionFee,
-        uint96 ethAmount
+        uint96 ethAmount,
+        uint8 balanceDivisor
     ) external {
         vm.assume(redemptionFee != 0);
         vm.assume(redemptionFee < pirexGmxGlp.FEE_MAX());
         vm.assume(ethAmount > 0.001 ether);
         vm.assume(ethAmount < 10000 ether);
+        vm.assume(balanceDivisor != 0);
 
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Redemption, redemptionFee);
 
-        uint256 minShares = _calculateMinGlpAmount(address(0), ethAmount, 18);
-        address receiver = address(this);
         (
             uint256 feeNumerator,
             uint256 feeDenominator,
@@ -403,45 +404,59 @@ contract PirexFeesTest is Test, Helper {
         ) = _getPirexFeeVariables(PirexGmxGlp.Fees.Redemption);
 
         assertEq(redemptionFee, feeNumerator);
-        assertEq(0, pxGlp.balanceOf(receiver));
+        assertEq(0, pxGlp.balanceOf(address(this)));
         assertEq(0, pxGlp.balanceOf(treasury));
         assertEq(0, pxGlp.balanceOf(contributors));
 
         vm.deal(address(this), ethAmount);
-        pirexGmxGlp.depositGlpWithETH{value: ethAmount}(minShares, receiver);
 
-        uint256 pxGlpBalance = pxGlp.balanceOf(receiver);
-
-        assertGt(pxGlpBalance, 0);
-
-        vm.warp(block.timestamp + 1 hours);
-
-        pxGlp.approve(address(pirexGmxGlp), pxGlpBalance);
-
-        uint256 supplyBeforeRedemption = pxGlp.totalSupply();
-
-        pirexGmxGlp.redeemPxGlpForETH(
-            pxGlpBalance,
-            _calculateMinRedemptionAmount(address(WETH), pxGlpBalance),
-            receiver
+        pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
+            _calculateMinGlpAmount(address(0), ethAmount, 18),
+            address(this)
         );
 
+        uint256 redemptionAmount = pxGlp.balanceOf(address(this)) /
+            balanceDivisor;
+
+        assertGt(redemptionAmount, 0);
+
+        // Warp past timelock for GLP redemption
+        vm.warp(block.timestamp + 1 hours);
+
+        pxGlp.approve(address(pirexGmxGlp), redemptionAmount);
+
+        uint256 supplyBeforeRedemption = pxGlp.totalSupply();
+        uint256 fsGlpBalanceBeforeRedemption = FEE_STAKED_GLP.balanceOf(
+            address(pirexGmxGlp)
+        );
         (
             uint256 expectedFeeAmount,
             uint256 expectedFeeAmountTreasury,
             uint256 expectedFeeAmountContributors,
             uint256 expectedBurnAmount
         ) = _calculateExpectedPirexFeeValues(
-                pxGlpBalance,
+                redemptionAmount,
                 feeNumerator,
                 feeDenominator,
                 feePercent,
                 treasuryPercent
             );
-        uint256 supplyAfterRedemption = pxGlp.totalSupply();
 
+        pirexGmxGlp.redeemPxGlpForETH(
+            redemptionAmount,
+            _calculateMinRedemptionAmount(
+                address(WETH),
+                redemptionAmount - expectedFeeAmount
+            ),
+            address(this)
+        );
+
+        assertEq(
+            (fsGlpBalanceBeforeRedemption - redemptionAmount) +
+                expectedFeeAmount,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmxGlp))
+        );
         assertGt(expectedBurnAmount, 0);
-        assertEq(expectedFeeAmount, supplyAfterRedemption);
         assertEq(
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
@@ -450,29 +465,30 @@ contract PirexFeesTest is Test, Helper {
         assertEq(expectedFeeAmountContributors, pxGlp.balanceOf(contributors));
         assertEq(
             expectedBurnAmount,
-            supplyBeforeRedemption - supplyAfterRedemption
+            supplyBeforeRedemption - pxGlp.totalSupply()
         );
-        assertEq(expectedBurnAmount + expectedFeeAmount, pxGlpBalance);
+        assertEq(expectedBurnAmount + expectedFeeAmount, redemptionAmount);
     }
 
     /**
         @notice Test distributing fees for the redeemPxGlpForETH function
-        @param  redemptionFee  uint24  Redemption fee
-        @param  ethAmount      uint96  ETH amount
+        @param  redemptionFee   uint24  Redemption fee
+        @param  ethAmount       uint96  ETH amount
+        @param  balanceDivisor  uint8   Divides balance to vary redemption amount
      */
     function testDistributeFeesRedeemPxGlpForERC20(
         uint24 redemptionFee,
-        uint96 ethAmount
+        uint96 ethAmount,
+        uint8 balanceDivisor
     ) external {
         vm.assume(redemptionFee != 0);
         vm.assume(redemptionFee < pirexGmxGlp.FEE_MAX());
         vm.assume(ethAmount > 0.001 ether);
         vm.assume(ethAmount < 10000 ether);
+        vm.assume(balanceDivisor != 0);
 
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Redemption, redemptionFee);
 
-        uint256 minShares = _calculateMinGlpAmount(address(0), ethAmount, 18);
-        address receiver = address(this);
         (
             uint256 feeNumerator,
             uint256 feeDenominator,
@@ -483,56 +499,66 @@ contract PirexFeesTest is Test, Helper {
         ) = _getPirexFeeVariables(PirexGmxGlp.Fees.Redemption);
 
         assertEq(redemptionFee, feeNumerator);
-        assertEq(0, pxGlp.balanceOf(receiver));
+        assertEq(0, pxGlp.balanceOf(address(this)));
         assertEq(0, pxGlp.balanceOf(treasury));
         assertEq(0, pxGlp.balanceOf(contributors));
 
         vm.deal(address(this), ethAmount);
-        pirexGmxGlp.depositGlpWithETH{value: ethAmount}(minShares, receiver);
 
-        uint256 pxGlpBalance = pxGlp.balanceOf(receiver);
+        pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
+            _calculateMinGlpAmount(address(0), ethAmount, 18),
+            address(this)
+        );
 
-        assertGt(pxGlpBalance, 0);
+        uint256 redemptionAmount = pxGlp.balanceOf(address(this)) /
+            balanceDivisor;
+
+        assertGt(redemptionAmount, 0);
 
         vm.warp(block.timestamp + 1 hours);
 
-        pxGlp.approve(address(pirexGmxGlp), pxGlpBalance);
+        pxGlp.approve(address(pirexGmxGlp), redemptionAmount);
 
         uint256 supplyBeforeRedemption = pxGlp.totalSupply();
-
-        pirexGmxGlp.redeemPxGlpForETH(
-            pxGlpBalance,
-            _calculateMinRedemptionAmount(address(WETH), pxGlpBalance),
-            receiver
+        uint256 fsGlpBalanceBeforeRedemption = FEE_STAKED_GLP.balanceOf(
+            address(pirexGmxGlp)
         );
-
         (
             uint256 expectedFeeAmount,
             uint256 expectedFeeAmountTreasury,
             uint256 expectedFeeAmountContributors,
             uint256 expectedBurnAmount
         ) = _calculateExpectedPirexFeeValues(
-                pxGlpBalance,
+                redemptionAmount,
                 feeNumerator,
                 feeDenominator,
                 feePercent,
                 treasuryPercent
             );
-        uint256 supplyAfterRedemption = pxGlp.totalSupply();
 
-        assertGt(expectedBurnAmount, 0);
-        assertEq(expectedFeeAmount, supplyAfterRedemption);
-        assertEq(
-            expectedFeeAmountTreasury + expectedFeeAmountContributors,
-            expectedFeeAmount
+        pirexGmxGlp.redeemPxGlpForERC20(
+            address(WETH),
+            redemptionAmount,
+            _calculateMinRedemptionAmount(
+                address(WETH),
+                redemptionAmount - expectedFeeAmount
+            ),
+            address(this)
         );
+
+        assertEq(
+            (fsGlpBalanceBeforeRedemption - redemptionAmount) +
+                expectedFeeAmount,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmxGlp))
+        );
+        assertGt(expectedBurnAmount, 0);
         assertEq(expectedFeeAmountTreasury, pxGlp.balanceOf(treasury));
         assertEq(expectedFeeAmountContributors, pxGlp.balanceOf(contributors));
         assertEq(
             expectedBurnAmount,
-            supplyBeforeRedemption - supplyAfterRedemption
+            (supplyBeforeRedemption - pxGlp.totalSupply())
         );
-        assertEq(expectedBurnAmount + expectedFeeAmount, pxGlpBalance);
+        assertEq(expectedBurnAmount + expectedFeeAmount, redemptionAmount);
     }
 
     /**

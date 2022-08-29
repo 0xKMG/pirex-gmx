@@ -151,11 +151,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Calculate fee and mint amounts from a fee type and total asset amount
+        @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
         @param  f           Fees     Fee type
         @param  amount      uint256  GMX/GLP amount
         @return feeAmount   uint256  Fee amount
-        @return userAmount  uint256  User amount (mint/burn/claim/etc.)
+        @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
      */
     function _deriveAssetAmounts(Fees f, uint256 amount)
         internal
@@ -165,7 +165,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         feeAmount = (amount * fees[f]) / FEE_DENOMINATOR;
         userAmount = amount - feeAmount;
 
-        // The sum of the fee and mint amounts should never exceed the asset amount
+        // The sum of the fee and post-fee amounts should never exceed the total asset amount
         assert(feeAmount + userAmount == amount);
     }
 
@@ -353,7 +353,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             amount
         );
 
-        // Burn pxGLP before unstaking the underlying GLP
+        // Burn pxGLP (excluding the pxGLP for fees) before unstaking the underlying GLP
         pxGlp.burn(receiver, burnAmount);
 
         // Distribute fees in pxGLP form
@@ -364,7 +364,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         // Unstake and redeem the underlying GLP for ETH
         redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlpETH(
-            amount,
+            burnAmount,
             minRedemption,
             receiver
         );
@@ -416,7 +416,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         // Unstake and redeem the underlying GLP for ERC20 token
         redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlp(
             token,
-            amount,
+            burnAmount,
             minRedemption,
             receiver
         );
