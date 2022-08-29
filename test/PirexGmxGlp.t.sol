@@ -11,6 +11,7 @@ import {IWETH} from "src/interfaces/IWETH.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGmxGlpTest is Helper {
+    event SetUnionPirexGlp(address unionPirexGlp);
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
@@ -292,6 +293,56 @@ contract PirexGmxGlpTest is Helper {
         pirexGmxGlp.setPirexRewards(_pirexRewards);
 
         assertEq(_pirexRewards, address(pirexGmxGlp.pirexRewards()));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setUnionPirexGlp TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being owner
+     */
+    function testCannotSetUnionPirexGlpUnauthorized() external {
+        address _unionPirexGlp = address(this);
+
+        vm.prank(testAccounts[0]);
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexGmxGlp.setUnionPirexGlp(_unionPirexGlp);
+    }
+
+    /**
+        @notice Test tx reversion due to _unionPirexGlp being zero
+     */
+    function testCannotSetUnionPirexGlpZeroAddress() external {
+        address invalidUnionPirexGlp = address(0);
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.setUnionPirexGlp(invalidUnionPirexGlp);
+    }
+
+    /**
+        @notice Test setting unionPirexGlp
+     */
+    function testSetUnionPirexGlp() external {
+        address unionPirexGlpBefore = address(pirexGmxGlp.unionPirexGlp());
+        address _unionPirexGlp = address(this);
+
+        assertTrue(unionPirexGlpBefore != _unionPirexGlp);
+
+        vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
+
+        emit SetUnionPirexGlp(_unionPirexGlp);
+
+        pirexGmxGlp.setUnionPirexGlp(_unionPirexGlp);
+
+        assertEq(_unionPirexGlp, address(pirexGmxGlp.unionPirexGlp()));
+        assertEq(pxGlp.allowance(address(pirexGmxGlp), unionPirexGlpBefore), 0);
+        assertEq(
+            pxGlp.allowance(address(pirexGmxGlp), _unionPirexGlp),
+            type(uint256).max
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
