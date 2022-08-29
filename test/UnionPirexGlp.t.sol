@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {ERC20} from "solmate/tokens/ERC20.sol";
-import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {UnionPirexGlp} from "src/vaults/UnionPirexGlp.sol";
+import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract UnionPirexGlpTest is Helper {
@@ -11,6 +10,37 @@ contract UnionPirexGlpTest is Helper {
     event PlatformFeeUpdated(uint256 fee);
     event PlatformUpdated(address indexed platform);
     event StrategySet(address indexed strategy);
+
+    function _setupForReward(
+        uint256 etherAmount,
+        uint256 rewardAmount,
+        uint256 secondsElapsed
+    ) internal returns (uint256) {
+        // Deposit into the UnionPirex to populate the assets
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(rewardAmount > 1e10);
+        vm.assume(rewardAmount < 10000e18);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        vm.deal(address(this), etherAmount);
+
+        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+            1,
+            address(this),
+            true
+        );
+
+        // Mint and accrue some test rewards before testing totalAssets
+        _mintPx(address(unionPirexGlpStrategy), rewardAmount, false);
+
+        unionPirexGlpStrategy.notifyRewardAmount();
+
+        vm.warp(block.timestamp + secondsElapsed);
+
+        return assets;
+    }
 
     /*//////////////////////////////////////////////////////////////
                         setWithdrawalPenalty TESTS
@@ -156,5 +186,102 @@ contract UnionPirexGlpTest is Helper {
         mockUnionPirexGlp.setStrategy(strategy);
 
         assertEq(address(mockUnionPirexGlp.strategy()), strategy);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        totalAssets TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test calculating total assets
+        @param  etherAmount  uint256  Ether amount
+     */
+    function testTotalAssets(uint256 etherAmount) external {
+        // Deposit into the UnionPirex to populate the assets
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+
+        vm.deal(address(this), etherAmount);
+
+        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+            1,
+            address(this),
+            true
+        );
+
+        assertEq(unionPirexGlp.totalAssets(), assets);
+    }
+
+    /**
+        @notice Test calculating total assets with rewards
+        @param  etherAmount     uint256  Ether amount
+        @param  rewardAmount    uint256  Reward amount
+        @param  secondsElapsed  uint256  Seconds to forward timestamp
+     */
+    function testTotalAssetsWithReward(
+        uint256 etherAmount,
+        uint256 rewardAmount,
+        uint256 secondsElapsed
+    ) external {
+        uint256 assets = _setupForReward(
+            etherAmount,
+            rewardAmount,
+            secondsElapsed
+        );
+
+        (uint256 _totalSupply, uint256 rewards) = unionPirexGlpStrategy
+            .totalSupplyWithRewards();
+        uint256 platformFee = unionPirexGlp.platformFee();
+        uint256 feeDenom = unionPirexGlp.FEE_DENOMINATOR();
+        uint256 totalAssets = unionPirexGlp.totalAssets();
+
+        assertGt(totalAssets, assets);
+        assertEq(_totalSupply, assets);
+        assertEq(
+            totalAssets,
+            _totalSupply + rewards - ((rewards * platformFee) / feeDenom)
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        harvest TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test harvest
+        @param  etherAmount     uint256  Ether amount
+        @param  rewardAmount    uint256  Reward amount
+        @param  secondsElapsed  uint256  Seconds to forward timestamp
+     */
+    function testHarvest(
+        uint256 etherAmount,
+        uint256 rewardAmount,
+        uint256 secondsElapsed
+    ) external {
+        uint256 assets = _setupForReward(etherAmount, rewardAmount, secondsElapsed);
+
+        (uint256 totalSupply, uint256 rewards) = unionPirexGlpStrategy
+            .totalSupplyWithRewards();
+        uint256 platformFee = unionPirexGlp.platformFee();
+        address platform = unionPirexGlp.platform();
+        uint256 feeDenom = unionPirexGlp.FEE_DENOMINATOR();
+        uint256 feeAmount = (rewards * platformFee) / feeDenom;
+        uint256 pxGlpPlatformBalance = pxGlp.balanceOf(platform);
+
+        assertEq(totalSupply, assets);
+        assertGt(rewards, 0);
+
+        unionPirexGlp.harvest();
+
+        // Validate balances and supply after harvest
+        (
+            uint256 postHarvestTotalSupply,
+            uint256 postHarvestRewards
+        ) = unionPirexGlpStrategy.totalSupplyWithRewards();
+
+        assertGt(postHarvestTotalSupply, totalSupply);
+        assertEq(postHarvestTotalSupply, totalSupply + rewards - feeAmount);
+        assertEq(postHarvestRewards, 0);
+        assertEq(pxGlp.balanceOf(platform), pxGlpPlatformBalance + feeAmount);
     }
 }
