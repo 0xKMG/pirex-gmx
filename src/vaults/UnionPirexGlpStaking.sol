@@ -28,6 +28,7 @@ contract UnionPirexGlpStaking is Owned {
     event Withdrawn(uint256 amount);
     event RewardPaid(uint256 reward);
     event Recovered(address token, uint256 amount);
+    event SetDistributor(address distributor);
 
     modifier updateReward(address account) {
         rewardPerTokenStored = rewardPerToken();
@@ -99,15 +100,19 @@ contract UnionPirexGlpStaking is Owned {
 
     function stake(uint256 amount) external onlyVault updateReward(vault) {
         require(amount > 0, "Cannot stake 0");
+
         _totalSupply += amount;
         token.safeTransferFrom(vault, address(this), amount);
+
         emit Staked(amount);
     }
 
     function withdraw(uint256 amount) external onlyVault updateReward(vault) {
         require(amount > 0, "Cannot withdraw 0");
+
         _totalSupply -= amount;
         token.safeTransfer(vault, amount);
+
         emit Withdrawn(amount);
     }
 
@@ -117,6 +122,7 @@ contract UnionPirexGlpStaking is Owned {
         if (reward > 0) {
             rewards = 0;
             token.safeTransfer(vault, reward);
+
             emit RewardPaid(reward);
         }
     }
@@ -152,12 +158,17 @@ contract UnionPirexGlpStaking is Owned {
             tokenAddress != address(token),
             "Cannot withdraw the staking token"
         );
+
         ERC20(tokenAddress).safeTransfer(owner, tokenAmount);
+
         emit Recovered(tokenAddress, tokenAmount);
     }
 
     function setDistributor(address _distributor) external onlyOwner {
         require(_distributor != address(0));
+
         distributor = _distributor;
+
+        emit SetDistributor(_distributor);
     }
 }

@@ -189,10 +189,11 @@ contract PirexGmxGlpTest is Helper {
         @param  compound     bool     Whether should compound
         @return              uint256  Amount of pxGLP minted
      */
-    function _depositGlpWithETH(uint256 etherAmount, address receiver, bool compound)
-        internal
-        returns (uint256)
-    {
+    function _depositGlpWithETH(
+        uint256 etherAmount,
+        address receiver,
+        bool compound
+    ) internal returns (uint256) {
         vm.deal(address(this), etherAmount);
 
         uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
@@ -214,10 +215,11 @@ contract PirexGmxGlpTest is Helper {
         @param  compound     bool     Whether should compound
         @return              uint256  Amount of pxGLP minted
      */
-    function _depositGlpWithERC20(uint256 tokenAmount, address receiver, bool compound)
-        internal
-        returns (uint256)
-    {
+    function _depositGlpWithERC20(
+        uint256 tokenAmount,
+        address receiver,
+        bool compound
+    ) internal returns (uint256) {
         _mintWbtc(tokenAmount);
 
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
@@ -410,7 +412,11 @@ contract PirexGmxGlpTest is Helper {
 
         vm.expectRevert("Pausable: paused");
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(minShares, receiver, compound);
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+            minShares,
+            receiver,
+            compound
+        );
     }
 
     /**
@@ -490,8 +496,11 @@ contract PirexGmxGlpTest is Helper {
     /**
         @notice Test depositing pxGLP with ETH
         @param  etherAmount  uint256  Amount of ether in wei units
+        @param  compound     bool     Whether should compound
      */
-    function testDepositGlpWithETH(uint256 etherAmount) external {
+    function testDepositGlpWithETH(uint256 etherAmount, bool compound)
+        external
+    {
         vm.assume(etherAmount > 0.001 ether);
         vm.assume(etherAmount < 1_000 ether);
         vm.deal(address(this), etherAmount);
@@ -503,9 +512,11 @@ contract PirexGmxGlpTest is Helper {
             etherAmount,
             18
         );
-        bool compound = false;
         uint256 premintETHBalance = address(this).balance;
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
+        uint256 premintPxGlpUnionBalance = pxGlp.balanceOf(
+            address(unionPirexGlpStrategy)
+        );
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
             address(pirexGmxGlp)
         );
@@ -530,17 +541,33 @@ contract PirexGmxGlpTest is Helper {
             receiver,
             compound
         );
+
         uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
             premintPxGlpUserBalance;
+        uint256 pxGlpReceivedByUnion = pxGlp.balanceOf(
+            address(unionPirexGlpStrategy)
+        ) - premintPxGlpUnionBalance;
         uint256 glpReceivedByPirex = FEE_STAKED_GLP.balanceOf(
             address(pirexGmxGlp)
         ) - premintGlpPirexBalance;
 
+        // Validate pxGlp balances based on the compound state
+        if (compound) {
+            assertGt(pxGlpReceivedByUnion, 0);
+            assertEq(pxGlpReceivedByUnion, glpReceivedByPirex);
+            assertGe(pxGlpReceivedByUnion, minGlpAmount);
+            assertEq(pxGlpReceivedByUser, 0);
+            assertEq(unionPirexGlp.balanceOf(receiver), glpReceivedByPirex);
+        } else {
+            assertGt(pxGlpReceivedByUser, 0);
+            assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
+            assertGe(pxGlpReceivedByUser, minGlpAmount);
+            assertEq(pxGlpReceivedByUnion, 0);
+            assertEq(unionPirexGlp.balanceOf(receiver), 0);
+        }
+
         assertEq(address(this).balance, premintETHBalance - etherAmount);
-        assertGt(pxGlpReceivedByUser, 0);
-        assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
         assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minGlpAmount);
         assertGe(glpReceivedByPirex, minGlpAmount);
     }
 
@@ -715,8 +742,11 @@ contract PirexGmxGlpTest is Helper {
     /**
         @notice Test depositing pxGLP with whitelisted ERC20 tokens
         @param  tokenAmount  uint256  Token amount
+        @param  compound     bool     Whether should compound
      */
-    function testDepositGlpWithERC20(uint256 tokenAmount) external {
+    function testDepositGlpWithERC20(uint256 tokenAmount, bool compound)
+        external
+    {
         vm.assume(tokenAmount > 1e5);
         vm.assume(tokenAmount < 100e8);
 
@@ -725,10 +755,12 @@ contract PirexGmxGlpTest is Helper {
         address token = address(WBTC);
         uint256 minShares = 1;
         address receiver = address(this);
-        bool compound = false;
         uint256 minGlpAmount = _calculateMinGlpAmount(token, tokenAmount, 8);
         uint256 premintWBTCBalance = WBTC.balanceOf(address(this));
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
+        uint256 premintPxGlpUnionBalance = pxGlp.balanceOf(
+            address(unionPirexGlpStrategy)
+        );
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
             address(pirexGmxGlp)
         );
@@ -759,18 +791,32 @@ contract PirexGmxGlpTest is Helper {
         );
         uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
             premintPxGlpUserBalance;
+        uint256 pxGlpReceivedByUnion = pxGlp.balanceOf(
+            address(unionPirexGlpStrategy)
+        ) - premintPxGlpUnionBalance;
         uint256 glpReceivedByPirex = FEE_STAKED_GLP.balanceOf(
             address(pirexGmxGlp)
         ) - premintGlpPirexBalance;
+
+        if (compound) {
+            assertGt(pxGlpReceivedByUnion, 0);
+            assertEq(pxGlpReceivedByUnion, glpReceivedByPirex);
+            assertGe(pxGlpReceivedByUnion, minGlpAmount);
+            assertEq(pxGlpReceivedByUser, 0);
+            assertEq(unionPirexGlp.balanceOf(receiver), glpReceivedByPirex);
+        } else {
+            assertGt(pxGlpReceivedByUser, 0);
+            assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
+            assertGe(pxGlpReceivedByUser, minGlpAmount);
+            assertEq(pxGlpReceivedByUnion, 0);
+            assertEq(unionPirexGlp.balanceOf(receiver), 0);
+        }
 
         assertEq(
             WBTC.balanceOf(address(this)),
             premintWBTCBalance - tokenAmount
         );
-        assertGt(pxGlpReceivedByUser, 0);
-        assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
         assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minGlpAmount);
         assertGe(glpReceivedByPirex, minGlpAmount);
     }
 

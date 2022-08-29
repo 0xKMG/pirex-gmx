@@ -19,6 +19,8 @@ import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
+import {UnionPirexGlp} from "src/vaults/UnionPirexGlp.sol";
+import {UnionPirexGlpStrategy} from "src/vaults/UnionPirexGlpStrategy.sol";
 
 contract Helper is Test {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
@@ -54,6 +56,8 @@ contract Helper is Test {
     PxGmx internal immutable pxGmx;
     PxGlp internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
+    UnionPirexGlp internal immutable unionPirexGlp;
+    UnionPirexGlpStrategy internal immutable unionPirexGlpStrategy;
 
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
@@ -87,11 +91,21 @@ contract Helper is Test {
             address(pxGlp),
             address(pirexRewards)
         );
+        unionPirexGlp = new UnionPirexGlp(address(pxGlp));
+        unionPirexGlpStrategy = new UnionPirexGlpStrategy(
+            address(pirexRewards),
+            address(pxGlp),
+            address(this),
+            address(unionPirexGlp)
+        );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
         pirexGmxGlp.setPirexRewards(address(pirexRewards));
+        pirexGmxGlp.setUnionPirexGlp(address(unionPirexGlp));
         pirexRewards.setProducer(address(pirexGmxGlp));
+        unionPirexGlp.setPlatform(address(this));
+        unionPirexGlp.setStrategy(address(unionPirexGlpStrategy));
 
         // Unpause after completing the setup
         pirexGmxGlp.setPauseState(false);
