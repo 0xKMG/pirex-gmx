@@ -11,6 +11,8 @@ contract UnionPirexGlpStakingTest is Helper {
     event SetDistributor(address distributor);
     event Staked(uint256 amount);
     event Withdrawn(uint256 amount);
+    event RewardPaid(address token, address receiver, uint256 reward);
+    event Recovered(address token, uint256 amount);
 
     function _setupForRewardAndAccrue(
         uint80 etherAmount,
@@ -412,19 +414,38 @@ contract UnionPirexGlpStakingTest is Helper {
 
         vm.warp(block.timestamp + secondsElapsed);
 
+        address vault = unionPirexGlpStrategy.vault();
+
         // Expected reward amount should be based on the current rewardPerToken value and total staked supply
         uint256 expectedRewardAmount = (unionPirexGlpStrategy.totalSupply() *
             unionPirexGlpStrategy.rewardPerToken(address(pxGlp))) / 1e18;
-        uint256 preClaimPxGlpBalance = pxGlp.balanceOf(address(unionPirexGlp));
+        uint256 preClaimPxGlpBalance = pxGlp.balanceOf(vault);
+
+        vm.expectEmit(
+            false,
+            false,
+            false,
+            true,
+            address(unionPirexGlpStrategy)
+        );
+
+        emit RewardPaid(address(pxGlp), vault, expectedRewardAmount);
 
         unionPirexGlpStrategy.getReward();
 
         assertGt(expectedRewardAmount, 0);
         assertEq(
-            pxGlp.balanceOf(address(unionPirexGlp)),
+            pxGlp.balanceOf(vault),
             preClaimPxGlpBalance + expectedRewardAmount
         );
+
+        // Also assert the update reward state after claiming
+        assertEq(unionPirexGlpStrategy.rewards(address(pxGlp), vault), 0);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                            getExtraReward TESTS
+    //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test claiming extra token reward
@@ -454,12 +475,120 @@ contract UnionPirexGlpStakingTest is Helper {
             unionPirexGlpStrategy.rewardPerToken(address(pxGmx))) / 1e18;
         uint256 preClaimPxGmxBalance = pxGmx.balanceOf(account);
 
+        vm.expectEmit(
+            false,
+            false,
+            false,
+            true,
+            address(unionPirexGlpStrategy)
+        );
+
+        emit RewardPaid(address(pxGmx), account, expectedRewardAmount);
+
         unionPirexGlpStrategy.getExtraReward();
 
         assertGt(expectedRewardAmount, 0);
         assertEq(
             pxGmx.balanceOf(account),
             preClaimPxGmxBalance + expectedRewardAmount
+        );
+
+        // Also assert the update reward state after claiming
+        assertEq(unionPirexGlpStrategy.rewards(address(pxGmx), account), 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            recoverERC20 TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion due to caller not being owner
+     */
+    function testCannotRecoverERC20Unauthorized() external {
+        address tokenAddress = address(this);
+        uint256 tokenAmount = 1;
+
+        vm.prank(testAccounts[0]);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        unionPirexGlpStrategy.recoverERC20(tokenAddress, tokenAmount);
+    }
+
+    /**
+        @notice Test tx reversion if tokenAddress is zero
+     */
+    function testCannotRecoverERC20ZeroAddress() external {
+        address invalidTokenAddress = address(0);
+        uint256 tokenAmount = 1;
+
+        vm.expectRevert(UnionPirexGlpStaking.ZeroAddress.selector);
+
+        unionPirexGlpStrategy.recoverERC20(invalidTokenAddress, tokenAmount);
+    }
+
+    /**
+        @notice Test tx reversion if tokenAddress is any of the reward tokens
+     */
+    function testCannotRecoverERC20InvalidToken() external {
+        address invalidTokenAddress1 = address(pxGmx);
+        address invalidTokenAddress2 = address(pxGlp);
+        uint256 tokenAmount = 1;
+
+        vm.expectRevert(UnionPirexGlpStaking.InvalidToken.selector);
+
+        unionPirexGlpStrategy.recoverERC20(invalidTokenAddress1, tokenAmount);
+
+        vm.expectRevert(UnionPirexGlpStaking.InvalidToken.selector);
+
+        unionPirexGlpStrategy.recoverERC20(invalidTokenAddress2, tokenAmount);
+    }
+
+    /**
+        @notice Test tx reversion if tokenAmount is zero
+     */
+    function testCannotRecoverERC20ZeroAmount() external {
+        address tokenAddress = address(this);
+        uint256 invalidTokenAmount = 0;
+
+        vm.expectRevert(UnionPirexGlpStaking.ZeroAmount.selector);
+
+        unionPirexGlpStrategy.recoverERC20(tokenAddress, invalidTokenAmount);
+    }
+
+    /**
+        @notice Test recovering ERC20 tokens
+     */
+    function testRecoverERC20() external {
+        uint256 tokenAmount = 100e8;
+        address tokenAddress = address(GMX);
+        address strategy = address(unionPirexGlpStrategy);
+        address owner = unionPirexGlpStrategy.owner();
+
+        // Mint test tokens and transfer it to the strategy before attempting to recover it
+        _mintGmx(tokenAmount);
+
+        ERC20(address(GMX)).transfer(strategy, tokenAmount);
+
+        uint256 preRecoverGmxBalanceOwner = GMX.balanceOf(owner);
+        uint256 preRecoverGmxBalanceStrategy = GMX.balanceOf(strategy);
+
+        vm.expectEmit(
+            false,
+            false,
+            false,
+            true,
+            address(unionPirexGlpStrategy)
+        );
+
+        emit Recovered(tokenAddress, tokenAmount);
+
+        unionPirexGlpStrategy.recoverERC20(tokenAddress, tokenAmount);
+
+        assertEq(GMX.balanceOf(owner), preRecoverGmxBalanceOwner + tokenAmount);
+        assertEq(
+            GMX.balanceOf(strategy),
+            preRecoverGmxBalanceStrategy - tokenAmount
         );
     }
 }

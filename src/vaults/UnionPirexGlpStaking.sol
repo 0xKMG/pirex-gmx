@@ -344,8 +344,10 @@ contract UnionPirexGlpStaking is Owned {
         external
         onlyOwner
     {
+        if (tokenAddress == address(0)) revert ZeroAddress();
         if (tokenAddress == token || tokenAddress == extraToken)
             revert InvalidToken();
+        if (tokenAmount == 0) revert ZeroAmount();
 
         ERC20(tokenAddress).safeTransfer(owner, tokenAmount);
 
