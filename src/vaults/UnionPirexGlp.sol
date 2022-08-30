@@ -179,10 +179,10 @@ contract UnionPirexGlp is Owned, ERC4626 {
     }
 
     /**
-        @notice Harvest rewards
+        @notice Harvest rewards for main vault token
      */
     function harvest() public {
-        // Claim rewards
+        // Claim rewards for main vault token (pxGLP)
         strategy.getReward();
 
         // Since we don't normally store pxGLP within the vault, a non-zero balance equals rewards
