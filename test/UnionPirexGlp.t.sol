@@ -24,7 +24,7 @@ contract UnionPirexGlpTest is Helper {
         vm.assume(etherAmount < 1_000 ether);
         vm.assume(rewardAmount > 1e10);
         vm.assume(rewardAmount < 10000e18);
-        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed > 1 hours);
         vm.assume(secondsElapsed < 365 days);
 
         vm.deal(address(this), etherAmount);
