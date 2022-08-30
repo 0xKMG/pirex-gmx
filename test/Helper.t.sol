@@ -69,6 +69,7 @@ contract Helper is Test {
     PirexRewards internal immutable pirexRewards;
     PirexFees internal immutable pirexFees;
     uint256 internal immutable feeMax;
+    UnionPirexGlp internal immutable unionPirexGlp;
     UnionPirexGlpStrategy internal immutable unionPirexGlpStrategy;
 
     address[3] internal testAccounts = [
@@ -484,19 +485,22 @@ contract Helper is Test {
 
     /**
         @notice Deposit ETH for pxGLP for testing purposes
-        @param  etherAmount  uint256  Amount of ETH
-        @param  receiver     address  Receiver of pxGLP
-        @return              uint256  Amount of pxGLP minted
+        @param  etherAmount     uint256  Amount of ETH
+        @param  receiver        address  Receiver of pxGLP
+        @param  shouldCompound  bool     Whether to compound
+        @return                 uint256  Amount of pxGLP minted
      */
-    function _depositGlpWithETH(uint256 etherAmount, address receiver)
-        internal
-        returns (uint256)
-    {
+    function _depositGlpWithETH(
+        uint256 etherAmount,
+        address receiver,
+        bool shouldCompound
+    ) internal returns (uint256) {
         vm.deal(address(this), etherAmount);
 
         uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             1,
-            receiver
+            receiver,
+            shouldCompound
         );
 
         // Time skip to bypass the cooldown duration
@@ -507,14 +511,16 @@ contract Helper is Test {
 
     /**
         @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
-        @param  tokenAmount  uint256  Amount of token
-        @param  receiver     address  Receiver of pxGLP
-        @return              uint256  Amount of pxGLP minted
+        @param  tokenAmount     uint256  Amount of token
+        @param  receiver        address  Receiver of pxGLP
+        @param  shouldCompound  bool     Whether to compound
+        @return                 uint256  Amount of pxGLP minted
      */
-    function _depositGlpWithERC20(uint256 tokenAmount, address receiver)
-        internal
-        returns (uint256)
-    {
+    function _depositGlpWithERC20(
+        uint256 tokenAmount,
+        address receiver,
+        bool shouldCompound
+    ) internal returns (uint256) {
         _mintWbtc(tokenAmount);
 
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
@@ -523,7 +529,8 @@ contract Helper is Test {
             address(WBTC),
             tokenAmount,
             1,
-            receiver
+            receiver,
+            shouldCompound
         );
 
         // Time skip to bypass the cooldown duration

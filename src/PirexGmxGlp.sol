@@ -69,9 +69,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     // Fees (e.g. 5000 / 1000000 = 0.5%)
     mapping(Fees => uint256) public fees;
 
-    event SetPirexRewards(address pirexRewards);
     event SetUnionPirexGlp(address unionPirexGlp);
-
     event SetPirexRewards(address pirexRewards);
     event SetFee(Fees indexed f, uint256 fee);
     event DepositGmx(

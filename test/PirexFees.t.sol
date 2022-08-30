@@ -276,7 +276,8 @@ contract PirexFeesTest is Test, Helper {
 
         uint256 assets = pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
             minShares,
-            receiver
+            receiver,
+            false
         );
         (
             uint256 expectedFeeAmount,
@@ -345,7 +346,8 @@ contract PirexFeesTest is Test, Helper {
             address(WBTC),
             wbtcAmount,
             minShares,
-            receiver
+            receiver,
+            false
         );
         (
             uint256 expectedFeeAmount,
@@ -408,7 +410,8 @@ contract PirexFeesTest is Test, Helper {
 
         pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
             _calculateMinGlpAmount(address(0), ethAmount, 18),
-            address(this)
+            address(this),
+            false
         );
 
         uint256 redemptionAmount = pxGlp.balanceOf(address(this)) /
@@ -503,7 +506,8 @@ contract PirexFeesTest is Test, Helper {
 
         pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
             _calculateMinGlpAmount(address(0), ethAmount, 18),
-            address(this)
+            address(this),
+            false
         );
 
         uint256 redemptionAmount = pxGlp.balanceOf(address(this)) /
