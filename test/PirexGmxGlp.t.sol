@@ -11,29 +11,6 @@ import {IWETH} from "src/interfaces/IWETH.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGmxGlpTest is Helper {
-    event SetUnionPirexGlp(address unionPirexGlp);
-    event DepositGmx(
-        address indexed caller,
-        address indexed receiver,
-        uint256 amount
-    );
-    event DepositGlp(
-        address indexed caller,
-        address indexed receiver,
-        address indexed token,
-        bool shouldCompound,
-        uint256 minShares,
-        uint256 amount,
-        uint256 assets
-    );
-    event RedeemGlp(
-        address indexed caller,
-        address indexed receiver,
-        address indexed token,
-        uint256 minRedemption,
-        uint256 amount,
-        uint256 redemption
-    );
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
     event ClaimRewards(
@@ -44,211 +21,6 @@ contract PirexGmxGlpTest is Helper {
         uint256 gmxEsGmxRewards,
         uint256 glpEsGmxRewards
     );
-
-    /**
-        @notice Get minimum price for whitelisted token
-        @param  token  address    Token
-        @return        uint256[]  Vault token info for token
-     */
-    function _getVaultTokenInfo(address token)
-        internal
-        view
-        returns (uint256[] memory)
-    {
-        address[] memory tokens = new address[](1);
-        tokens[0] = token;
-
-        return
-            VAULT_READER.getVaultTokenInfoV4(
-                address(VAULT),
-                POSITION_ROUTER,
-                address(WETH),
-                INFO_USDG_AMOUNT,
-                tokens
-            );
-    }
-
-    /**
-        @notice Get GLP price
-        @param  minPrice  bool     Whether to use minimum or maximum price
-        @return           uint256  GLP price
-     */
-    function _getGlpPrice(bool minPrice) internal view returns (uint256) {
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(FEE_STAKED_GLP);
-        uint256 aum = GLP_MANAGER.getAums()[minPrice ? 0 : 1];
-        uint256 glpSupply = READER.getTokenBalancesWithSupplies(
-            address(0),
-            tokens
-        )[1];
-
-        return (aum * 10**EXPANDED_GLP_DECIMALS) / glpSupply;
-    }
-
-    /**
-        @notice Get GLP buying fees
-        @param  tokenAmount  uint256    Token amount
-        @param  info         uint256[]  Token info
-        @param  incremental  bool       Whether the operation would increase USDG supply
-        @return              uint256    GLP buying fees
-     */
-    function _getFees(
-        uint256 tokenAmount,
-        uint256[] memory info,
-        bool incremental
-    ) internal view returns (uint256) {
-        uint256 initialAmount = info[2];
-        uint256 usdgDelta = ((tokenAmount * info[10]) / PRECISION);
-        uint256 nextAmount = initialAmount + usdgDelta;
-        if (!incremental) {
-            nextAmount = usdgDelta > initialAmount
-                ? 0
-                : initialAmount - usdgDelta;
-        }
-        uint256 targetAmount = (info[4] * USDG.totalSupply()) /
-            VAULT.totalTokenWeights();
-
-        if (targetAmount == 0) {
-            return FEE_BPS;
-        }
-
-        uint256 initialDiff = initialAmount > targetAmount
-            ? initialAmount - targetAmount
-            : targetAmount - initialAmount;
-        uint256 nextDiff = nextAmount > targetAmount
-            ? nextAmount - targetAmount
-            : targetAmount - nextAmount;
-
-        if (nextDiff < initialDiff) {
-            uint256 rebateBps = (TAX_BPS * initialDiff) / targetAmount;
-
-            return rebateBps > FEE_BPS ? 0 : FEE_BPS - rebateBps;
-        }
-
-        uint256 averageDiff = (initialDiff + nextDiff) / 2;
-
-        if (averageDiff > targetAmount) {
-            averageDiff = targetAmount;
-        }
-
-        return FEE_BPS + (TAX_BPS * averageDiff) / targetAmount;
-    }
-
-    /**
-        @notice Calculate the minimum amount of GLP received
-        @param  token     address  Token address
-        @param  amount    uint256  Amount of tokens
-        @param  decimals  uint256  Token decimals for expansion purposes
-        @return           uint256  Minimum GLP amount with slippage and decimal expansion
-     */
-    function _calculateMinGlpAmount(
-        address token,
-        uint256 amount,
-        uint256 decimals
-    ) internal view returns (uint256) {
-        uint256[] memory info = _getVaultTokenInfo(token);
-        uint256 glpAmount = (amount * info[10]) / _getGlpPrice(true);
-        uint256 minGlp = (glpAmount *
-            (BPS_DIVISOR - _getFees(amount, info, true))) / BPS_DIVISOR;
-        uint256 minGlpWithSlippage = (minGlp * (BPS_DIVISOR - SLIPPAGE)) /
-            BPS_DIVISOR;
-
-        // Expand min GLP amount decimals based on the input token's decimals
-        return
-            decimals == EXPANDED_GLP_DECIMALS
-                ? minGlpWithSlippage
-                : 10**(EXPANDED_GLP_DECIMALS - decimals) * minGlpWithSlippage;
-    }
-
-    /**
-        @notice Calculate the minimum amount of token to be redeemed from selling GLP
-        @param  token     address  Token address
-        @param  amount    uint256  Amount of tokens
-        @return           uint256  Minimum GLP amount with slippage and decimal expansion
-     */
-    function _calculateMinRedemptionAmount(address token, uint256 amount)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256[] memory info = _getVaultTokenInfo(token);
-        uint256 usdgAmount = (amount * _getGlpPrice(false)) / PRECISION;
-        uint256 redemptionAmount = VAULT.getRedemptionAmount(token, usdgAmount);
-        uint256 minToken = (redemptionAmount *
-            (BPS_DIVISOR - _getFees(redemptionAmount, info, false))) /
-            BPS_DIVISOR;
-        uint256 minTokenWithSlippage = (minToken * (BPS_DIVISOR - SLIPPAGE)) /
-            BPS_DIVISOR;
-
-        return minTokenWithSlippage;
-    }
-
-    /**
-        @notice Deposit ETH for pxGLP for testing purposes
-        @param  etherAmount  uint256  Amount of ETH
-        @param  receiver     address  Receiver of pxGLP
-        @param  compound     bool     Whether should compound
-        @return              uint256  Amount of pxGLP minted
-     */
-    function _depositGlpWithETH(
-        uint256 etherAmount,
-        address receiver,
-        bool compound
-    ) internal returns (uint256) {
-        vm.deal(address(this), etherAmount);
-
-        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
-            1,
-            receiver,
-            compound
-        );
-
-        // Time skip to bypass the cooldown duration
-        vm.warp(block.timestamp + 1 hours);
-
-        return assets;
-    }
-
-    /**
-        @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
-        @param  tokenAmount  uint256  Amount of token
-        @param  receiver     address  Receiver of pxGLP
-        @param  compound     bool     Whether should compound
-        @return              uint256  Amount of pxGLP minted
-     */
-    function _depositGlpWithERC20(
-        uint256 tokenAmount,
-        address receiver,
-        bool compound
-    ) internal returns (uint256) {
-        _mintWbtc(tokenAmount);
-
-        WBTC.approve(address(pirexGmxGlp), tokenAmount);
-
-        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
-            address(WBTC),
-            tokenAmount,
-            1,
-            receiver,
-            compound
-        );
-
-        // Time skip to bypass the cooldown duration
-        vm.warp(block.timestamp + 1 hours);
-
-        return assets;
-    }
-
-    /**
-        @notice Deposit GMX for pxGMX
-        @param  tokenAmount  uint256  Amount of token
-        @param  receiver     address  Receiver of pxGMX
-     */
-    function _depositGmx(uint256 tokenAmount, address receiver) internal {
-        _mintGmx(tokenAmount);
-        GMX.approve(address(pirexGmxGlp), tokenAmount);
-        pirexGmxGlp.depositGmx(tokenAmount, receiver);
-    }
 
     /*//////////////////////////////////////////////////////////////
                         setPirexRewards TESTS
@@ -346,6 +118,62 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        setFee TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is not authorized
+     */
+    function testCannotSetFeeNotOwner() external {
+        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
+
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, 1);
+    }
+
+    /**
+        @notice Test tx reversion: fee amount exceeds the maximum
+     */
+    function testCannotSetFeeExceedsMax() external {
+        for (uint256 i; i < feeTypes.length; ++i) {
+            vm.expectRevert(PirexGmxGlp.InvalidFee.selector);
+
+            pirexGmxGlp.setFee(feeTypes[i], feeMax + 1);
+        }
+    }
+
+    /**
+        @notice Test setting fees for each type
+        @param  deposit     uint256  Deposit fee
+        @param  redemption  uint256  Redemption fee
+        @param  reward      uint256  Reward fee
+     */
+    function testSetFee(
+        uint256 deposit,
+        uint256 redemption,
+        uint256 reward
+    ) external {
+        vm.assume(deposit != 0);
+        vm.assume(deposit < feeMax);
+        vm.assume(redemption != 0);
+        vm.assume(redemption < feeMax);
+        vm.assume(reward != 0);
+        vm.assume(reward < feeMax);
+
+        assertEq(0, pirexGmxGlp.fees(feeTypes[0]));
+        assertEq(0, pirexGmxGlp.fees(feeTypes[1]));
+        assertEq(0, pirexGmxGlp.fees(feeTypes[2]));
+
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, deposit);
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Redemption, redemption);
+        pirexGmxGlp.setFee(PirexGmxGlp.Fees.Reward, reward);
+
+        assertEq(deposit, pirexGmxGlp.fees(feeTypes[0]));
+        assertEq(redemption, pirexGmxGlp.fees(feeTypes[1]));
+        assertEq(reward, pirexGmxGlp.fees(feeTypes[2]));
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         depositGmx TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -431,7 +259,7 @@ contract PirexGmxGlpTest is Helper {
 
         vm.expectEmit(true, true, false, false, address(pirexGmxGlp));
 
-        emit DepositGmx(address(this), receiver, gmxAmount);
+        emit DepositGmx(address(this), receiver, gmxAmount, 0, 0);
 
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
 
@@ -584,6 +412,8 @@ contract PirexGmxGlpTest is Helper {
             compound,
             minShares,
             etherAmount,
+            0,
+            0,
             0
         );
 
@@ -830,6 +660,8 @@ contract PirexGmxGlpTest is Helper {
             compound,
             minShares,
             tokenAmount,
+            0,
+            0,
             0
         );
 
@@ -984,6 +816,8 @@ contract PirexGmxGlpTest is Helper {
             address(0),
             minRedemption,
             etherAmount,
+            0,
+            0,
             0
         );
 
@@ -1181,6 +1015,8 @@ contract PirexGmxGlpTest is Helper {
             token,
             minRedemption,
             tokenAmount,
+            0,
+            0,
             0
         );
 
@@ -1729,6 +1565,7 @@ contract PirexGmxGlpTest is Helper {
         PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
+            address(pirexFees),
             address(pirexRewards)
         );
 
@@ -1775,6 +1612,7 @@ contract PirexGmxGlpTest is Helper {
         PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
             address(pxGmx),
             address(pxGlp),
+            address(pirexFees),
             address(pirexRewards)
         );
 
