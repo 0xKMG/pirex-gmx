@@ -38,7 +38,7 @@ contract UnionPirexGlpTest is Helper {
         // Mint and accrue some test rewards before testing totalAssets
         _mintPx(address(unionPirexGlpStrategy), rewardAmount, false);
 
-        unionPirexGlpStrategy.notifyRewardAmount();
+        unionPirexGlpStrategy.notifyReward();
 
         vm.warp(block.timestamp + secondsElapsed);
 

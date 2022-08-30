@@ -95,6 +95,7 @@ contract Helper is Test {
         unionPirexGlpStrategy = new UnionPirexGlpStrategy(
             address(pirexRewards),
             address(pxGlp),
+            address(pxGmx),
             address(this),
             address(unionPirexGlp)
         );

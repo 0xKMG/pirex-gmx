@@ -32,7 +32,8 @@ contract UnionPirexGlp is Owned, ERC4626 {
     error ExceedsMax();
     error AlreadySet();
 
-    constructor(address pxGlp) Owned(msg.sender)
+    constructor(address pxGlp)
+        Owned(msg.sender)
         ERC4626(ERC20(pxGlp), "Union Pirex GLP", "uGLP")
     {}
 
@@ -115,7 +116,7 @@ contract UnionPirexGlp is Owned, ERC4626 {
         // Harvest rewards in the event where there is not enough staked assets to cover the withdrawal
         if (assets > strategy.totalSupply()) harvest();
 
-        strategy.withdraw(assets);
+        strategy.withdraw(msg.sender, assets);
     }
 
     /**
@@ -123,7 +124,7 @@ contract UnionPirexGlp is Owned, ERC4626 {
         @param  assets  uint256  Assets
      */
     function afterDeposit(uint256 assets, uint256) internal override {
-        strategy.stake(assets);
+        strategy.stake(msg.sender, assets);
     }
 
     /**
@@ -200,7 +201,7 @@ contract UnionPirexGlp is Owned, ERC4626 {
             asset.safeTransfer(platform, feeAmount);
 
             // Stake rewards sans fee
-            strategy.stake(rewards);
+            strategy.stake(address(this), rewards);
         }
     }
 }
