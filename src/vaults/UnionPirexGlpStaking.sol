@@ -359,12 +359,6 @@ contract UnionPirexGlpStaking is Owned {
     }
 
     /**
-        @notice Internal hook for distributor update
-        @param  _distributor  address  Distributor address
-     */
-    function afterDistributorSet(address _distributor) internal virtual {}
-
-    /**
         @notice Validate and cast a uint256 integer to uint224
         @param  value  uint256  Value
         @return        uint224  Casted value
@@ -385,4 +379,10 @@ contract UnionPirexGlpStaking is Owned {
 
         return uint32(value);
     }
+
+    /**
+        @notice Internal hook for distributor update
+        @param  _distributor  address  Distributor address
+     */
+    function afterDistributorSet(address _distributor) internal virtual {}
 }
