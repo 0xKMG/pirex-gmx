@@ -25,7 +25,7 @@ contract UnionPirexGlpStakingTest is Helper {
         vm.assume(secondsElapsedForDeposit > 1 hours);
         vm.assume(secondsElapsedForDeposit < 365 days);
         vm.assume(secondsElapsedForReward > 10);
-        vm.assume(secondsElapsedForReward < 4 weeks);
+        vm.assume(secondsElapsedForReward < 365 days);
 
         // Deposit and setup rewards
         vm.deal(address(this), etherAmount);
