@@ -11,30 +11,6 @@ import {IWETH} from "src/interfaces/IWETH.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGmxGlpTest is Helper {
-    event DepositGmx(
-        address indexed caller,
-        address indexed receiver,
-        uint256 gmxAmount,
-        uint256 feeAmount
-    );
-    event DepositGlp(
-        address indexed caller,
-        address indexed receiver,
-        address indexed token,
-        uint256 minShares,
-        uint256 amount,
-        uint256 assets,
-        uint256 feeAmount
-    );
-    event RedeemGlp(
-        address indexed caller,
-        address indexed receiver,
-        address indexed token,
-        uint256 minRedemption,
-        uint256 amount,
-        uint256 redemption,
-        uint256 feeAmount
-    );
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
     event ClaimRewards(
@@ -233,7 +209,7 @@ contract PirexGmxGlpTest is Helper {
 
         vm.expectEmit(true, true, false, false, address(pirexGmxGlp));
 
-        emit DepositGmx(address(this), receiver, gmxAmount, 0);
+        emit DepositGmx(address(this), receiver, gmxAmount, 0, 0);
 
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
 
@@ -367,6 +343,7 @@ contract PirexGmxGlpTest is Helper {
             address(0),
             minShares,
             etherAmount,
+            0,
             0,
             0
         );
@@ -577,6 +554,7 @@ contract PirexGmxGlpTest is Helper {
             minShares,
             tokenAmount,
             0,
+            0,
             0
         );
 
@@ -716,6 +694,7 @@ contract PirexGmxGlpTest is Helper {
             address(0),
             minRedemption,
             etherAmount,
+            0,
             0,
             0
         );
@@ -914,6 +893,7 @@ contract PirexGmxGlpTest is Helper {
             token,
             minRedemption,
             tokenAmount,
+            0,
             0,
             0
         );

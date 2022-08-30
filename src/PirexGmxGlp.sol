@@ -71,6 +71,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address indexed caller,
         address indexed receiver,
         uint256 gmxAmount,
+        uint256 mintAmount,
         uint256 feeAmount
     );
     event DepositGlp(
@@ -80,6 +81,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         uint256 minShares,
         uint256 amount,
         uint256 assets,
+        uint256 mintAmount,
         uint256 feeAmount
     );
     event RedeemGlp(
@@ -89,6 +91,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         uint256 minRedemption,
         uint256 amount,
         uint256 redemption,
+        uint256 burnAmount,
         uint256 feeAmount
     );
     event InitiateMigration(address newContract);
@@ -131,8 +134,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
-        if (_pirexRewards == address(0)) revert ZeroAddress();
         if (_pirexFees == address(0)) revert ZeroAddress();
+        if (_pirexRewards == address(0)) revert ZeroAddress();
 
         pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
@@ -153,7 +156,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     /**
         @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
         @param  f           Fees     Fee type
-        @param  amount      uint256  GMX/GLP amount
+        @param  amount      uint256  GMX/GLP/WETH amount
         @return feeAmount   uint256  Fee amount
         @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
      */
@@ -226,7 +229,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             pirexFees.distributeFees(address(this), address(pxGmx), feeAmount);
         }
 
-        emit DepositGmx(msg.sender, receiver, gmxAmount, feeAmount);
+        emit DepositGmx(msg.sender, receiver, gmxAmount, mintAmount, feeAmount);
     }
 
     /**
@@ -273,6 +276,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minShares,
             msg.value,
             assets,
+            mintAmount,
             feeAmount
         );
     }
@@ -328,6 +332,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minShares,
             tokenAmount,
             assets,
+            mintAmount,
             feeAmount
         );
     }
@@ -376,6 +381,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minRedemption,
             amount,
             redeemed,
+            burnAmount,
             feeAmount
         );
     }
@@ -428,6 +434,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minRedemption,
             amount,
             redeemed,
+            burnAmount,
             feeAmount
         );
     }

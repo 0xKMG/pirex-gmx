@@ -12,16 +12,6 @@ contract PirexFeesTest is Test, Helper {
     uint8 public constant MAX_TREASURY_PERCENT = 75;
     bytes public constant ACCESS_ERROR = "Ownable: caller is not the owner";
 
-    event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
-    event SetTreasuryPercent(uint8 _treasuryPercent);
-    event DistributeFees(address token, uint256 amount);
-    event DepositGmx(
-        address indexed caller,
-        address indexed receiver,
-        uint256 gmxAmount,
-        uint256 feeAmount
-    );
-
     /**
         @notice Get PirexFee variables that are frequently accessed
         @return feeNumerator     uint256  Fee numerator (i.e. fee value)
@@ -229,7 +219,13 @@ contract PirexFeesTest is Test, Helper {
 
         vm.expectEmit(true, true, false, true, address(pirexGmxGlp));
 
-        emit DepositGmx(address(this), receiver, gmxAmount, expectedFeeAmount);
+        emit DepositGmx(
+            address(this),
+            receiver,
+            gmxAmount,
+            expectedMintAmount,
+            expectedFeeAmount
+        );
 
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
 

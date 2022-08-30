@@ -77,6 +77,36 @@ contract Helper is Test {
     PirexGmxGlp.Fees[3] internal feeTypes;
 
     event SetPirexRewards(address pirexRewards);
+    event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
+    event SetTreasuryPercent(uint8 _treasuryPercent);
+    event DistributeFees(address token, uint256 amount);
+    event DepositGmx(
+        address indexed caller,
+        address indexed receiver,
+        uint256 gmxAmount,
+        uint256 mintAmount,
+        uint256 feeAmount
+    );
+    event DepositGlp(
+        address indexed caller,
+        address indexed receiver,
+        address indexed token,
+        uint256 minShares,
+        uint256 amount,
+        uint256 assets,
+        uint256 mintAmount,
+        uint256 feeAmount
+    );
+    event RedeemGlp(
+        address indexed caller,
+        address indexed receiver,
+        address indexed token,
+        uint256 minRedemption,
+        uint256 amount,
+        uint256 redemption,
+        uint256 burnAmount,
+        uint256 feeAmount
+    );
 
     // For testing ETH transfers
     receive() external payable {}
