@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import "forge-std/Test.sol";
-
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {UnionPirexGlpStaking} from "src/vaults/UnionPirexGlpStaking.sol";
 import {UnionPirexGlpStrategy} from "src/vaults/UnionPirexGlpStrategy.sol";
@@ -131,7 +129,7 @@ contract UnionPirexGlpStakingTest is Helper {
 
     /**
         @notice Test calculating reward amount per token
-        @param  etherAmount               uint80  Ether amount
+        @param  etherAmount               uint80  Ether amount for GLP deposit
         @param  secondsElapsedForDeposit  uint32  Seconds to forward timestamp after deposit
         @param  secondsElapsedForReward   uint32  Seconds to forward timestamp after notify reward
         @param  isExtraToken              bool    Whether to calculate for the extra token reward
@@ -186,7 +184,7 @@ contract UnionPirexGlpStakingTest is Helper {
 
     /**
         @notice Test calculating earned reward amount
-        @param  etherAmount               uint80  Ether amount
+        @param  etherAmount               uint80  Ether amount for GLP deposit
         @param  secondsElapsedForDeposit  uint32  Seconds to forward timestamp after deposit
         @param  secondsElapsedForReward   uint32  Seconds to forward timestamp after notify reward
         @param  isExtraToken              bool    Whether to calculate for the extra token reward
@@ -219,7 +217,7 @@ contract UnionPirexGlpStakingTest is Helper {
             ? unionPirexGlp.balanceOf(account)
             : unionPirexGlpStrategy.totalSupply();
 
-        // Expected earned should equal proportionately to the current balance (decimals normalised)
+        // Expected earned should equal proportionately to the current balance (decimals expanded)
         // as no claim has been done, with no pending reward has been calculated and stored
         uint256 expectedEarned = (balance *
             unionPirexGlpStrategy.rewardPerToken(token)) / 1e18;
@@ -373,6 +371,95 @@ contract UnionPirexGlpStakingTest is Helper {
         assertEq(
             unionPirexGlpStrategy.totalSupply(),
             postStakeTotalSupply - tokenAmount
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            getReward TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test claiming main vault reward
+        @param  etherAmount     uint80  Ether amount for GLP deposit
+        @param  rewardAmount    uint80  Reward amount (in pxGLP)
+        @param  secondsElapsed  uint32  Seconds to forward timestamp after notify reward
+     */
+    function testGetReward(
+        uint80 etherAmount,
+        uint80 rewardAmount,
+        uint32 secondsElapsed
+    ) external {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(rewardAmount > 1e10);
+        vm.assume(rewardAmount < 10000e18);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        // Populate a deposit record so we will have non-zero totalSupply for the staking contract
+        vm.deal(address(this), etherAmount);
+
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+            1,
+            address(this),
+            true
+        );
+
+        // Mint and accrue some test rewards then trigger notifyReward
+        _mintPx(address(unionPirexGlpStrategy), rewardAmount, false);
+
+        unionPirexGlpStrategy.notifyReward();
+
+        vm.warp(block.timestamp + secondsElapsed);
+
+        // Expected reward amount should be based on the current rewardPerToken value and total staked supply
+        uint256 expectedRewardAmount = (unionPirexGlpStrategy.totalSupply() *
+            unionPirexGlpStrategy.rewardPerToken(address(pxGlp))) / 1e18;
+        uint256 preClaimPxGlpBalance = pxGlp.balanceOf(address(unionPirexGlp));
+
+        unionPirexGlpStrategy.getReward();
+
+        assertGt(expectedRewardAmount, 0);
+        assertEq(
+            pxGlp.balanceOf(address(unionPirexGlp)),
+            preClaimPxGlpBalance + expectedRewardAmount
+        );
+    }
+
+    /**
+        @notice Test claiming extra token reward
+        @param  etherAmount               uint80  Ether amount for GLP deposit
+        @param  secondsElapsedForDeposit  uint32  Seconds to forward timestamp after deposit
+        @param  secondsElapsedForReward   uint32  Seconds to forward timestamp after notify reward
+     */
+    function testGetExtraReward(
+        uint80 etherAmount,
+        uint32 secondsElapsedForDeposit,
+        uint32 secondsElapsedForReward
+    ) external {
+        // Testing extra token rewards (pxGMX) requires full setup for actually accruing rewards from GMX
+        _setupForRewardAndAccrue(
+            etherAmount,
+            secondsElapsedForDeposit,
+            secondsElapsedForReward,
+            true
+        );
+
+        vm.warp(block.timestamp + secondsElapsedForReward);
+
+        address account = address(this);
+
+        // Expected reward amount should be based on the current rewardPerToken value and the user's vault shares
+        uint256 expectedRewardAmount = (unionPirexGlp.balanceOf(account) *
+            unionPirexGlpStrategy.rewardPerToken(address(pxGmx))) / 1e18;
+        uint256 preClaimPxGmxBalance = pxGmx.balanceOf(account);
+
+        unionPirexGlpStrategy.getExtraReward();
+
+        assertGt(expectedRewardAmount, 0);
+        assertEq(
+            pxGmx.balanceOf(account),
+            preClaimPxGmxBalance + expectedRewardAmount
         );
     }
 }

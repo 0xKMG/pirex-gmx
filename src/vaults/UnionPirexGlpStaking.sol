@@ -142,13 +142,7 @@ contract UnionPirexGlpStaking is Owned {
     function totalSupplyWithRewards() external view returns (uint256, uint256) {
         uint256 t = _totalSupply;
 
-        return (
-            t,
-            ((t *
-                (rewardPerToken(token) -
-                    userRewardPerTokenPaid[token][vault])) / 1e18) +
-                rewards[token][vault]
-        );
+        return (t, earned(vault, token, t));
     }
 
     /**
@@ -178,7 +172,7 @@ contract UnionPirexGlpStaking is Owned {
     }
 
     /**
-        @notice Get the amount of reward per token
+        @notice Get the amount of reward per token (with expanded decimals)
         @param  _token  address  Reward token address
         @return         uint256  Amount per token
      */
