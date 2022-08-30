@@ -45,6 +45,10 @@ contract UnionPirexGlpStaking is Owned {
     error NotVault();
     error NoRewards();
 
+    /**
+        @notice Internal modifier to update reward related states used on major mutative methods
+        @param  account  address  Account address
+     */
     modifier updateReward(address account) {
         // Update the main vault token state
         Reward storage mainReward = rewardData[token];
@@ -98,6 +102,11 @@ contract UnionPirexGlpStaking is Owned {
         address _distributor,
         address _vault
     ) Owned(msg.sender) {
+        if (_token == address(0)) revert ZeroAddress();
+        if (_extraToken == address(0)) revert ZeroAddress();
+        if (_distributor == address(0)) revert ZeroAddress();
+        if (_vault == address(0)) revert ZeroAddress();
+
         token = _token;
         extraToken = _extraToken;
         distributor = _distributor;
