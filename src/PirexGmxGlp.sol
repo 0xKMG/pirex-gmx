@@ -10,12 +10,20 @@ import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {Vault} from "src/external/Vault.sol";
-import {PxGlp} from "src/PxGlp.sol";
 import {PxGmx} from "src/PxGmx.sol";
+import {PxGlp} from "src/PxGlp.sol";
+import {PirexFees} from "src/PirexFees.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
 contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
+
+    // Configurable fees
+    enum Fees {
+        Deposit,
+        Redemption,
+        Reward
+    }
 
     // Miscellaneous dependency contracts (e.g. GMX) and addresses
     // @TODO: Add a compound method for updating any that may change
@@ -40,18 +48,31 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     ERC20 public constant ESGMX =
         ERC20(0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA);
 
+    // Fee denominator
+    uint256 public constant FEE_DENOMINATOR = 1_000_000;
+
+    // Fee maximum
+    uint256 public constant FEE_MAX = 100_000;
+
     // Pirex token contract(s)
     PxGmx public immutable pxGmx;
     PxGlp public immutable pxGlp;
+    PirexFees public immutable pirexFees;
 
     // Pirex reward module contract
     address public pirexRewards;
 
+    // Fees (e.g. 5000 / 1000000 = 0.5%)
+    mapping(Fees => uint256) public fees;
+
     event SetPirexRewards(address pirexRewards);
+    event SetFee(Fees indexed f, uint256 fee);
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
-        uint256 amount
+        uint256 gmxAmount,
+        uint256 mintAmount,
+        uint256 feeAmount
     );
     event DepositGlp(
         address indexed caller,
@@ -59,7 +80,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address indexed token,
         uint256 minShares,
         uint256 amount,
-        uint256 assets
+        uint256 assets,
+        uint256 mintAmount,
+        uint256 feeAmount
     );
     event RedeemGlp(
         address indexed caller,
@@ -67,7 +90,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address indexed token,
         uint256 minRedemption,
         uint256 amount,
-        uint256 redemption
+        uint256 redemption,
+        uint256 burnAmount,
+        uint256 feeAmount
     );
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
@@ -85,6 +110,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     error InvalidToken(address token);
     error NotPirexRewards();
     error InvalidReward(address token);
+    error InvalidFee();
 
     modifier onlyPirexRewards() {
         if (msg.sender != pirexRewards) revert NotPirexRewards();
@@ -94,11 +120,13 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     /**
         @param  _pxGmx         address  PxGmx contract address
         @param  _pxGlp         address  PxGlp contract address
+        @param  _pirexFees     address  PirexFees contract address
         @param  _pirexRewards  address  PirexRewards contract address
     */
     constructor(
         address _pxGmx,
         address _pxGlp,
+        address _pirexFees,
         address _pirexRewards
     ) Owned(msg.sender) {
         // Started as being paused, and should only be unpaused after correctly setup
@@ -106,14 +134,42 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
+        if (_pirexFees == address(0)) revert ZeroAddress();
         if (_pirexRewards == address(0)) revert ZeroAddress();
 
         pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
+        pirexFees = PirexFees(_pirexFees);
         pirexRewards = _pirexRewards;
 
-        // Pre-approving stakedGmx contract for staking GMX on behalf of our vault
-        GMX.safeApprove(address(STAKED_GMX), type(uint256).max);
+        uint256 maxAmount = type(uint256).max;
+
+        // Pre-approve the stakedGmx contract for staking GMX on behalf of our vault
+        GMX.safeApprove(address(STAKED_GMX), maxAmount);
+
+        // Pre-approve the pirexFees contract for fee token types
+        ERC20(pxGmx).safeApprove(_pirexFees, maxAmount);
+        ERC20(pxGlp).safeApprove(_pirexFees, maxAmount);
+        WETH.safeApprove(_pirexFees, maxAmount);
+    }
+
+    /**
+        @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
+        @param  f           Fees     Fee type
+        @param  amount      uint256  GMX/GLP/WETH amount
+        @return feeAmount   uint256  Fee amount
+        @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
+     */
+    function _deriveAssetAmounts(Fees f, uint256 amount)
+        internal
+        view
+        returns (uint256 feeAmount, uint256 userAmount)
+    {
+        feeAmount = (amount * fees[f]) / FEE_DENOMINATOR;
+        userAmount = amount - feeAmount;
+
+        // The sum of the fee and post-fee amounts should never exceed the total asset amount
+        assert(feeAmount + userAmount == amount);
     }
 
     /**
@@ -126,6 +182,19 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         pirexRewards = _pirexRewards;
 
         emit SetPirexRewards(_pirexRewards);
+    }
+
+    /**
+        @notice Set fee
+        @param  f    enum     Fee
+        @param  fee  uint256  Fee amount
+     */
+    function setFee(Fees f, uint256 fee) external onlyOwner {
+        if (fee > FEE_MAX) revert InvalidFee();
+
+        fees[f] = fee;
+
+        emit SetFee(f, fee);
     }
 
     /**
@@ -146,10 +215,21 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         REWARD_ROUTER_V2.stakeGmx(gmxAmount);
 
-        // Mint pxGMX equal to the specified amount of GMX
-        pxGmx.mint(receiver, gmxAmount);
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
+            Fees.Deposit,
+            gmxAmount
+        );
 
-        emit DepositGmx(msg.sender, receiver, gmxAmount);
+        // Mint pxGMX equal to the GMX deposit amount sans fees
+        pxGmx.mint(receiver, mintAmount);
+
+        // Distribute fees in the form of pxGMX
+        if (feeAmount != 0) {
+            pxGmx.mint(address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGmx), feeAmount);
+        }
+
+        emit DepositGmx(msg.sender, receiver, gmxAmount, mintAmount, feeAmount);
     }
 
     /**
@@ -175,8 +255,19 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             minShares
         );
 
-        // Mint pxGLP based on the actual amount of GLP minted
-        pxGlp.mint(receiver, assets);
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
+            Fees.Deposit,
+            assets
+        );
+
+        // Mint pxGLP equal to the GLP amount sans fees
+        pxGlp.mint(receiver, mintAmount);
+
+        // Distribute fees in the form of pxGLP
+        if (feeAmount != 0) {
+            pxGlp.mint(address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+        }
 
         emit DepositGlp(
             msg.sender,
@@ -184,7 +275,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             address(0),
             minShares,
             msg.value,
-            assets
+            assets,
+            mintAmount,
+            feeAmount
         );
     }
 
@@ -220,8 +313,17 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             0,
             minShares
         );
+        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
+            Fees.Deposit,
+            assets
+        );
 
-        pxGlp.mint(receiver, assets);
+        pxGlp.mint(receiver, mintAmount);
+
+        if (feeAmount != 0) {
+            pxGlp.mint(address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+        }
 
         emit DepositGlp(
             msg.sender,
@@ -229,7 +331,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             token,
             minShares,
             tokenAmount,
-            assets
+            assets,
+            mintAmount,
+            feeAmount
         );
     }
 
@@ -249,12 +353,23 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (minRedemption == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Burn pxGLP before unstaking the underlying GLP
-        pxGlp.burn(receiver, amount);
+        (uint256 feeAmount, uint256 burnAmount) = _deriveAssetAmounts(
+            Fees.Redemption,
+            amount
+        );
+
+        // Burn pxGLP (excluding the pxGLP for fees) before unstaking the underlying GLP
+        pxGlp.burn(receiver, burnAmount);
+
+        // Distribute fees in pxGLP form
+        if (feeAmount != 0) {
+            ERC20(pxGlp).safeTransferFrom(msg.sender, address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+        }
 
         // Unstake and redeem the underlying GLP for ETH
         redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlpETH(
-            amount,
+            burnAmount,
             minRedemption,
             receiver
         );
@@ -265,7 +380,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             address(0),
             minRedemption,
             amount,
-            redeemed
+            redeemed,
+            burnAmount,
+            feeAmount
         );
     }
 
@@ -289,13 +406,23 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (receiver == address(0)) revert ZeroAddress();
         if (!GMX_VAULT.whitelistedTokens(token)) revert InvalidToken(token);
 
+        (uint256 feeAmount, uint256 burnAmount) = _deriveAssetAmounts(
+            Fees.Redemption,
+            amount
+        );
+
         // Burn pxGLP before unstaking the underlying GLP
-        pxGlp.burn(receiver, amount);
+        pxGlp.burn(receiver, burnAmount);
+
+        if (feeAmount != 0) {
+            ERC20(pxGlp).safeTransferFrom(msg.sender, address(this), feeAmount);
+            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+        }
 
         // Unstake and redeem the underlying GLP for ERC20 token
         redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlp(
             token,
-            amount,
+            burnAmount,
             minRedemption,
             receiver
         );
@@ -306,7 +433,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             token,
             minRedemption,
             amount,
-            redeemed
+            redeemed,
+            burnAmount,
+            feeAmount
         );
     }
 
@@ -446,12 +575,28 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (rewardTokenAddress == address(0)) revert ZeroAddress();
         if (recipient == address(0)) revert ZeroAddress();
 
+        (uint256 feeAmount, uint256 postFeeRewardAmount) = _deriveAssetAmounts(
+            Fees.Reward,
+            rewardAmount
+        );
+
         if (rewardTokenAddress == address(pxGmx)) {
-            // Distribute esGMX rewards as pxGMX
-            pxGmx.mint(recipient, rewardAmount);
+            // Mint pxGMX for the user - the analog for esGMX rewards
+            pxGmx.mint(recipient, postFeeRewardAmount);
         } else if (rewardTokenAddress == address(WETH)) {
-            // For WETH, we can directly transfer it
-            WETH.safeTransfer(recipient, rewardAmount);
+            WETH.safeTransfer(recipient, postFeeRewardAmount);
+        }
+
+        if (feeAmount != 0) {
+            // Mint the fees portion of the esGMX rewards
+            if (rewardTokenAddress == address(pxGmx))
+                pxGmx.mint(address(this), feeAmount);
+
+            pirexFees.distributeFees(
+                address(this),
+                rewardTokenAddress,
+                feeAmount
+            );
         }
     }
 
@@ -474,7 +619,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
                         EMERGENCY/MIGRATION LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /** 
+    /**
         @notice Set the contract's pause state
         @param state  bool  Pause state
     */
@@ -486,7 +631,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         }
     }
 
-    /** 
+    /**
         @notice Initiate contract migration (called by the old contract)
         @param  newContract  address  Address of the new contract
     */
@@ -504,7 +649,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         emit InitiateMigration(newContract);
     }
 
-    /** 
+    /**
         @notice Complete contract migration (called by the new contract)
         @param  oldContract  address  Address of the old contract
     */
