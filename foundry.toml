@@ -6,6 +6,6 @@ verbosity = 3
 optimizer_details.yul = true
 optimizer_details.yul_details.stack_allocation = true
 fuzz_runs = 5
-fuzz_max_global_rejects = 131072
+fuzz_max_global_rejects = 262144
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config
