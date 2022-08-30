@@ -31,7 +31,7 @@ contract UnionPirexGlpStrategy is UnionPirexGlpStaking {
         @notice Claim rewards from PirexGmxGlp and transfer them to the distributor
      */
     function claimRewards() external {
-        // To be used for calculating actual amount of extra reward token (pxGMX)
+        // To be used for calculating actual amount of extra token rewards (as pxGMX)
         uint256 extraTokenBalance = ERC20(extraToken).balanceOf(address(this));
 
         // Claim yields from the pxGLP side
@@ -42,6 +42,7 @@ contract UnionPirexGlpStrategy is UnionPirexGlpStaking {
         uint256 rewardAmount = ERC20(extraToken).balanceOf(address(this)) -
             extraTokenBalance;
 
+        // Update the extra reward state when there are extra token rewards available
         if (rewardAmount != 0) {
             _notifyExtraReward(rewardAmount);
         }
@@ -50,6 +51,7 @@ contract UnionPirexGlpStrategy is UnionPirexGlpStaking {
     /**
         @notice Set distributor as the reward recipient (only for WETH rewards)
         @notice For pxGMX rewards, it can be directly handled by the contract itself
+        @param  _distributor  address  Distributor address
      */
     function afterDistributorSet(address _distributor) internal override {
         // WETH from pxGLP

@@ -4,7 +4,6 @@ pragma solidity 0.8.13;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {Owned} from "solmate/auth/Owned.sol";
-import {IERC4626} from "src/interfaces/IERC4626.sol";
 
 contract UnionPirexGlpStaking is Owned {
     using SafeTransferLib for ERC20;
