@@ -14,8 +14,6 @@ contract PirexFeesTest is Helper {
     uint8 internal constant DEFAULT_TREASURY_PERCENT = 75;
 
     uint8 internal constant MAX_TREASURY_PERCENT = 75;
-    bytes internal constant ACCESS_ERROR = "Ownable: caller is not the owner";
-    uint32 internal constant GLP_REDEMPTION_DELAY = 1 hours;
 
     /**
         @notice Get PirexFee variables that are frequently accessed
@@ -95,7 +93,7 @@ contract PirexFeesTest is Helper {
         assertEq(DEFAULT_TREASURY, pirexFees.treasury());
         assertEq(DEFAULT_CONTRIBUTORS, pirexFees.contributors());
 
-        vm.expectRevert(ACCESS_ERROR);
+        vm.expectRevert(NOT_OWNER_ERROR);
 
         vm.prank(testAccounts[0]);
 
@@ -158,7 +156,7 @@ contract PirexFeesTest is Helper {
     function testCannotSetTreasuryPercentNotAuthorized() external {
         assertEq(DEFAULT_TREASURY_PERCENT, pirexFees.treasuryPercent());
 
-        vm.expectRevert(ACCESS_ERROR);
+        vm.expectRevert(NOT_OWNER_ERROR);
 
         vm.prank(testAccounts[0]);
 
@@ -444,7 +442,7 @@ contract PirexFeesTest is Helper {
         assertGt(redemptionAmount, 0);
 
         // Warp past timelock for GLP redemption
-        vm.warp(block.timestamp + GLP_REDEMPTION_DELAY);
+        vm.warp(block.timestamp + 1 hours);
 
         pxGlp.approve(address(pirexGmxGlp), redemptionAmount);
 
@@ -538,7 +536,7 @@ contract PirexFeesTest is Helper {
 
         assertGt(redemptionAmount, 0);
 
-        vm.warp(block.timestamp + GLP_REDEMPTION_DELAY);
+        vm.warp(block.timestamp + 1 hours);
 
         pxGlp.approve(address(pirexGmxGlp), redemptionAmount);
 
