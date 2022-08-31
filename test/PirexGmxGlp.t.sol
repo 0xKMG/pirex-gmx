@@ -21,6 +21,10 @@ contract PirexGmxGlpTest is Helper {
         uint256 gmxEsGmxRewards,
         uint256 glpEsGmxRewards
     );
+    event SetDelegateRegistry(address delegateRegistry);
+    event SetDelegationSpace(string delegationSpace, bool shouldClear);
+    event SetVoteDelegate(address voteDelegate);
+    event ClearVoteDelegate();
 
     /*//////////////////////////////////////////////////////////////
                         setPirexRewards TESTS
@@ -65,6 +69,54 @@ contract PirexGmxGlpTest is Helper {
         pirexGmxGlp.setPirexRewards(_pirexRewards);
 
         assertEq(_pirexRewards, address(pirexGmxGlp.pirexRewards()));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setDelegateRegistry TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller not being owner
+     */
+    function testCannotSetDelegateRegistryUnauthorized() external {
+        address _delegateRegistry = address(this);
+
+        vm.prank(testAccounts[0]);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexGmxGlp.setDelegateRegistry(_delegateRegistry);
+    }
+
+    /**
+        @notice Test tx reversion: _delegateRegistry being zero
+     */
+    function testCannotSetDelegateRegistryZeroAddress() external {
+        address invalidDelegateRegistry = address(0);
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.setDelegateRegistry(invalidDelegateRegistry);
+    }
+
+    /**
+        @notice Test setting delegateRegistry
+     */
+    function testSetDelegateRegistry() external {
+        address delegateRegistryBefore = address(
+            pirexGmxGlp.delegateRegistry()
+        );
+        address _delegateRegistry = address(this);
+
+        assertFalse(delegateRegistryBefore == _delegateRegistry);
+
+        vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
+
+        emit SetDelegateRegistry(_delegateRegistry);
+
+        pirexGmxGlp.setDelegateRegistry(_delegateRegistry);
+
+        assertEq(address(pirexGmxGlp.delegateRegistry()), _delegateRegistry);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1444,7 +1496,8 @@ contract PirexGmxGlpTest is Helper {
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
-            address(pirexRewards)
+            address(pirexRewards),
+            address(delegateRegistry)
         );
 
         vm.expectRevert("RewardRouter: transfer not signalled");
@@ -1491,7 +1544,8 @@ contract PirexGmxGlpTest is Helper {
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
-            address(pirexRewards)
+            address(pirexRewards),
+            address(delegateRegistry)
         );
 
         address newContract = address(newPirexGmxGlp);
@@ -1528,5 +1582,173 @@ contract PirexGmxGlpTest is Helper {
             oldStakedGmxBalance + oldEsGmxClaimable + oldMpBalance
         );
         assertEq(FEE_STAKED_GLP.balanceOf(newContract), oldStakedGlpBalance);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setDelegationSpace TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is not authorized
+     */
+    function testCannotSetDelegationSpaceUnauthorized() external {
+        string memory space = "test.eth";
+        bool clear = false;
+
+        vm.prank(testAccounts[0]);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexGmxGlp.setDelegationSpace(space, clear);
+    }
+
+    /**
+        @notice Test tx reversion: space is empty string
+     */
+    function testCannotSetDelegationSpaceEmptyString() external {
+        string memory invalidSpace = "";
+        bool clear = false;
+
+        vm.expectRevert(PirexGmxGlp.EmptyString.selector);
+
+        pirexGmxGlp.setDelegationSpace(invalidSpace, clear);
+    }
+
+    /**
+        @notice Test setting delegation space without clearing
+     */
+    function testSetDelegationSpaceWithoutClearing() external {
+        string memory space = "test.eth";
+        bool clear = false;
+
+        vm.expectEmit(false, false, false, true);
+
+        emit SetDelegationSpace(space, clear);
+
+        pirexGmxGlp.setDelegationSpace(space, clear);
+
+        assertEq(pirexGmxGlp.delegationSpace(), bytes32(bytes(space)));
+    }
+
+    /**
+        @notice Test setting delegation space with clearing
+     */
+    function testSetDelegationSpaceWithClearing() external {
+        string memory oldSpace = "old.eth";
+        string memory newSpace = "new.eth";
+        bool clear = false;
+
+        pirexGmxGlp.setDelegationSpace(oldSpace, clear);
+
+        // Set the vote delegate before clearing it when setting new delegation space
+        pirexGmxGlp.setVoteDelegate(address(this));
+
+        assertEq(pirexGmxGlp.delegationSpace(), bytes32(bytes(oldSpace)));
+
+        pirexGmxGlp.setDelegationSpace(newSpace, !clear);
+
+        assertEq(pirexGmxGlp.delegationSpace(), bytes32(bytes(newSpace)));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setVoteDelegate TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion if caller is not authorized
+     */
+    function testCannotSetVoteDelegateUnauthorized() external {
+        address delegate = address(this);
+
+        vm.prank(testAccounts[0]);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexGmxGlp.setVoteDelegate(delegate);
+    }
+
+    /**
+        @notice Test tx reversion if using zero address as delegate
+     */
+    function testCannotSetVoteDelegateZeroAddress() external {
+        address invalidDelegate = address(0);
+
+        vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        pirexGmxGlp.setVoteDelegate(invalidDelegate);
+    }
+
+    /**
+        @notice Test setting vote delegate
+     */
+    function testSetVoteDelegate() external {
+        address oldDelegate = delegateRegistry.delegation(
+            address(pirexGmxGlp),
+            pirexGmxGlp.delegationSpace()
+        );
+        address newDelegate = address(this);
+
+        assertFalse(oldDelegate == newDelegate);
+
+        vm.expectEmit(false, false, false, true);
+
+        emit SetVoteDelegate(newDelegate);
+
+        pirexGmxGlp.setVoteDelegate(newDelegate);
+
+        address delegate = delegateRegistry.delegation(
+            address(pirexGmxGlp),
+            pirexGmxGlp.delegationSpace()
+        );
+
+        assertEq(delegate, newDelegate);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        clearVoteDelegate TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is not authorized
+     */
+    function testCannotClearVoteDelegateUnauthorized() external {
+        vm.prank(testAccounts[0]);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        pirexGmxGlp.clearVoteDelegate();
+    }
+
+    /**
+        @notice Test tx reversion: clearing without first setting delegate
+     */
+    function testCannotClearVoteDelegateNoDelegate() external {
+        vm.expectRevert("No delegate set");
+
+        pirexGmxGlp.clearVoteDelegate();
+    }
+
+    /**
+        @notice Test clearing vote delegate
+     */
+    function testClearVoteDelegate() external {
+        pirexGmxGlp.setDelegationSpace("test.eth", false);
+
+        // Set the vote delegate before clearing it when setting new delegation space
+        pirexGmxGlp.setVoteDelegate(address(this));
+
+        vm.expectEmit(false, false, false, true);
+
+        emit ClearVoteDelegate();
+
+        pirexGmxGlp.clearVoteDelegate();
+
+        assertEq(
+            delegateRegistry.delegation(
+                address(pirexGmxGlp),
+                pirexGmxGlp.delegationSpace()
+            ),
+            address(0)
+        );
     }
 }
