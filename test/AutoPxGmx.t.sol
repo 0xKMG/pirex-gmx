@@ -10,11 +10,13 @@ contract AutoPxGmxTest is Test, Helper {
     uint256 internal constant DEFAULT_WITHDRAWAL_PENALTY = 300;
     uint256 internal constant DEFAULT_PLATFORM_FEE = 1000;
     address internal constant DEFAULT_PLATFORM = address(0);
+    address internal constant DEFAULT_REWARDS_MODULE = address(0);
     uint256 internal constant DEFAULT_TOTAL_ASSETS = 0;
 
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
-    event PlatformUpdated(address indexed _platform);
+    event PlatformUpdated(address _platform);
+    event RewardsModuleUpdated(address _rewardsModule);
 
     /*//////////////////////////////////////////////////////////////
                         setWithdrawalPenalty TESTS
@@ -163,7 +165,7 @@ contract AutoPxGmxTest is Test, Helper {
         address platform = address(this);
         address expectedPlatform = platform;
 
-        vm.expectEmit(true, false, false, true, address(autoPxGmx));
+        vm.expectEmit(false, false, false, true, address(autoPxGmx));
 
         emit PlatformUpdated(expectedPlatform);
 
@@ -171,6 +173,57 @@ contract AutoPxGmxTest is Test, Helper {
 
         assertEq(expectedPlatform, autoPxGmx.platform());
         assertTrue(expectedPlatform != DEFAULT_PLATFORM);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setRewardsModule TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotSetRewardsModuleUnauthorized() external {
+        assertEq(DEFAULT_REWARDS_MODULE, autoPxGmx.rewardsModule());
+
+        address rewardsModule = address(this);
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        vm.prank(testAccounts[0]);
+
+        autoPxGmx.setRewardsModule(rewardsModule);
+    }
+
+    /**
+        @notice Test tx reversion: rewardsModule is zero address
+     */
+    function testCannotSetRewardsModuleZeroAddress() external {
+        assertEq(DEFAULT_REWARDS_MODULE, autoPxGmx.rewardsModule());
+
+        address invalidRewardsModule = address(0);
+
+        vm.expectRevert(AutoPxGmx.ZeroAddress.selector);
+
+        autoPxGmx.setRewardsModule(invalidRewardsModule);
+    }
+
+    /**
+        @notice Test tx success: set rewardsModule
+     */
+    function testSetRewardsModule() external {
+        assertEq(DEFAULT_REWARDS_MODULE, autoPxGmx.rewardsModule());
+
+        address rewardsModule = address(this);
+        address expectedRewardsModule = rewardsModule;
+
+        vm.expectEmit(false, false, false, true, address(autoPxGmx));
+
+        emit RewardsModuleUpdated(expectedRewardsModule);
+
+        autoPxGmx.setRewardsModule(rewardsModule);
+
+        assertEq(expectedRewardsModule, autoPxGmx.rewardsModule());
+        assertTrue(expectedRewardsModule != DEFAULT_REWARDS_MODULE);
     }
 
     /*//////////////////////////////////////////////////////////////
