@@ -20,6 +20,7 @@ import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {Vault} from "src/external/Vault.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
+import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 
 contract Helper is Test {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
@@ -66,6 +67,7 @@ contract Helper is Test {
     PxGlp internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
     PirexFees internal immutable pirexFees;
+    DelegateRegistry internal immutable delegateRegistry;
     uint256 internal immutable feeMax;
 
     address[3] internal testAccounts = [
@@ -112,6 +114,9 @@ contract Helper is Test {
     receive() external payable {}
 
     constructor() {
+        // Deploying our own delegateRegistry since no official one exists yet in Arbitrum
+        delegateRegistry = new DelegateRegistry();
+
         // Use normal (non-upgradeable) instance for most tests (outside the upgrade test)
         pirexRewards = new PirexRewards();
         pirexRewards.initialize();
@@ -122,7 +127,8 @@ contract Helper is Test {
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
-            address(pirexRewards)
+            address(pirexRewards),
+            address(delegateRegistry)
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
