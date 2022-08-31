@@ -8,6 +8,7 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
+import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {Vault} from "src/external/Vault.sol";
 import {PxGmx} from "src/PxGmx.sol";
@@ -62,10 +63,15 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     // Pirex reward module contract
     address public pirexRewards;
 
+    // Snapshot delegation states
+    DelegateRegistry public delegateRegistry;
+    bytes32 public delegationSpace = bytes32("gmx.eth");
+
     // Fees (e.g. 5000 / 1000000 = 0.5%)
     mapping(Fees => uint256) public fees;
 
     event SetPirexRewards(address pirexRewards);
+    event SetDelegateRegistry(address delegateRegistry);
     event SetFee(Fees indexed f, uint256 fee);
     event DepositGmx(
         address indexed caller,
@@ -104,6 +110,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         uint256 gmxEsGmxRewards,
         uint256 glpEsGmxRewards
     );
+    event SetDelegationSpace(string delegationSpace, bool shouldClear);
+    event SetVoteDelegate(address voteDelegate);
+    event ClearVoteDelegate();
 
     error ZeroAmount();
     error ZeroAddress();
@@ -111,6 +120,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     error NotPirexRewards();
     error InvalidReward(address token);
     error InvalidFee();
+    error EmptyString();
 
     modifier onlyPirexRewards() {
         if (msg.sender != pirexRewards) revert NotPirexRewards();
@@ -118,16 +128,18 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @param  _pxGmx         address  PxGmx contract address
-        @param  _pxGlp         address  PxGlp contract address
-        @param  _pirexFees     address  PirexFees contract address
-        @param  _pirexRewards  address  PirexRewards contract address
+        @param  _pxGmx             address  PxGmx contract address
+        @param  _pxGlp             address  PxGlp contract address
+        @param  _pirexFees         address  PirexFees contract address
+        @param  _pirexRewards      address  PirexRewards contract address
+        @param  _delegateRegistry  address  Delegation registry contract address
     */
     constructor(
         address _pxGmx,
         address _pxGlp,
         address _pirexFees,
-        address _pirexRewards
+        address _pirexRewards,
+        address _delegateRegistry
     ) Owned(msg.sender) {
         // Started as being paused, and should only be unpaused after correctly setup
         _pause();
@@ -136,11 +148,13 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (_pxGlp == address(0)) revert ZeroAddress();
         if (_pirexFees == address(0)) revert ZeroAddress();
         if (_pirexRewards == address(0)) revert ZeroAddress();
+        if (_delegateRegistry == address(0)) revert ZeroAddress();
 
         pxGmx = PxGmx(_pxGmx);
         pxGlp = PxGlp(_pxGlp);
         pirexFees = PirexFees(_pirexFees);
         pirexRewards = _pirexRewards;
+        delegateRegistry = DelegateRegistry(_delegateRegistry);
 
         uint256 maxAmount = type(uint256).max;
 
@@ -182,6 +196,18 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         pirexRewards = _pirexRewards;
 
         emit SetPirexRewards(_pirexRewards);
+    }
+
+    /**
+        @notice Set delegateRegistry
+        @param  _delegateRegistry  address  DelegateRegistry contract address
+     */
+    function setDelegateRegistry(address _delegateRegistry) external onlyOwner {
+        if (_delegateRegistry == address(0)) revert ZeroAddress();
+
+        delegateRegistry = DelegateRegistry(_delegateRegistry);
+
+        emit SetDelegateRegistry(_delegateRegistry);
     }
 
     /**
@@ -613,6 +639,54 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             false,
             false
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        VOTE DELEGATION LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /** 
+        @notice Set delegationSpace
+        @param  _delegationSpace  string  Convex Snapshot delegation space
+        @param  shouldClear       bool    Whether to clear the vote delegate for current delegation space
+     */
+    function setDelegationSpace(
+        string memory _delegationSpace,
+        bool shouldClear
+    ) external onlyOwner {
+        if (shouldClear) {
+            // Clear the delegation for the current delegation space
+            clearVoteDelegate();
+        }
+
+        bytes memory d = bytes(_delegationSpace);
+
+        if (d.length == 0) revert EmptyString();
+
+        delegationSpace = bytes32(d);
+
+        emit SetDelegationSpace(_delegationSpace, shouldClear);
+    }
+
+    /**
+        @notice Set vote delegate
+        @param  voteDelegate  address  Account to delegate votes to
+     */
+    function setVoteDelegate(address voteDelegate) external onlyOwner {
+        if (voteDelegate == address(0)) revert ZeroAddress();
+
+        emit SetVoteDelegate(voteDelegate);
+
+        delegateRegistry.setDelegate(delegationSpace, voteDelegate);
+    }
+
+    /**
+        @notice Clear vote delegate
+     */
+    function clearVoteDelegate() public onlyOwner {
+        emit ClearVoteDelegate();
+
+        delegateRegistry.clearDelegate(delegationSpace);
     }
 
     /*//////////////////////////////////////////////////////////////
