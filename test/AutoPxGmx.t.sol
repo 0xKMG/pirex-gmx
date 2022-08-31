@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
 import {Helper} from "./Helper.t.sol";
 
-contract AutoPxGmxTest is Test, Helper {
+contract AutoPxGmxTest is Helper {
     uint256 internal constant DEFAULT_WITHDRAWAL_PENALTY = 300;
     uint256 internal constant DEFAULT_PLATFORM_FEE = 1000;
     address internal constant DEFAULT_PLATFORM = address(0);
@@ -245,5 +245,63 @@ contract AutoPxGmxTest is Test, Helper {
         autoPxGmx.deposit(assets, receiver);
 
         assertEq(expectedTotalAssets, autoPxGmx.totalAssets());
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        compound TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotCompoundUnauthorized() external {
+        uint24 fee = 3000;
+        uint256 amountOutMinimum = 1;
+        uint160 sqrtPriceLimitX96 = 1;
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        vm.prank(testAccounts[0]);
+
+        autoPxGmx.compound(fee, amountOutMinimum, sqrtPriceLimitX96);
+    }
+
+    /**
+        @notice Test tx reversion: fee is invalid param
+     */
+    function testCannotCompoundFeeInvalidParam() external {
+        uint24 invalidFee = 0;
+        uint256 amountOutMinimum = 1;
+        uint160 sqrtPriceLimitX96 = 1;
+
+        vm.expectRevert(AutoPxGmx.InvalidParam.selector);
+
+        autoPxGmx.compound(invalidFee, amountOutMinimum, sqrtPriceLimitX96);
+    }
+
+    /**
+        @notice Test tx reversion: amountOutMinimum is invalid param
+     */
+    function testCannotCompoundAmountOutMinimumInvalidParam() external {
+        uint24 fee = 3000;
+        uint256 invalidAmountOutMinimum = 0;
+        uint160 sqrtPriceLimitX96 = 1;
+
+        vm.expectRevert(AutoPxGmx.InvalidParam.selector);
+
+        autoPxGmx.compound(fee, invalidAmountOutMinimum, sqrtPriceLimitX96);
+    }
+
+    /**
+        @notice Test tx reversion: sqrtPriceLimitX96 is invalid param
+     */
+    function testCannotCompoundSqrtPriceLimitX96InvalidParam() external {
+        uint24 fee = 3000;
+        uint256 amountOutMinimum = 1;
+        uint160 invalidSqrtPriceLimitX96 = 0;
+
+        vm.expectRevert(AutoPxGmx.InvalidParam.selector);
+
+        autoPxGmx.compound(fee, amountOutMinimum, invalidSqrtPriceLimitX96);
     }
 }
