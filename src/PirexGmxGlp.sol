@@ -141,7 +141,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address _pirexRewards,
         address _delegateRegistry
     ) Owned(msg.sender) {
-        // Started as being paused, and should only be unpaused after correctly setup
+        // Started as being paused, and should only be unpaused after proper setup
         _pause();
 
         if (_pxGmx == address(0)) revert ZeroAddress();
