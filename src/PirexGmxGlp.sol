@@ -507,7 +507,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Claim WETH/esGMX rewards
+        @notice Claim WETH/esGMX rewards + multiplier points (MP)
         @return producerTokens  ERC20[]    Producer tokens (pxGLP and pxGMX)
         @return rewardTokens    ERC20[]    Reward token contract instances
         @return rewardAmounts   uint256[]  Reward amounts from each producerToken
@@ -544,13 +544,13 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         uint256 gmxEsGmxRewards = calculateRewards(false, true);
         uint256 glpEsGmxRewards = calculateRewards(false, false);
 
-        // Claim and stake claimable esGMX, while also claim WETH rewards
+        // Claim and stake claimable esGMX + MP, while also claim WETH rewards
         REWARD_ROUTER_V2.handleRewards(
             false,
             false,
             true,
             true,
-            false,
+            true,
             true,
             false
         );
@@ -624,21 +624,6 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
                 feeAmount
             );
         }
-    }
-
-    /**
-        @notice Claim and stake all available multiplier points
-     */
-    function compoundMultiplierPoints() external whenNotPaused {
-        REWARD_ROUTER_V2.handleRewards(
-            false,
-            false,
-            false,
-            false,
-            true,
-            false,
-            false
-        );
     }
 
     /*//////////////////////////////////////////////////////////////

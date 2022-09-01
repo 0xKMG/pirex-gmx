@@ -1122,7 +1122,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx success: claim WETH and esGMX rewards
+        @notice Test tx success: claim WETH and esGMX rewards + MP
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
@@ -1134,9 +1134,9 @@ contract PirexGmxGlpTest is Helper {
     ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
-        vm.assume(wbtcAmount > 1);
+        vm.assume(wbtcAmount > 1e5);
         vm.assume(wbtcAmount < 100e8);
-        vm.assume(gmxAmount != 0);
+        vm.assume(gmxAmount > 1e15);
         vm.assume(gmxAmount < 1000000e18);
 
         address pirexRewardsAddr = address(pirexRewards);
@@ -1167,6 +1167,8 @@ contract PirexGmxGlpTest is Helper {
             false,
             false
         );
+        uint256 expectedClaimableMp = REWARD_TRACKER_MP.claimable(address(pirexGmxGlp));
+
         uint256 expectedWETHRewards = expectedWETHRewardsGmx +
             expectedWETHRewardsGlp;
         uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
@@ -1207,12 +1209,14 @@ contract PirexGmxGlpTest is Helper {
         assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
         assertGt(expectedWETHRewards, 0);
         assertGt(expectedEsGmxRewards, 0);
+        assertGt(expectedClaimableMp, 0);
 
-        // Claiming esGMX rewards should also be staked immediately
+        // Claimed esGMX rewards + MP should also be staked immediately
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)),
-            previousStakedGmxBalance + expectedEsGmxRewards
+            previousStakedGmxBalance + expectedEsGmxRewards + expectedClaimableMp
         );
+        assertEq(REWARD_TRACKER_MP.claimable(address(pirexGmxGlp)), 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1313,74 +1317,6 @@ contract PirexGmxGlpTest is Helper {
 
         assertEq(WETH.balanceOf(user), wethAmount);
         assertEq(pxGmx.balanceOf(user), pxGmxAmount);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        compoundMultiplierPoints TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: contract is paused
-     */
-    function testCannotCompoundMultiplierPointsPaused() external {
-        pirexGmxGlp.setPauseState(true);
-
-        assertEq(true, pirexGmxGlp.paused());
-
-        vm.expectRevert(PAUSED_ERROR);
-
-        pirexGmxGlp.compoundMultiplierPoints();
-    }
-
-    /**
-        @notice Test tx success: compound multiplier points
-        @param  gmxAmount  uint256  Amount of GMX
-     */
-    function testCompoundMultiplierPoints(uint256 gmxAmount) external {
-        vm.assume(gmxAmount > 1e15);
-        vm.assume(gmxAmount < 1e22);
-
-        // Mint then deposit some GMX in order to gain multiplier points (MP) later on
-        address receiver = address(this);
-
-        _mintGmx(gmxAmount);
-
-        uint256 preDepositStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
-            address(pirexGmxGlp)
-        );
-
-        GMX.approve(address(pirexGmxGlp), gmxAmount);
-
-        pirexGmxGlp.depositGmx(gmxAmount, receiver);
-
-        uint256 postDepositStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
-            address(pirexGmxGlp)
-        );
-
-        assertEq(
-            postDepositStakedGMXBalance - preDepositStakedGMXBalance,
-            gmxAmount
-        );
-
-        // Time skip to accrue some multiplier points
-        vm.warp(block.timestamp + 1 hours);
-
-        uint256 claimableMp = REWARD_TRACKER_MP.claimable(address(pirexGmxGlp));
-
-        assertGt(claimableMp, 0);
-
-        pirexGmxGlp.compoundMultiplierPoints();
-
-        uint256 postCompoundStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
-            address(pirexGmxGlp)
-        );
-
-        // Compounded MP should be reflected in the latest staked amount of GMX
-        assertEq(
-            postCompoundStakedGMXBalance,
-            postDepositStakedGMXBalance + claimableMp
-        );
-        assertEq(REWARD_TRACKER_MP.claimable(address(pirexGmxGlp)), 0);
     }
 
     /*//////////////////////////////////////////////////////////////
