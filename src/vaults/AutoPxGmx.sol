@@ -131,22 +131,23 @@ contract AutoPxGmx is Owned, ERC4626 {
         @notice Compound pxGMX rewards (privileged call to prevent manipulation)
         @param  fee                uint24   Uniswap pool tier fee
         @param  amountOutMinimum   uint256  Outbound token swap amount
-        @param  sqrtPriceLimitX96  uint160  Swap price impact limit
+        @param  sqrtPriceLimitX96  uint160  Swap price impact limit (optional)
+        @return wethAmountIn       uint256  WETH inbound swap amount
+        @return gmxAmountOut       uint256  GMX outbound swap amount
      */
     function compound(
         uint24 fee,
         uint256 amountOutMinimum,
         uint160 sqrtPriceLimitX96
-    ) external onlyOwner {
+    ) external onlyOwner returns (uint256 wethAmountIn, uint256 gmxAmountOut) {
         if (fee == 0) revert InvalidParam();
         if (amountOutMinimum == 0) revert InvalidParam();
-        if (sqrtPriceLimitX96 == 0) revert InvalidParam();
 
         PirexRewards(rewardsModule).claim(asset, address(this));
 
         // Swap entire WETH balance for GMX
-        uint256 wethAmountIn = WETH.balanceOf(address(this));
-        uint256 gmxAmountOut = SWAP_ROUTER.exactInputSingle(
+        wethAmountIn = WETH.balanceOf(address(this));
+        gmxAmountOut = SWAP_ROUTER.exactInputSingle(
             IV3SwapRouter.ExactInputSingleParams({
                 tokenIn: address(WETH),
                 tokenOut: address(GMX),

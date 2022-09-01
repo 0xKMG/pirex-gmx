@@ -645,7 +645,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
                         VOTE DELEGATION LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /** 
+    /**
         @notice Set delegationSpace
         @param  _delegationSpace  string  Convex Snapshot delegation space
         @param  shouldClear       bool    Whether to clear the vote delegate for current delegation space

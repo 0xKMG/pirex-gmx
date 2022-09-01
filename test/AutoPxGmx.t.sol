@@ -11,6 +11,41 @@ contract AutoPxGmxTest is Helper {
     event PlatformFeeUpdated(uint256 fee);
     event PlatformUpdated(address _platform);
     event RewardsModuleUpdated(address _rewardsModule);
+    event Compounded(
+        address indexed caller,
+        uint24 fee,
+        uint256 amountOutMinimum,
+        uint160 sqrtPriceLimitX96,
+        uint256 wethAmountIn,
+        uint256 gmxAmountOut
+    );
+
+    /**
+        @notice Provision reward state to test compounding of rewards
+        @param  gmxAmount         uint256  Amount of pxGMX to get from the deposit
+        @param  receiver          address  Receiver of the GMX and pxGMX tokens (i.e. user)
+        @param  secondsElapsed    uint256  Seconds to forward timestamp
+        @return wethRewardState   uint256  WETH reward state
+        @return pxGmxRewardState  uint256  pxGMX reward state
+     */
+    function _provisionRewardState(
+        uint256 gmxAmount,
+        address receiver,
+        uint256 secondsElapsed
+    ) internal returns (uint256 wethRewardState, uint256 pxGmxRewardState) {
+        _depositGmx(gmxAmount, receiver);
+        pxGmx.approve(address(autoPxGmx), pxGmx.balanceOf(receiver));
+        autoPxGmx.deposit(pxGmx.balanceOf(receiver), receiver);
+        pirexRewards.addRewardToken(pxGmx, WETH);
+        pirexRewards.addRewardToken(pxGmx, pxGmx);
+
+        vm.warp(block.timestamp + secondsElapsed);
+
+        pirexRewards.harvest();
+
+        wethRewardState = pirexRewards.getRewardState(pxGmx, WETH);
+        pxGmxRewardState = pirexRewards.getRewardState(pxGmx, pxGmx);
+    }
 
     /*//////////////////////////////////////////////////////////////
                         setWithdrawalPenalty TESTS
@@ -266,15 +301,79 @@ contract AutoPxGmxTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: sqrtPriceLimitX96 is invalid param
+        @notice Test tx success: compound pxGMX rewards into more pxGMX
+        @param  gmxAmount       uint96  Amount of pxGMX to get from the deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
-    function testCannotCompoundSqrtPriceLimitX96InvalidParam() external {
+    function testCompound(uint96 gmxAmount, uint32 secondsElapsed) external {
+        vm.assume(gmxAmount > 5e17);
+        vm.assume(gmxAmount < 100000e18);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        // Configure initial pre-compound state
+        autoPxGmx.setRewardsModule(address(pirexRewards));
+
+        (
+            uint256 wethRewardState,
+            uint256 pxGmxRewardState
+        ) = _provisionRewardState(gmxAmount, address(this), secondsElapsed);
+        uint256 totalAssetsBeforeCompound = autoPxGmx.totalAssets();
+        uint256 userShareBalance = autoPxGmx.balanceOf(address(this));
+        uint256 shareToAssetAmountBeforeCompound = autoPxGmx.convertToAssets(
+            userShareBalance
+        );
+
+        // Confirm current state prior to primary state mutating action
+        assertEq(gmxAmount, userShareBalance);
+        assertEq(gmxAmount, totalAssetsBeforeCompound);
+        assertGt(wethRewardState, 0);
+        assertGt(pxGmxRewardState, 0);
+
         uint24 fee = 3000;
         uint256 amountOutMinimum = 1;
-        uint160 invalidSqrtPriceLimitX96 = 0;
+        uint160 sqrtPriceLimitX96 = 0;
 
-        vm.expectRevert(AutoPxGmx.InvalidParam.selector);
+        vm.expectEmit(true, false, false, false, address(autoPxGmx));
 
-        autoPxGmx.compound(fee, amountOutMinimum, invalidSqrtPriceLimitX96);
+        emit Compounded(
+            address(this),
+            fee,
+            amountOutMinimum,
+            sqrtPriceLimitX96,
+            0,
+            0
+        );
+
+        (uint256 wethAmountIn, uint256 gmxAmountOut) = autoPxGmx.compound(
+            fee,
+            amountOutMinimum,
+            sqrtPriceLimitX96
+        );
+        uint256 expectedTotalAssets = totalAssetsBeforeCompound +
+            pxGmxRewardState +
+            gmxAmountOut;
+        uint256 expectedShareToAssetAmountDifference = ((userShareBalance *
+            expectedTotalAssets) / autoPxGmx.totalSupply()) -
+            shareToAssetAmountBeforeCompound;
+
+        assertEq(wethRewardState, wethAmountIn);
+        assertGt(expectedTotalAssets, totalAssetsBeforeCompound);
+        assertEq(expectedTotalAssets, autoPxGmx.totalAssets());
+        assertEq(
+            pxGmxRewardState + gmxAmountOut,
+            expectedTotalAssets - totalAssetsBeforeCompound
+        );
+        assertEq(expectedTotalAssets, pxGmx.balanceOf(address(autoPxGmx)));
+        assertEq(userShareBalance, autoPxGmx.balanceOf(address(this)));
+        assertEq(
+            expectedShareToAssetAmountDifference,
+            autoPxGmx.convertToAssets(userShareBalance) -
+                shareToAssetAmountBeforeCompound
+        );
+        assertLt(
+            shareToAssetAmountBeforeCompound,
+            autoPxGmx.convertToAssets(userShareBalance)
+        );
     }
 }
