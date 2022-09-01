@@ -7,12 +7,6 @@ import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract AutoPxGmxTest is Helper {
-    uint256 internal constant DEFAULT_WITHDRAWAL_PENALTY = 300;
-    uint256 internal constant DEFAULT_PLATFORM_FEE = 1000;
-    address internal constant DEFAULT_PLATFORM = address(0);
-    address internal constant DEFAULT_REWARDS_MODULE = address(0);
-    uint256 internal constant DEFAULT_TOTAL_ASSETS = 0;
-
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
     event PlatformUpdated(address _platform);
@@ -26,9 +20,6 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetWithdrawalPenaltyUnauthorized() external {
-        // Confirm pre-transition/current state
-        assertEq(DEFAULT_WITHDRAWAL_PENALTY, autoPxGmx.withdrawalPenalty());
-
         // Define function arguments
         uint256 penalty = 1;
 
@@ -45,8 +36,6 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx reversion: penalty exceeds max
      */
     function testCannotSetWithdrawalPenaltyExceedsMax() external {
-        assertEq(DEFAULT_WITHDRAWAL_PENALTY, autoPxGmx.withdrawalPenalty());
-
         uint256 invalidPenalty = autoPxGmx.MAX_WITHDRAWAL_PENALTY() + 1;
 
         vm.expectRevert(AutoPxGmx.ExceedsMax.selector);
@@ -58,8 +47,7 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx success: set withdrawal penalty
      */
     function testSetWithdrawalPenalty() external {
-        assertEq(DEFAULT_WITHDRAWAL_PENALTY, autoPxGmx.withdrawalPenalty());
-
+        uint256 initialWithdrawalPenalty = autoPxGmx.withdrawalPenalty();
         uint256 penalty = 1;
         uint256 expectedWithdrawalPenalty = penalty;
 
@@ -70,7 +58,7 @@ contract AutoPxGmxTest is Helper {
         autoPxGmx.setWithdrawalPenalty(penalty);
 
         assertEq(expectedWithdrawalPenalty, autoPxGmx.withdrawalPenalty());
-        assertTrue(expectedWithdrawalPenalty != DEFAULT_WITHDRAWAL_PENALTY);
+        assertTrue(expectedWithdrawalPenalty != initialWithdrawalPenalty);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -81,8 +69,6 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetPlatformFeeUnauthorized() external {
-        assertEq(DEFAULT_PLATFORM_FEE, autoPxGmx.platformFee());
-
         uint256 fee = 1;
 
         vm.expectRevert("UNAUTHORIZED");
@@ -96,8 +82,6 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx reversion: fee exceeds max
      */
     function testCannotSetPlatformFeeExceedsMax() external {
-        assertEq(DEFAULT_PLATFORM_FEE, autoPxGmx.platformFee());
-
         uint256 invalidFee = autoPxGmx.MAX_PLATFORM_FEE() + 1;
 
         vm.expectRevert(AutoPxGmx.ExceedsMax.selector);
@@ -109,8 +93,7 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx success: set platform fee
      */
     function testSetPlatformFee() external {
-        assertEq(DEFAULT_PLATFORM_FEE, autoPxGmx.platformFee());
-
+        uint256 initialPlatformFee = autoPxGmx.platformFee();
         uint256 fee = 1;
         uint256 expectedPlatformFee = fee;
 
@@ -121,7 +104,7 @@ contract AutoPxGmxTest is Helper {
         autoPxGmx.setPlatformFee(fee);
 
         assertEq(expectedPlatformFee, autoPxGmx.platformFee());
-        assertTrue(expectedPlatformFee != DEFAULT_PLATFORM_FEE);
+        assertTrue(expectedPlatformFee != initialPlatformFee);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -132,8 +115,6 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetPlatformUnauthorized() external {
-        assertEq(DEFAULT_PLATFORM, autoPxGmx.platform());
-
         address platform = address(this);
 
         vm.expectRevert("UNAUTHORIZED");
@@ -147,8 +128,6 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx reversion: platform is zero address
      */
     function testCannotSetPlatformZeroAddress() external {
-        assertEq(DEFAULT_PLATFORM, autoPxGmx.platform());
-
         address invalidPlatform = address(0);
 
         vm.expectRevert(AutoPxGmx.ZeroAddress.selector);
@@ -160,8 +139,7 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx success: set platform
      */
     function testSetPlatform() external {
-        assertEq(DEFAULT_PLATFORM, autoPxGmx.platform());
-
+        address initialPlatform = autoPxGmx.platform();
         address platform = address(this);
         address expectedPlatform = platform;
 
@@ -172,7 +150,7 @@ contract AutoPxGmxTest is Helper {
         autoPxGmx.setPlatform(platform);
 
         assertEq(expectedPlatform, autoPxGmx.platform());
-        assertTrue(expectedPlatform != DEFAULT_PLATFORM);
+        assertTrue(expectedPlatform != initialPlatform);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -183,8 +161,6 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetRewardsModuleUnauthorized() external {
-        assertEq(DEFAULT_REWARDS_MODULE, autoPxGmx.rewardsModule());
-
         address rewardsModule = address(this);
 
         vm.expectRevert("UNAUTHORIZED");
@@ -198,8 +174,6 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx reversion: rewardsModule is zero address
      */
     function testCannotSetRewardsModuleZeroAddress() external {
-        assertEq(DEFAULT_REWARDS_MODULE, autoPxGmx.rewardsModule());
-
         address invalidRewardsModule = address(0);
 
         vm.expectRevert(AutoPxGmx.ZeroAddress.selector);
@@ -211,8 +185,7 @@ contract AutoPxGmxTest is Helper {
         @notice Test tx success: set rewardsModule
      */
     function testSetRewardsModule() external {
-        assertEq(DEFAULT_REWARDS_MODULE, autoPxGmx.rewardsModule());
-
+        address initialRewardsModule = autoPxGmx.rewardsModule();
         address rewardsModule = address(this);
         address expectedRewardsModule = rewardsModule;
 
@@ -223,7 +196,7 @@ contract AutoPxGmxTest is Helper {
         autoPxGmx.setRewardsModule(rewardsModule);
 
         assertEq(expectedRewardsModule, autoPxGmx.rewardsModule());
-        assertTrue(expectedRewardsModule != DEFAULT_REWARDS_MODULE);
+        assertTrue(expectedRewardsModule != initialRewardsModule);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -234,8 +207,7 @@ contract AutoPxGmxTest is Helper {
         @notice  Test tx success: return the total assets
     */
     function testTotalAssets() external {
-        assertEq(DEFAULT_TOTAL_ASSETS, autoPxGmx.totalAssets());
-
+        uint256 initialTotalAssets = autoPxGmx.totalAssets();
         uint256 assets = 1;
         address receiver = address(this);
         uint256 expectedTotalAssets = assets;
@@ -245,6 +217,7 @@ contract AutoPxGmxTest is Helper {
         autoPxGmx.deposit(assets, receiver);
 
         assertEq(expectedTotalAssets, autoPxGmx.totalAssets());
+        assertTrue(expectedTotalAssets != initialTotalAssets);
     }
 
     /*//////////////////////////////////////////////////////////////

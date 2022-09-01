@@ -42,18 +42,33 @@ contract AutoPxGmx is Owned, ERC4626 {
     );
 
     error ZeroAddress();
+    error InvalidAssetParam();
     error ExceedsMax();
     error AlreadySet();
     error InvalidParam();
 
-    constructor(address pxGmx)
-        Owned(msg.sender)
-        ERC4626(ERC20(pxGmx), "Autocompounding pxGMX", "apxGMX")
-    {
-        if (pxGmx == address(0)) revert ZeroAddress();
+    /**
+        @param  _asset         address  Asset address (e.g. pxGMX)
+        @param  _name          string   Asset name (e.g. Autocompounding pxGMX)
+        @param  _symbol        string   Asset symbol (e.g. apxGMX)
+        @param  _platform      address  Platform address (e.g. PirexGmxGlp)
+     */
+    constructor(
+        address _asset,
+        string memory _name,
+        string memory _symbol,
+        address _platform
+    ) Owned(msg.sender) ERC4626(ERC20(_asset), _name, _symbol) {
+        if (_asset == address(0)) revert ZeroAddress();
+        if (bytes(_name).length == 0) revert InvalidAssetParam();
+        if (bytes(_symbol).length == 0) revert InvalidAssetParam();
+        if (_platform == address(0)) revert ZeroAddress();
+
+        platform = _platform;
 
         // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
         WETH.safeApprove(address(SWAP_ROUTER), type(uint256).max);
+        GMX.safeApprove(_platform, type(uint256).max);
     }
 
     /**

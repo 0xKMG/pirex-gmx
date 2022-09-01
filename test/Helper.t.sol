@@ -123,7 +123,6 @@ contract Helper is Test {
         pirexRewards = new PirexRewards();
         pirexRewards.initialize();
         pxGmx = new PxGmx(address(pirexRewards));
-        autoPxGmx = new AutoPxGmx(address(pxGmx));
         pxGlp = new PxGlp(address(pirexRewards));
         pirexFees = new PirexFees(testAccounts[0], testAccounts[1]);
         pirexGmxGlp = new PirexGmxGlp(
@@ -132,6 +131,12 @@ contract Helper is Test {
             address(pirexFees),
             address(pirexRewards),
             address(delegateRegistry)
+        );
+        autoPxGmx = new AutoPxGmx(
+            address(pxGmx),
+            "Autocompounding pxGMX",
+            "apxGMX",
+            address(pirexGmxGlp)
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
