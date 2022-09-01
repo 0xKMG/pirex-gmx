@@ -419,13 +419,8 @@ contract PirexGmxGlpTest is Helper {
         vm.assume(etherAmount < 1_000 ether);
         vm.deal(address(this), etherAmount);
 
-        uint256 minShares = 1;
+        uint256 minShares = _calculateMinGlpAmount(address(0), etherAmount, 18);
         address receiver = address(this);
-        uint256 minGlpAmount = _calculateMinGlpAmount(
-            address(0),
-            etherAmount,
-            18
-        );
         uint256 premintETHBalance = address(this).balance;
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
@@ -464,8 +459,8 @@ contract PirexGmxGlpTest is Helper {
         assertGt(pxGlpReceivedByUser, 0);
         assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
         assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minGlpAmount);
-        assertGe(glpReceivedByPirex, minGlpAmount);
+        assertGe(pxGlpReceivedByUser, minShares);
+        assertGe(glpReceivedByPirex, minShares);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -635,9 +630,8 @@ contract PirexGmxGlpTest is Helper {
         _mintWbtc(tokenAmount);
 
         address token = address(WBTC);
-        uint256 minShares = 1;
+        uint256 minShares = _calculateMinGlpAmount(token, tokenAmount, 8);
         address receiver = address(this);
-        uint256 minGlpAmount = _calculateMinGlpAmount(token, tokenAmount, 8);
         uint256 premintWBTCBalance = WBTC.balanceOf(address(this));
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
@@ -683,8 +677,8 @@ contract PirexGmxGlpTest is Helper {
         assertGt(pxGlpReceivedByUser, 0);
         assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
         assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minGlpAmount);
-        assertGe(glpReceivedByPirex, minGlpAmount);
+        assertGe(pxGlpReceivedByUser, minShares);
+        assertGe(glpReceivedByPirex, minShares);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1167,7 +1161,9 @@ contract PirexGmxGlpTest is Helper {
             false,
             false
         );
-        uint256 expectedClaimableMp = REWARD_TRACKER_MP.claimable(address(pirexGmxGlp));
+        uint256 expectedClaimableMp = REWARD_TRACKER_MP.claimable(
+            address(pirexGmxGlp)
+        );
 
         uint256 expectedWETHRewards = expectedWETHRewardsGmx +
             expectedWETHRewardsGlp;
@@ -1214,7 +1210,9 @@ contract PirexGmxGlpTest is Helper {
         // Claimed esGMX rewards + MP should also be staked immediately
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)),
-            previousStakedGmxBalance + expectedEsGmxRewards + expectedClaimableMp
+            previousStakedGmxBalance +
+                expectedEsGmxRewards +
+                expectedClaimableMp
         );
         assertEq(REWARD_TRACKER_MP.claimable(address(pirexGmxGlp)), 0);
     }
