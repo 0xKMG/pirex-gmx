@@ -22,14 +22,17 @@ contract AutoPxGmx is Owned, ERC4626 {
     uint256 public constant MAX_WITHDRAWAL_PENALTY = 500;
     uint256 public constant MAX_PLATFORM_FEE = 2000;
     uint256 public constant FEE_DENOMINATOR = 10000;
+    uint256 public constant MAX_COMPOUND_INCENTIVE = 5000;
 
     uint256 public withdrawalPenalty = 300;
     uint256 public platformFee = 1000;
+    uint256 public compoundIncentive = 1000;
     address public platform;
     address public rewardsModule;
 
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
+    event CompoundIncentiveUpdated(uint256 incentive);
     event PlatformUpdated(address _platform);
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
@@ -93,6 +96,18 @@ contract AutoPxGmx is Owned, ERC4626 {
         platformFee = fee;
 
         emit PlatformFeeUpdated(fee);
+    }
+
+    /**
+        @notice Set the compound incentive
+        @param  incentive  uint256  Compound incentive
+     */
+    function setCompoundIncentive(uint256 incentive) external onlyOwner {
+        if (incentive > MAX_COMPOUND_INCENTIVE) revert ExceedsMax();
+
+        compoundIncentive = incentive;
+
+        emit CompoundIncentiveUpdated(incentive);
     }
 
     /**

@@ -9,6 +9,7 @@ import {Helper} from "./Helper.t.sol";
 contract AutoPxGmxTest is Helper {
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
+    event CompoundIncentiveUpdated(uint256 percent);
     event PlatformUpdated(address _platform);
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
@@ -140,6 +141,52 @@ contract AutoPxGmxTest is Helper {
 
         assertEq(expectedPlatformFee, autoPxGmx.platformFee());
         assertTrue(expectedPlatformFee != initialPlatformFee);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setCompoundIncentive TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotSetCompoundIncentiveUnauthorized() external {
+        uint256 incentive = 1;
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        vm.prank(testAccounts[0]);
+
+        autoPxGmx.setCompoundIncentive(incentive);
+    }
+
+    /**
+        @notice Test tx reversion: incentive exceeds max
+     */
+    function testCannotSetCompoundIncentiveExceedsMax() external {
+        uint256 invalidIncentive = autoPxGmx.MAX_COMPOUND_INCENTIVE() + 1;
+
+        vm.expectRevert(AutoPxGmx.ExceedsMax.selector);
+
+        autoPxGmx.setCompoundIncentive(invalidIncentive);
+    }
+
+    /**
+        @notice Test tx success: set compound incentive percent
+     */
+    function testSetCompoundIncentive() external {
+        uint256 initialCompoundIncentive = autoPxGmx.compoundIncentive();
+        uint256 incentive = 1;
+        uint256 expectedCompoundIncentive = incentive;
+
+        vm.expectEmit(false, false, false, true, address(autoPxGmx));
+
+        emit CompoundIncentiveUpdated(expectedCompoundIncentive);
+
+        autoPxGmx.setCompoundIncentive(incentive);
+
+        assertEq(expectedCompoundIncentive, autoPxGmx.compoundIncentive());
+        assertTrue(expectedCompoundIncentive != initialCompoundIncentive);
     }
 
     /*//////////////////////////////////////////////////////////////
