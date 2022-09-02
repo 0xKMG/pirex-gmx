@@ -189,6 +189,21 @@ contract AutoPxGlp is Owned, ERC4626 {
     }
 
     /**
+        @notice Update extra rewards related states
+        @param  account  address  Account address
+     */
+    function _updateExtraReward(address account) internal {
+        // Update pending claimable extra reward for the account based on vault shares
+        // Note that the stored reward per token data has expanded decimals
+        pendingExtraRewards[account] += ((balanceOf[account] *
+            (extraRewardPerToken - userExtraRewardPerToken[account])) /
+            EXPANDED_DECIMALS);
+
+        // Update reward per token for the account to the latest amount
+        userExtraRewardPerToken[account] = extraRewardPerToken;
+    }
+
+    /**
         @notice Override deposit method to handle pre-deposit logic related to extra rewards
         @param  assets    uint256  Assets amount
         @param  receiver  uint256  Receiver of the minted vault shares
@@ -224,6 +239,46 @@ contract AutoPxGlp is Owned, ERC4626 {
         _updateExtraReward(receiver);
 
         (assets) = ERC4626.mint(shares, receiver);
+    }
+
+    /**
+        @notice Override withdraw method to handle pre-deposit logic related to extra rewards
+        @param  assets    uint256  Assets amount
+        @param  receiver  address  Receiver of the vault assets
+        @param  owner     address  Owner address
+        @return shares    uint256  Shares amount
+     */
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override returns (uint256 shares) {
+        compound();
+
+        _updateExtraReward(owner);
+        _updateExtraReward(receiver);
+
+        (shares) = ERC4626.withdraw(assets, receiver, owner);
+    }
+
+    /**
+        @notice Override redeem method to handle pre-deposit logic related to extra rewards
+        @param  shares    uint256  Shares amount
+        @param  receiver  address  Receiver of the vault assets
+        @param  owner     address  Owner address
+        @return assets    uint256  Assets amount
+     */
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public override returns (uint256 assets) {
+        compound();
+
+        _updateExtraReward(owner);
+        _updateExtraReward(receiver);
+
+        (assets) = ERC4626.redeem(shares, receiver, owner);
     }
 
     /**
@@ -264,35 +319,13 @@ contract AutoPxGlp is Owned, ERC4626 {
     }
 
     /**
-        @notice Internal hook to handle pre-withdrawal logic related to extra rewards
-     */
-    function beforeWithdraw(uint256, uint256) internal override {
-        compound();
-
-        _updateExtraReward(msg.sender);
-    }
-
-    /**
-        @notice Update extra rewards related states
-        @param  account  address  Account address
-     */
-    function _updateExtraReward(address account) internal {
-        // Update pending claimable extra reward for the account based on vault shares
-        // Note that the stored reward per token data has expanded decimals
-        pendingExtraRewards[account] += ((balanceOf[account] *
-            (extraRewardPerToken - userExtraRewardPerToken[account])) /
-            EXPANDED_DECIMALS);
-
-        // Update reward per token for the account to the latest amount
-        userExtraRewardPerToken[account] = extraRewardPerToken;
-    }
-
-    /**
         @notice Claim available extra rewards for the caller
         @param  receiver  address  Receiver of the extra rewards
      */
     function claimExtraReward(address receiver) external {
         if (receiver == address(0)) revert ZeroAddress();
+
+        compound();
 
         _updateExtraReward(msg.sender);
 

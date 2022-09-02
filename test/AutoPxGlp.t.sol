@@ -378,14 +378,17 @@ contract AutoPxGlpTest is Helper {
         uint256 initialBalance = autoPxGlp.balanceOf(receiver);
         uint256 supply = autoPxGlp.totalSupply();
 
-        assertEq(autoPxGlp.userExtraRewardPerToken(receiver), 0);
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
 
         // Perform another deposit and assert the updated extra reward states
         vm.deal(address(this), etherAmount);
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
 
         pxGlp.approve(address(autoPxGlp), pxGlp.balanceOf(receiver));
-        autoPxGlp.deposit(pxGlp.balanceOf(receiver), receiver);
+        uint256 newShares = autoPxGlp.deposit(
+            pxGlp.balanceOf(receiver),
+            receiver
+        );
 
         // Expected reward per token should be using previous supply before the new deposit
         uint256 expectedRewardPerToken = (pxGmxRewardState *
@@ -407,7 +410,377 @@ contract AutoPxGlpTest is Helper {
         );
 
         // Deposit should still increment the totalSupply and user shares
-        assertGt(autoPxGlp.totalSupply(), supply);
-        assertGt(autoPxGlp.balanceOf(receiver), initialBalance);
+        assertEq(autoPxGlp.totalSupply(), supply + newShares);
+        assertEq(autoPxGlp.balanceOf(receiver), initialBalance + newShares);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        mint TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx success: mint vault shares and assert the extra reward states updates
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testMint(uint96 etherAmount, uint32 secondsElapsed) external {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address receiver = address(this);
+
+        (, uint256 pxGmxRewardState) = _provisionRewardState(
+            etherAmount,
+            receiver,
+            secondsElapsed
+        );
+
+        uint256 initialBalance = autoPxGlp.balanceOf(receiver);
+        uint256 supply = autoPxGlp.totalSupply();
+
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
+
+        // Perform mint instead of deposit and assert the updated extra reward states
+        vm.deal(address(this), etherAmount);
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
+
+        pxGlp.approve(address(autoPxGlp), pxGlp.balanceOf(receiver));
+        uint256 newShares = autoPxGlp.previewDeposit(
+            pxGlp.balanceOf(receiver)
+        ) / 2;
+        autoPxGlp.mint(newShares, receiver);
+
+        // Expected reward per token should be using previous supply before the new deposit
+        uint256 expectedRewardPerToken = (pxGmxRewardState *
+            autoPxGlp.EXPANDED_DECIMALS()) / supply;
+        uint256 expectedPendingExtraRewards = (initialBalance *
+            expectedRewardPerToken) / autoPxGlp.EXPANDED_DECIMALS();
+
+        // Extra reward state should be updated
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(receiver)
+        );
+        assertEq(expectedRewardPerToken, autoPxGlp.extraRewardPerToken());
+
+        // The new deposit should update pending claimable extra rewards using previous balance
+        assertEq(
+            expectedPendingExtraRewards,
+            autoPxGlp.pendingExtraRewards(receiver)
+        );
+
+        // Mint should still increment the totalSupply and user shares
+        assertEq(autoPxGlp.totalSupply(), supply + newShares);
+        assertEq(autoPxGlp.balanceOf(receiver), initialBalance + newShares);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        withdraw TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx success: withdraw from vault and assert the extra reward states updates
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testWithdraw(uint96 etherAmount, uint32 secondsElapsed) external {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address receiver = address(this);
+
+        (, uint256 pxGmxRewardState) = _provisionRewardState(
+            etherAmount,
+            receiver,
+            secondsElapsed
+        );
+
+        uint256 initialBalance = autoPxGlp.balanceOf(receiver);
+        uint256 supply = autoPxGlp.totalSupply();
+
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
+
+        // Withdraw from the vault and assert the updated extra reward states
+        uint256 shares = autoPxGlp.withdraw(initialBalance, receiver, receiver);
+
+        // Expected reward per token should be using previous supply before the withdrawal
+        uint256 expectedRewardPerToken = (pxGmxRewardState *
+            autoPxGlp.EXPANDED_DECIMALS()) / supply;
+        uint256 expectedPendingExtraRewards = (initialBalance *
+            expectedRewardPerToken) / autoPxGlp.EXPANDED_DECIMALS();
+
+        // Extra reward state should be updated
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(receiver)
+        );
+        assertEq(expectedRewardPerToken, autoPxGlp.extraRewardPerToken());
+
+        // Withdrawal should update pending claimable extra rewards using previous balance
+        assertEq(
+            expectedPendingExtraRewards,
+            autoPxGlp.pendingExtraRewards(receiver)
+        );
+
+        // Withdrawal should still decrement the totalSupply and user shares
+        assertEq(autoPxGlp.totalSupply(), supply - shares);
+        assertEq(autoPxGlp.balanceOf(receiver), initialBalance - shares);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        redeem TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx success: redeem from vault and assert the extra reward states updates
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testRedeem(uint96 etherAmount, uint32 secondsElapsed) external {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address receiver = address(this);
+
+        (, uint256 pxGmxRewardState) = _provisionRewardState(
+            etherAmount,
+            receiver,
+            secondsElapsed
+        );
+
+        uint256 initialBalance = autoPxGlp.balanceOf(receiver);
+        uint256 supply = autoPxGlp.totalSupply();
+
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
+
+        // Redeem from the vault and assert the updated extra reward states
+        autoPxGlp.redeem(initialBalance, receiver, receiver);
+
+        // Expected reward per token should be using previous supply before the redemption
+        uint256 expectedRewardPerToken = (pxGmxRewardState *
+            autoPxGlp.EXPANDED_DECIMALS()) / supply;
+        uint256 expectedPendingExtraRewards = (initialBalance *
+            expectedRewardPerToken) / autoPxGlp.EXPANDED_DECIMALS();
+
+        // Extra reward state should be updated
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(receiver)
+        );
+        assertEq(expectedRewardPerToken, autoPxGlp.extraRewardPerToken());
+
+        // Redemption should update pending claimable extra rewards using previous balance
+        assertEq(
+            expectedPendingExtraRewards,
+            autoPxGlp.pendingExtraRewards(receiver)
+        );
+
+        // Redemption should still decrement the totalSupply and user shares
+        assertEq(autoPxGlp.totalSupply(), supply - initialBalance);
+        assertEq(autoPxGlp.balanceOf(receiver), 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        claimExtraReward TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: receiver is zero address
+     */
+    function testCannotClaimExtraRewardsZeroAddress() external {
+        address invalidReceiver = address(0);
+
+        vm.expectRevert(AutoPxGlp.ZeroAddress.selector);
+
+        autoPxGlp.claimExtraReward(invalidReceiver);
+    }
+
+    /**
+        @notice Test tx success: claim extra rewards and assert the extra reward states updates
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testClaimExtraReward(uint96 etherAmount, uint32 secondsElapsed)
+        external
+    {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address receiver = address(this);
+
+        (, uint256 pxGmxRewardState) = _provisionRewardState(
+            etherAmount,
+            receiver,
+            secondsElapsed
+        );
+
+        uint256 initialBalance = autoPxGlp.balanceOf(receiver);
+        uint256 pxGmxBalanceBeforeClaim = pxGmx.balanceOf(receiver);
+        uint256 supply = autoPxGlp.totalSupply();
+
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
+
+        // Claim extra rewards (pxGMX) from the vault
+        autoPxGlp.claimExtraReward(receiver);
+
+        uint256 expectedRewardPerToken = (pxGmxRewardState *
+            autoPxGlp.EXPANDED_DECIMALS()) / supply;
+        uint256 expectedPendingExtraRewards = (initialBalance *
+            expectedRewardPerToken) / autoPxGlp.EXPANDED_DECIMALS();
+
+        // Extra reward state should be updated
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(receiver)
+        );
+        assertEq(expectedRewardPerToken, autoPxGlp.extraRewardPerToken());
+
+        // After claiming, the pending claimable should be back to 0
+        assertEq(0, autoPxGlp.pendingExtraRewards(receiver));
+
+        // Claiming should also update the extra rewards (pxGMX) balance
+        assertEq(
+            expectedPendingExtraRewards,
+            pxGmx.balanceOf(receiver) - pxGmxBalanceBeforeClaim
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        transfer TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx success: transfer to another account and assert the extra reward states updates
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testTransfer(uint96 etherAmount, uint32 secondsElapsed) external {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address account = address(this);
+        address receiver = testAccounts[0];
+
+        (, uint256 pxGmxRewardState) = _provisionRewardState(
+            etherAmount,
+            account,
+            secondsElapsed
+        );
+
+        uint256 initialBalance = autoPxGlp.balanceOf(account);
+        uint256 supply = autoPxGlp.totalSupply();
+
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(account));
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
+
+        // Transfer half of the apxGLP holding to another account
+        uint256 transferAmount = initialBalance / 2;
+        autoPxGlp.transfer(receiver, transferAmount);
+
+        // Expected reward per token should be using previous supply before the new deposit
+        uint256 expectedRewardPerToken = (pxGmxRewardState *
+            autoPxGlp.EXPANDED_DECIMALS()) / supply;
+        uint256 expectedPendingExtraRewards = (initialBalance *
+            expectedRewardPerToken) / autoPxGlp.EXPANDED_DECIMALS();
+
+        // Extra reward states should be updated for both accounts
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(account)
+        );
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(receiver)
+        );
+        assertEq(expectedRewardPerToken, autoPxGlp.extraRewardPerToken());
+
+        // The new deposit should update pending claimable extra rewards using previous balance
+        assertEq(
+            expectedPendingExtraRewards,
+            autoPxGlp.pendingExtraRewards(account)
+        );
+        assertEq(0, autoPxGlp.pendingExtraRewards(receiver));
+
+        // Transfer should still update the balances and maintain totalSupply
+        assertEq(autoPxGlp.totalSupply(), supply);
+        assertEq(autoPxGlp.balanceOf(account), initialBalance - transferAmount);
+        assertEq(autoPxGlp.balanceOf(receiver), transferAmount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        transferFrom TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx success: transfer from one to another account and assert the extra reward states updates
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testTransferFrom(uint96 etherAmount, uint32 secondsElapsed)
+        external
+    {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address account = address(this);
+        address receiver = testAccounts[0];
+
+        (, uint256 pxGmxRewardState) = _provisionRewardState(
+            etherAmount,
+            account,
+            secondsElapsed
+        );
+
+        uint256 initialBalance = autoPxGlp.balanceOf(account);
+        uint256 supply = autoPxGlp.totalSupply();
+
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(account));
+        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
+
+        // Transfer half of the apxGLP holding to another account using `transferFrom`
+        uint256 transferAmount = initialBalance / 2;
+        autoPxGlp.approve(address(this), transferAmount);
+        autoPxGlp.transferFrom(account, receiver, transferAmount);
+
+        // Expected reward per token should be using previous supply before the new deposit
+        uint256 expectedRewardPerToken = (pxGmxRewardState *
+            autoPxGlp.EXPANDED_DECIMALS()) / supply;
+        uint256 expectedPendingExtraRewards = (initialBalance *
+            expectedRewardPerToken) / autoPxGlp.EXPANDED_DECIMALS();
+
+        // Extra reward states should be updated for both accounts
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(account)
+        );
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(receiver)
+        );
+        assertEq(expectedRewardPerToken, autoPxGlp.extraRewardPerToken());
+
+        // The new deposit should update pending claimable extra rewards using previous balance
+        assertEq(
+            expectedPendingExtraRewards,
+            autoPxGlp.pendingExtraRewards(account)
+        );
+        assertEq(0, autoPxGlp.pendingExtraRewards(receiver));
+
+        // Transfer should still update the balances and maintain totalSupply
+        assertEq(autoPxGlp.totalSupply(), supply);
+        assertEq(autoPxGlp.balanceOf(account), initialBalance - transferAmount);
+        assertEq(autoPxGlp.balanceOf(receiver), transferAmount);
     }
 }
