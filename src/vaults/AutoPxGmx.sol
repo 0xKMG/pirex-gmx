@@ -4,6 +4,7 @@ pragma solidity 0.8.13;
 import {Owned} from "solmate/auth/Owned.sol";
 import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
@@ -11,6 +12,7 @@ import {IV3SwapRouter} from "src/interfaces/IV3SwapRouter.sol";
 
 contract AutoPxGmx is Owned, PirexERC4626 {
     using SafeTransferLib for ERC20;
+    using FixedPointMathLib for uint256;
 
     ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
@@ -143,6 +145,57 @@ contract AutoPxGmx is Owned, PirexERC4626 {
      */
     function totalAssets() public view override returns (uint256) {
         return asset.balanceOf(address(this));
+    }
+
+    /**
+        @notice Preview the amount of assets a user would receive from redeeming shares
+        @param  shares  uint256  Shares
+        @return uint256  Assets
+     */
+    function previewRedeem(uint256 shares)
+        public
+        view
+        override
+        returns (uint256)
+    {
+        // Calculate assets based on a user's % ownership of vault shares
+        uint256 assets = convertToAssets(shares);
+
+        uint256 _totalSupply = totalSupply;
+
+        // Calculate a penalty - zero if user is the last to withdraw
+        uint256 penalty = (_totalSupply == 0 || _totalSupply - shares == 0)
+            ? 0
+            : assets.mulDivDown(withdrawalPenalty, FEE_DENOMINATOR);
+
+        // Redeemable amount is the post-penalty amount
+        return assets - penalty;
+    }
+
+    /**
+        @notice Preview the amount of shares a user would need to redeem the specified asset amount
+        @notice This modified version takes into consideration the withdrawal fee
+        @param  assets  uint256  Assets
+        @return uint256  Shares
+     */
+    function previewWithdraw(uint256 assets)
+        public
+        view
+        override
+        returns (uint256)
+    {
+        // Calculate shares based on the specified assets' proportion of the pool
+        uint256 shares = convertToShares(assets);
+
+        // Save 1 SLOAD
+        uint256 _totalSupply = totalSupply;
+
+        // Factor in additional shares to fulfill withdrawal if user is not the last to withdraw
+        return
+            (_totalSupply == 0 || _totalSupply - shares == 0)
+                ? shares
+                : (shares * FEE_DENOMINATOR) /
+                    (FEE_DENOMINATOR - withdrawalPenalty);
     }
 
     /**
