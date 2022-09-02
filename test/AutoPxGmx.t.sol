@@ -366,13 +366,12 @@ contract AutoPxGmxTest is Helper {
             uint256 pxGmxRewardState
         ) = _provisionRewardState(gmxAmount, address(this), secondsElapsed);
         uint256 totalAssetsBeforeCompound = autoPxGmx.totalAssets();
-        uint256 userShareBalance = autoPxGmx.balanceOf(address(this));
         uint256 shareToAssetAmountBeforeCompound = autoPxGmx.convertToAssets(
-            userShareBalance
+            autoPxGmx.balanceOf(address(this))
         );
 
         // Confirm current state prior to primary state mutating action
-        assertEq(gmxAmount, userShareBalance);
+        assertEq(gmxAmount, autoPxGmx.balanceOf(address(this)));
         assertEq(gmxAmount, totalAssetsBeforeCompound);
         assertGt(wethRewardState, 0);
         assertGt(pxGmxRewardState, 0);
@@ -389,20 +388,24 @@ contract AutoPxGmxTest is Helper {
         (
             uint256 wethAmountIn,
             uint256 gmxAmountOut,
-            uint256 pxGmxMintAmount
+            uint256 pxGmxMintAmount,
+            uint256 totalFee,
+            uint256 incentive
         ) = autoPxGmx.compound(3000, 1, 0, false);
 
-        uint256 totalFee = ((pxGmxMintAmount + pxGmxRewardState) *
+        uint256 expectedTotalFee = ((pxGmxMintAmount + pxGmxRewardState) *
             autoPxGmx.platformFee()) / autoPxGmx.FEE_DENOMINATOR();
         uint256 expectedCompoundIncentive = (totalFee *
             autoPxGmx.compoundIncentive()) / autoPxGmx.FEE_DENOMINATOR();
-        uint256 expectedPlatformFee = totalFee - expectedCompoundIncentive;
+        uint256 expectedPlatformFee = expectedTotalFee -
+            expectedCompoundIncentive;
         uint256 expectedTotalAssets = totalAssetsBeforeCompound +
             pxGmxMintAmount +
             pxGmxRewardState -
-            totalFee;
-        uint256 expectedShareToAssetAmountDifference = ((userShareBalance *
-            expectedTotalAssets) / autoPxGmx.totalSupply()) -
+            expectedTotalFee;
+        uint256 expectedShareToAssetAmountDifference = ((autoPxGmx.balanceOf(
+            address(this)
+        ) * expectedTotalAssets) / autoPxGmx.totalSupply()) -
             shareToAssetAmountBeforeCompound;
 
         assertEq(wethRewardState, wethAmountIn);
@@ -412,25 +415,28 @@ contract AutoPxGmxTest is Helper {
         assertEq(gmxAmountOut, pxGmxMintAmount);
 
         assertEq(
-            gmxAmountOut + pxGmxRewardState - totalFee,
+            gmxAmountOut + pxGmxRewardState - expectedTotalFee,
             autoPxGmx.totalAssets() - totalAssetsBeforeCompound
         );
         assertEq(
-            pxGmxMintAmount + pxGmxRewardState - totalFee,
+            pxGmxMintAmount + pxGmxRewardState - expectedTotalFee,
             autoPxGmx.totalAssets() - totalAssetsBeforeCompound
         );
         assertGt(expectedTotalAssets, totalAssetsBeforeCompound);
         assertEq(expectedTotalAssets, autoPxGmx.totalAssets());
         assertEq(
             expectedShareToAssetAmountDifference,
-            autoPxGmx.convertToAssets(userShareBalance) -
+            autoPxGmx.convertToAssets(autoPxGmx.balanceOf(address(this))) -
                 shareToAssetAmountBeforeCompound
         );
-        assertEq(expectedCompoundIncentive, pxGmx.balanceOf(testAccounts[0]));
+        assertEq(expectedTotalFee, totalFee);
+        assertEq(expectedCompoundIncentive, incentive);
+        assertEq(expectedPlatformFee + expectedCompoundIncentive, totalFee);
         assertEq(expectedPlatformFee, pxGmx.balanceOf(autoPxGmx.owner()));
+        assertEq(expectedCompoundIncentive, pxGmx.balanceOf(testAccounts[0]));
         assertLt(
             shareToAssetAmountBeforeCompound,
-            autoPxGmx.convertToAssets(userShareBalance)
+            autoPxGmx.convertToAssets(autoPxGmx.balanceOf(address(this)))
         );
     }
 }

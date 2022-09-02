@@ -161,6 +161,8 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         @return wethAmountIn       uint256  WETH inbound swap amount
         @return gmxAmountOut       uint256  GMX outbound swap amount
         @return pxGmxMintAmount    uint256  pxGMX minted when depositing GMX
+        @return totalFee           uint256  Total platform fee
+        @return incentive          uint256  Compound incentive
      */
     function compound(
         uint24 fee,
@@ -172,7 +174,9 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         returns (
             uint256 wethAmountIn,
             uint256 gmxAmountOut,
-            uint256 pxGmxMintAmount
+            uint256 pxGmxMintAmount,
+            uint256 totalFee,
+            uint256 incentive
         )
     {
         if (fee == 0) revert InvalidParam();
@@ -185,7 +189,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         // Swap entire WETH balance for GMX
         wethAmountIn = WETH.balanceOf(address(this));
 
-        if (wethAmountIn != 0)
+        if (wethAmountIn != 0) {
             gmxAmountOut = SWAP_ROUTER.exactInputSingle(
                 IV3SwapRouter.ExactInputSingleParams({
                     tokenIn: address(WETH),
@@ -198,27 +202,27 @@ contract AutoPxGmx is Owned, PirexERC4626 {
                 })
             );
 
-        uint256 gmxBalance = GMX.balanceOf(address(this));
+            // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
+            (, pxGmxMintAmount) = PirexGmxGlp(platform).depositGmx(
+                GMX.balanceOf(address(this)),
+                address(this)
+            );
+        }
 
-        // GMX balance is zero, return method to avoid wasteful gas expenditure
-        if (gmxBalance == 0) return (0, 0, 0);
+        // Only distribute fees if the amount of vault assets increased (i.e. WETH and/or pxGMX rewards were non-zero)
+        if ((totalAssets() - assetsBeforeClaim) != 0) {
+            totalFee =
+                ((asset.balanceOf(address(this)) - assetsBeforeClaim) *
+                    platformFee) /
+                FEE_DENOMINATOR;
+            incentive = optOutIncentive
+                ? 0
+                : (totalFee * compoundIncentive) / FEE_DENOMINATOR;
 
-        // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
-        (, pxGmxMintAmount) = PirexGmxGlp(platform).depositGmx(
-            gmxBalance,
-            address(this)
-        );
+            if (incentive != 0) asset.safeTransfer(msg.sender, incentive);
 
-        // Distribute fees to the owner (Pirex multisig) and the caller (if incentive is not opted out)
-        uint256 totalFee = ((asset.balanceOf(address(this)) -
-            assetsBeforeClaim) * platformFee) / FEE_DENOMINATOR;
-        uint256 incentive = optOutIncentive
-            ? 0
-            : (totalFee * compoundIncentive) / FEE_DENOMINATOR;
-
-        if (incentive != 0) asset.safeTransfer(msg.sender, incentive);
-
-        asset.safeTransfer(owner, totalFee - incentive);
+            asset.safeTransfer(owner, totalFee - incentive);
+        }
 
         emit Compounded(
             msg.sender,
