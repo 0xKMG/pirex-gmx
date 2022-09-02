@@ -232,6 +232,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         external
         whenNotPaused
         nonReentrant
+        returns (uint256 feeAmount, uint256 mintAmount)
     {
         if (gmxAmount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
@@ -241,10 +242,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         REWARD_ROUTER_V2.stakeGmx(gmxAmount);
 
-        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
-            Fees.Deposit,
-            gmxAmount
-        );
+        (feeAmount, mintAmount) = _deriveAssetAmounts(Fees.Deposit, gmxAmount);
 
         // Mint pxGMX equal to the GMX deposit amount sans fees
         pxGmx.mint(receiver, mintAmount);

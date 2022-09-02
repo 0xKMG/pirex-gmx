@@ -41,7 +41,10 @@ contract AutoPxGmx is Owned, ERC4626 {
         uint256 amountOutMinimum,
         uint160 sqrtPriceLimitX96,
         uint256 wethAmountIn,
-        uint256 gmxAmountOut
+        uint256 gmxAmountOut,
+        uint256 pxGmxMintAmount,
+        uint256 totalFee,
+        uint256 incentive
     );
 
     error ZeroAddress();
@@ -143,20 +146,32 @@ contract AutoPxGmx is Owned, ERC4626 {
     }
 
     /**
-        @notice Compound pxGMX rewards (privileged call to prevent manipulation)
+        @notice Compound pxGMX rewards
         @param  fee                uint24   Uniswap pool tier fee
         @param  amountOutMinimum   uint256  Outbound token swap amount
         @param  sqrtPriceLimitX96  uint160  Swap price impact limit (optional)
+        @param  optOutIncentive    bool     Whether to opt out of the incentive
         @return wethAmountIn       uint256  WETH inbound swap amount
         @return gmxAmountOut       uint256  GMX outbound swap amount
+        @return pxGmxMintAmount    uint256  pxGMX minted when depositing GMX
      */
     function compound(
         uint24 fee,
         uint256 amountOutMinimum,
-        uint160 sqrtPriceLimitX96
-    ) external onlyOwner returns (uint256 wethAmountIn, uint256 gmxAmountOut) {
+        uint160 sqrtPriceLimitX96,
+        bool optOutIncentive
+    )
+        external
+        returns (
+            uint256 wethAmountIn,
+            uint256 gmxAmountOut,
+            uint256 pxGmxMintAmount
+        )
+    {
         if (fee == 0) revert InvalidParam();
         if (amountOutMinimum == 0) revert InvalidParam();
+
+        uint256 assetsBeforeClaim = asset.balanceOf(address(this));
 
         PirexRewards(rewardsModule).claim(asset, address(this));
 
@@ -175,10 +190,21 @@ contract AutoPxGmx is Owned, ERC4626 {
         );
 
         // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
-        PirexGmxGlp(platform).depositGmx(
+        (, pxGmxMintAmount) = PirexGmxGlp(platform).depositGmx(
             GMX.balanceOf(address(this)),
             address(this)
         );
+
+        // Distribute fees to the owner (Pirex multisig) and the caller (if incentive is not opted out)
+        uint256 totalFee = ((asset.balanceOf(address(this)) -
+            assetsBeforeClaim) * platformFee) / FEE_DENOMINATOR;
+        uint256 incentive = optOutIncentive
+            ? 0
+            : (totalFee * compoundIncentive) / FEE_DENOMINATOR;
+
+        if (incentive != 0) asset.safeTransfer(msg.sender, incentive);
+
+        asset.safeTransfer(owner, totalFee - incentive);
 
         emit Compounded(
             msg.sender,
@@ -186,7 +212,10 @@ contract AutoPxGmx is Owned, ERC4626 {
             amountOutMinimum,
             sqrtPriceLimitX96,
             wethAmountIn,
-            gmxAmountOut
+            gmxAmountOut,
+            pxGmxMintAmount,
+            totalFee,
+            incentive
         );
     }
 }
