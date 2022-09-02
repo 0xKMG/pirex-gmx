@@ -2,14 +2,14 @@
 pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
-import {ERC4626} from "solmate/mixins/ERC4626.sol";
+import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {IV3SwapRouter} from "src/interfaces/IV3SwapRouter.sol";
 
-contract AutoPxGmx is Owned, ERC4626 {
+contract AutoPxGmx is Owned, PirexERC4626 {
     using SafeTransferLib for ERC20;
 
     ERC20 public constant WETH =
@@ -64,7 +64,7 @@ contract AutoPxGmx is Owned, ERC4626 {
         string memory _name,
         string memory _symbol,
         address _platform
-    ) Owned(msg.sender) ERC4626(ERC20(_asset), _name, _symbol) {
+    ) Owned(msg.sender) PirexERC4626(ERC20(_asset), _name, _symbol) {
         if (_asset == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
         if (bytes(_symbol).length == 0) revert InvalidAssetParam();
@@ -146,6 +146,13 @@ contract AutoPxGmx is Owned, ERC4626 {
     }
 
     /**
+        @notice Compound pxGMX rewards before depositing
+     */
+    function beforeDeposit(uint256, uint256) internal override {
+        compound(3000, 1, 0, true);
+    }
+
+    /**
         @notice Compound pxGMX rewards
         @param  fee                uint24   Uniswap pool tier fee
         @param  amountOutMinimum   uint256  Outbound token swap amount
@@ -161,7 +168,7 @@ contract AutoPxGmx is Owned, ERC4626 {
         uint160 sqrtPriceLimitX96,
         bool optOutIncentive
     )
-        external
+        public
         returns (
             uint256 wethAmountIn,
             uint256 gmxAmountOut,
@@ -177,21 +184,28 @@ contract AutoPxGmx is Owned, ERC4626 {
 
         // Swap entire WETH balance for GMX
         wethAmountIn = WETH.balanceOf(address(this));
-        gmxAmountOut = SWAP_ROUTER.exactInputSingle(
-            IV3SwapRouter.ExactInputSingleParams({
-                tokenIn: address(WETH),
-                tokenOut: address(GMX),
-                fee: fee,
-                recipient: address(this),
-                amountIn: wethAmountIn,
-                amountOutMinimum: amountOutMinimum,
-                sqrtPriceLimitX96: sqrtPriceLimitX96
-            })
-        );
+
+        if (wethAmountIn != 0)
+            gmxAmountOut = SWAP_ROUTER.exactInputSingle(
+                IV3SwapRouter.ExactInputSingleParams({
+                    tokenIn: address(WETH),
+                    tokenOut: address(GMX),
+                    fee: fee,
+                    recipient: address(this),
+                    amountIn: wethAmountIn,
+                    amountOutMinimum: amountOutMinimum,
+                    sqrtPriceLimitX96: sqrtPriceLimitX96
+                })
+            );
+
+        uint256 gmxBalance = GMX.balanceOf(address(this));
+
+        // GMX balance is zero, return method to avoid wasteful gas expenditure
+        if (gmxBalance == 0) return (0, 0, 0);
 
         // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
         (, pxGmxMintAmount) = PirexGmxGlp(platform).depositGmx(
-            GMX.balanceOf(address(this)),
+            gmxBalance,
             address(this)
         );
 
