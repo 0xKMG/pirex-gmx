@@ -199,9 +199,6 @@ contract AutoPxGlp is Owned, ERC4626 {
         override
         returns (uint256 shares)
     {
-        if (assets == 0) revert ZeroAmount();
-        if (receiver == address(0)) revert ZeroAddress();
-
         compound();
 
         _updateExtraReward(msg.sender);
@@ -221,15 +218,49 @@ contract AutoPxGlp is Owned, ERC4626 {
         override
         returns (uint256 assets)
     {
-        if (shares == 0) revert ZeroAmount();
-        if (receiver == address(0)) revert ZeroAddress();
-
         compound();
 
         _updateExtraReward(msg.sender);
         _updateExtraReward(receiver);
 
         (assets) = ERC4626.mint(shares, receiver);
+    }
+
+    /**
+        @notice Override transfer method to handle pre-deposit logic related to extra rewards
+        @param  to      address  Account receiving apxGLP
+        @param  amount  uint256  Amount of apxGLP
+    */
+    function transfer(address to, uint256 amount)
+        public
+        override
+        returns (bool)
+    {
+        compound();
+
+        _updateExtraReward(msg.sender);
+        _updateExtraReward(to);
+
+        return ERC20.transfer(to, amount);
+    }
+
+    /**
+        @notice Override transferFrom method to handle pre-deposit logic related to extra rewards
+        @param  from    address  Account sending apxGLP
+        @param  to      address  Account receiving apxGLP
+        @param  amount  uint256  Amount of apxGLP
+    */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public override returns (bool) {
+        compound();
+
+        _updateExtraReward(from);
+        _updateExtraReward(to);
+
+        return ERC20.transferFrom(from, to, amount);
     }
 
     /**

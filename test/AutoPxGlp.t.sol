@@ -283,7 +283,7 @@ contract AutoPxGlpTest is Helper {
         @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
     function testCompound(uint96 etherAmount, uint32 secondsElapsed) external {
-        vm.assume(etherAmount > 0.1 ether);
+        vm.assume(etherAmount > 0.001 ether);
         vm.assume(etherAmount < 1_000 ether);
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
@@ -340,6 +340,7 @@ contract AutoPxGlpTest is Helper {
             shareToAssetAmountBeforeCompound,
             autoPxGlp.convertToAssets(userShareBalance)
         );
+        assertEq(pxGmxAmountOut, pxGmxRewardState);
         assertEq(
             pxGmxRewardState,
             pxGmx.balanceOf(address(autoPxGlp)) - pxGmxBalanceBeforeCompound
@@ -349,5 +350,64 @@ contract AutoPxGlpTest is Helper {
             (pxGmxRewardState * autoPxGlp.EXPANDED_DECIMALS()) /
                 autoPxGlp.totalSupply()
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        deposit TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx success: deposit to vault and assert the extra reward states updates
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testDeposit(uint96 etherAmount, uint32 secondsElapsed) external {
+        vm.assume(etherAmount > 0.001 ether);
+        vm.assume(etherAmount < 1_000 ether);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address receiver = address(this);
+
+        (, uint256 pxGmxRewardState) = _provisionRewardState(
+            etherAmount,
+            receiver,
+            secondsElapsed
+        );
+
+        uint256 initialBalance = autoPxGlp.balanceOf(receiver);
+        uint256 supply = autoPxGlp.totalSupply();
+
+        assertEq(autoPxGlp.userExtraRewardPerToken(receiver), 0);
+
+        // Perform another deposit and assert the updated extra reward states
+        vm.deal(address(this), etherAmount);
+        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
+
+        pxGlp.approve(address(autoPxGlp), pxGlp.balanceOf(receiver));
+        autoPxGlp.deposit(pxGlp.balanceOf(receiver), receiver);
+
+        // Expected reward per token should be using previous supply before the new deposit
+        uint256 expectedRewardPerToken = (pxGmxRewardState *
+            autoPxGlp.EXPANDED_DECIMALS()) / supply;
+        uint256 expectedPendingExtraRewards = (initialBalance *
+            expectedRewardPerToken) / autoPxGlp.EXPANDED_DECIMALS();
+
+        // Extra reward state should be updated
+        assertEq(
+            expectedRewardPerToken,
+            autoPxGlp.userExtraRewardPerToken(receiver)
+        );
+        assertEq(expectedRewardPerToken, autoPxGlp.extraRewardPerToken());
+
+        // The new deposit should update pending claimable extra rewards using previous balance
+        assertEq(
+            expectedPendingExtraRewards,
+            autoPxGlp.pendingExtraRewards(receiver)
+        );
+
+        // Deposit should still increment the totalSupply and user shares
+        assertGt(autoPxGlp.totalSupply(), supply);
+        assertGt(autoPxGlp.balanceOf(receiver), initialBalance);
     }
 }
