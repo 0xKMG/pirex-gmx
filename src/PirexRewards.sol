@@ -376,30 +376,34 @@ contract PirexRewards is OwnableUpgradeable {
         ProducerToken storage p = producerTokens[producerToken];
         uint256 globalRewards = p.globalState.rewards;
         uint256 userRewards = p.userStates[user].rewards;
-        ERC20[] memory rewardTokens = p.rewardTokens;
-        uint256 rLen = rewardTokens.length;
 
-        // Update global and user reward states to reflect the claim
-        p.globalState.rewards -= userRewards;
-        p.userStates[user].rewards = 0;
+        // Claim should be skipped and not reverted on zero global/user reward
+        if (globalRewards != 0 && userRewards != 0) {
+            ERC20[] memory rewardTokens = p.rewardTokens;
+            uint256 rLen = rewardTokens.length;
 
-        emit Claim(producerToken, user);
+            // Update global and user reward states to reflect the claim
+            p.globalState.rewards -= userRewards;
+            p.userStates[user].rewards = 0;
 
-        // Transfer the proportionate reward token amounts to the recipient
-        for (uint256 i; i < rLen; ++i) {
-            ERC20 rewardToken = rewardTokens[i];
-            address rewardRecipient = p.rewardRecipients[user][rewardToken];
-            address recipient = rewardRecipient != address(0)
-                ? rewardRecipient
-                : user;
-            uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
-                globalRewards;
+            emit Claim(producerToken, user);
 
-            if (amount != 0) {
-                // Update reward state (i.e. amount) to reflect reward tokens transferred out
-                p.rewardStates[rewardToken] -= amount;
+            // Transfer the proportionate reward token amounts to the recipient
+            for (uint256 i; i < rLen; ++i) {
+                ERC20 rewardToken = rewardTokens[i];
+                address rewardRecipient = p.rewardRecipients[user][rewardToken];
+                address recipient = rewardRecipient != address(0)
+                    ? rewardRecipient
+                    : user;
+                uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
+                    globalRewards;
 
-                producer.claimUserReward(recipient, address(rewardToken), amount);
+                if (amount != 0) {
+                    // Update reward state (i.e. amount) to reflect reward tokens transferred out
+                    p.rewardStates[rewardToken] -= amount;
+
+                    producer.claimUserReward(recipient, address(rewardToken), amount);
+                }
             }
         }
     }
