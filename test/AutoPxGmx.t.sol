@@ -9,6 +9,7 @@ import {Helper} from "./Helper.t.sol";
 contract AutoPxGmxTest is Helper {
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
+    event CompoundIncentiveUpdated(uint256 percent);
     event PlatformUpdated(address _platform);
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
@@ -17,7 +18,10 @@ contract AutoPxGmxTest is Helper {
         uint256 amountOutMinimum,
         uint160 sqrtPriceLimitX96,
         uint256 wethAmountIn,
-        uint256 gmxAmountOut
+        uint256 gmxAmountOut,
+        uint256 pxGmxMintAmount,
+        uint256 totalFee,
+        uint256 incentive
     );
 
     /**
@@ -143,6 +147,52 @@ contract AutoPxGmxTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        setCompoundIncentive TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotSetCompoundIncentiveUnauthorized() external {
+        uint256 incentive = 1;
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        vm.prank(testAccounts[0]);
+
+        autoPxGmx.setCompoundIncentive(incentive);
+    }
+
+    /**
+        @notice Test tx reversion: incentive exceeds max
+     */
+    function testCannotSetCompoundIncentiveExceedsMax() external {
+        uint256 invalidIncentive = autoPxGmx.MAX_COMPOUND_INCENTIVE() + 1;
+
+        vm.expectRevert(AutoPxGmx.ExceedsMax.selector);
+
+        autoPxGmx.setCompoundIncentive(invalidIncentive);
+    }
+
+    /**
+        @notice Test tx success: set compound incentive percent
+     */
+    function testSetCompoundIncentive() external {
+        uint256 initialCompoundIncentive = autoPxGmx.compoundIncentive();
+        uint256 incentive = 1;
+        uint256 expectedCompoundIncentive = incentive;
+
+        vm.expectEmit(false, false, false, true, address(autoPxGmx));
+
+        emit CompoundIncentiveUpdated(expectedCompoundIncentive);
+
+        autoPxGmx.setCompoundIncentive(incentive);
+
+        assertEq(expectedCompoundIncentive, autoPxGmx.compoundIncentive());
+        assertTrue(expectedCompoundIncentive != initialCompoundIncentive);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         setPlatform TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -260,31 +310,22 @@ contract AutoPxGmxTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: caller is unauthorized
-     */
-    function testCannotCompoundUnauthorized() external {
-        uint24 fee = 3000;
-        uint256 amountOutMinimum = 1;
-        uint160 sqrtPriceLimitX96 = 1;
-
-        vm.expectRevert("UNAUTHORIZED");
-
-        vm.prank(testAccounts[0]);
-
-        autoPxGmx.compound(fee, amountOutMinimum, sqrtPriceLimitX96);
-    }
-
-    /**
         @notice Test tx reversion: fee is invalid param
      */
     function testCannotCompoundFeeInvalidParam() external {
         uint24 invalidFee = 0;
         uint256 amountOutMinimum = 1;
         uint160 sqrtPriceLimitX96 = 1;
+        bool optOutIncentive = true;
 
         vm.expectRevert(AutoPxGmx.InvalidParam.selector);
 
-        autoPxGmx.compound(invalidFee, amountOutMinimum, sqrtPriceLimitX96);
+        autoPxGmx.compound(
+            invalidFee,
+            amountOutMinimum,
+            sqrtPriceLimitX96,
+            optOutIncentive
+        );
     }
 
     /**
@@ -294,10 +335,16 @@ contract AutoPxGmxTest is Helper {
         uint24 fee = 3000;
         uint256 invalidAmountOutMinimum = 0;
         uint160 sqrtPriceLimitX96 = 1;
+        bool optOutIncentive = true;
 
         vm.expectRevert(AutoPxGmx.InvalidParam.selector);
 
-        autoPxGmx.compound(fee, invalidAmountOutMinimum, sqrtPriceLimitX96);
+        autoPxGmx.compound(
+            fee,
+            invalidAmountOutMinimum,
+            sqrtPriceLimitX96,
+            optOutIncentive
+        );
     }
 
     /**
@@ -319,61 +366,77 @@ contract AutoPxGmxTest is Helper {
             uint256 pxGmxRewardState
         ) = _provisionRewardState(gmxAmount, address(this), secondsElapsed);
         uint256 totalAssetsBeforeCompound = autoPxGmx.totalAssets();
-        uint256 userShareBalance = autoPxGmx.balanceOf(address(this));
         uint256 shareToAssetAmountBeforeCompound = autoPxGmx.convertToAssets(
-            userShareBalance
+            autoPxGmx.balanceOf(address(this))
         );
 
         // Confirm current state prior to primary state mutating action
-        assertEq(gmxAmount, userShareBalance);
+        assertEq(gmxAmount, autoPxGmx.balanceOf(address(this)));
         assertEq(gmxAmount, totalAssetsBeforeCompound);
         assertGt(wethRewardState, 0);
         assertGt(pxGmxRewardState, 0);
-
-        uint24 fee = 3000;
-        uint256 amountOutMinimum = 1;
-        uint160 sqrtPriceLimitX96 = 0;
+        assertEq(0, pxGmx.balanceOf(autoPxGmx.owner()));
 
         vm.expectEmit(true, false, false, false, address(autoPxGmx));
 
-        emit Compounded(
-            address(this),
-            fee,
-            amountOutMinimum,
-            sqrtPriceLimitX96,
-            0,
-            0
-        );
+        emit Compounded(testAccounts[0], 3000, 1, 0, 0, 0, 0, 0, 0);
 
-        (uint256 wethAmountIn, uint256 gmxAmountOut) = autoPxGmx.compound(
-            fee,
-            amountOutMinimum,
-            sqrtPriceLimitX96
-        );
+        // Call as testAccounts[0] to test compound incentive transfer
+        vm.prank(testAccounts[0]);
+
+        // Input literal argument values due to callstack depth error
+        (
+            uint256 wethAmountIn,
+            uint256 gmxAmountOut,
+            uint256 pxGmxMintAmount,
+            uint256 totalFee,
+            uint256 incentive
+        ) = autoPxGmx.compound(3000, 1, 0, false);
+
+        uint256 expectedTotalFee = ((pxGmxMintAmount + pxGmxRewardState) *
+            autoPxGmx.platformFee()) / autoPxGmx.FEE_DENOMINATOR();
+        uint256 expectedCompoundIncentive = (totalFee *
+            autoPxGmx.compoundIncentive()) / autoPxGmx.FEE_DENOMINATOR();
+        uint256 expectedPlatformFee = expectedTotalFee -
+            expectedCompoundIncentive;
         uint256 expectedTotalAssets = totalAssetsBeforeCompound +
-            pxGmxRewardState +
-            gmxAmountOut;
-        uint256 expectedShareToAssetAmountDifference = ((userShareBalance *
-            expectedTotalAssets) / autoPxGmx.totalSupply()) -
+            pxGmxMintAmount +
+            pxGmxRewardState -
+            expectedTotalFee;
+        uint256 expectedShareToAssetAmountDifference = ((autoPxGmx.balanceOf(
+            address(this)
+        ) * expectedTotalAssets) / autoPxGmx.totalSupply()) -
             shareToAssetAmountBeforeCompound;
 
         assertEq(wethRewardState, wethAmountIn);
+
+        // // This will not always be the case in production (external party transfers GMX to vault)
+        // // But for this test, this assertion should hold true
+        assertEq(gmxAmountOut, pxGmxMintAmount);
+
+        assertEq(
+            gmxAmountOut + pxGmxRewardState - expectedTotalFee,
+            autoPxGmx.totalAssets() - totalAssetsBeforeCompound
+        );
+        assertEq(
+            pxGmxMintAmount + pxGmxRewardState - expectedTotalFee,
+            autoPxGmx.totalAssets() - totalAssetsBeforeCompound
+        );
         assertGt(expectedTotalAssets, totalAssetsBeforeCompound);
         assertEq(expectedTotalAssets, autoPxGmx.totalAssets());
         assertEq(
-            pxGmxRewardState + gmxAmountOut,
-            expectedTotalAssets - totalAssetsBeforeCompound
-        );
-        assertEq(expectedTotalAssets, pxGmx.balanceOf(address(autoPxGmx)));
-        assertEq(userShareBalance, autoPxGmx.balanceOf(address(this)));
-        assertEq(
             expectedShareToAssetAmountDifference,
-            autoPxGmx.convertToAssets(userShareBalance) -
+            autoPxGmx.convertToAssets(autoPxGmx.balanceOf(address(this))) -
                 shareToAssetAmountBeforeCompound
         );
+        assertEq(expectedTotalFee, totalFee);
+        assertEq(expectedCompoundIncentive, incentive);
+        assertEq(expectedPlatformFee + expectedCompoundIncentive, totalFee);
+        assertEq(expectedPlatformFee, pxGmx.balanceOf(autoPxGmx.owner()));
+        assertEq(expectedCompoundIncentive, pxGmx.balanceOf(testAccounts[0]));
         assertLt(
             shareToAssetAmountBeforeCompound,
-            autoPxGmx.convertToAssets(userShareBalance)
+            autoPxGmx.convertToAssets(autoPxGmx.balanceOf(address(this)))
         );
     }
 }
