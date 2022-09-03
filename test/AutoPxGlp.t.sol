@@ -28,6 +28,11 @@ contract AutoPxGlpTest is Helper {
         uint256 amount
     );
 
+    /**
+        @notice Validate common parameters used for deposits in the tests
+        @param  etherAmount     uint96  Amount of ETH for deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
     function _validateTestArgs(uint96 etherAmount, uint32 secondsElapsed)
         internal
     {
@@ -79,6 +84,14 @@ contract AutoPxGlpTest is Helper {
             pirexRewards.getRewardState(pxGlp, pxGmx);
     }
 
+    /**
+        @notice Assert extra reward states after performing mutative actions
+        @param  pxGmxRewardAfterFees  uint256  pxGMX rewards after fees
+        @param  supply                uint256  Total supply
+        @param  initialBalance        uint256  Initial balance
+        @param  account               address  Account address
+        @param  claim                 bool     Whether to check for claim related tests
+     */
     function _assertExtraRewardStates(
         uint256 pxGmxRewardAfterFees,
         uint256 supply,
@@ -119,7 +132,16 @@ contract AutoPxGlpTest is Helper {
         }
     }
 
-    function _assertPostCompoundStates(
+    /**
+        @notice Assert main vault states after performing compound
+        @param  pxGlpAmountOut                    uint256  pxGLP rewards before fees
+        @param  totalFee                          uint256  Total fees fo pxGLP
+        @param  incentive                         uint256  Incentive for pxGLP
+        @param  totalAssetsBeforeCompound         uint256  Total assets before compound
+        @param  shareToAssetAmountBeforeCompound  uint256  Share to asset ratio before compound
+        @param  userShareBalance                  uint256  User shares amount
+     */
+    function _assertPostCompoundVaultStates(
         uint256 pxGlpAmountOut,
         uint256 totalFee,
         uint256 incentive,
@@ -146,6 +168,8 @@ contract AutoPxGlpTest is Helper {
                 expectedCompoundIncentive,
             totalFee
         );
+
+        // Check for vault asset balances of the fee receivers
         assertEq(
             expectedTotalFee - expectedCompoundIncentive,
             pxGlp.balanceOf(autoPxGlp.owner())
@@ -165,11 +189,15 @@ contract AutoPxGlpTest is Helper {
         );
     }
 
-    function _assertBaseRewardStates(
-        uint256 wethRewardState,
-        uint256 wethAmountIn,
+    /**
+        @notice Assert extra reward states after performing compound
+        @param  pxGmxAmountOut              uint256  pGMX rewards before fees
+        @param  totalExtraFee               uint256  Total extra fees fo pxGMX
+        @param  extraIncentive              uint256  Extra incentive for pxGMX
+        @param  pxGmxBalanceBeforeCompound  uint256  pxGMX balance before compound
+     */
+    function _assertPostCompoundExtraRewardStates(
         uint256 pxGmxAmountOut,
-        uint256 pxGmxRewardState,
         uint256 totalExtraFee,
         uint256 extraIncentive,
         uint256 pxGmxBalanceBeforeCompound
@@ -179,19 +207,19 @@ contract AutoPxGlpTest is Helper {
         uint256 expectedCompoundExtraIncentive = (totalExtraFee *
             autoPxGlp.compoundIncentive()) / autoPxGlp.FEE_DENOMINATOR();
 
-        assertEq(wethRewardState, wethAmountIn);
-        assertEq(pxGmxAmountOut, pxGmxRewardState);
         assertEq(expectedTotalExtraFee, totalExtraFee);
         assertEq(expectedCompoundExtraIncentive, extraIncentive);
         assertEq(
-            (pxGmxRewardState - totalExtraFee),
+            (pxGmxAmountOut - totalExtraFee),
             pxGmx.balanceOf(address(autoPxGlp)) - pxGmxBalanceBeforeCompound
         );
         assertEq(
             autoPxGlp.extraRewardPerToken(),
-            ((pxGmxRewardState - totalExtraFee) *
-                autoPxGlp.EXPANDED_DECIMALS()) / autoPxGlp.totalSupply()
+            ((pxGmxAmountOut - totalExtraFee) * autoPxGlp.EXPANDED_DECIMALS()) /
+                autoPxGlp.totalSupply()
         );
+
+        // Check for extra reward balances of the fee receivers
         assertEq(
             expectedTotalExtraFee - expectedCompoundExtraIncentive,
             pxGmx.balanceOf(autoPxGlp.owner())
@@ -517,19 +545,19 @@ contract AutoPxGlpTest is Helper {
             uint256 extraIncentive
         ) = autoPxGlp.compound(1, false);
 
+        assertEq(wethRewardState, wethAmountIn);
+        assertEq(pxGmxAmountOut, pxGmxRewardState);
+
         // Assert updated states separately (stack-too-deep issue)
-        _assertBaseRewardStates(
-            wethRewardState,
-            wethAmountIn,
+        _assertPostCompoundExtraRewardStates(
             pxGmxAmountOut,
-            pxGmxRewardState,
             totalExtraFee,
             extraIncentive,
             pxGmxBalanceBeforeCompound
         );
 
         // Assert updated states separately (stack-too-deep issue)
-        _assertPostCompoundStates(
+        _assertPostCompoundVaultStates(
             pxGlpAmountOut,
             totalFee,
             incentive,
