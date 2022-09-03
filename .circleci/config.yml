@@ -4,6 +4,7 @@ version: 2.1
 
 jobs:
   main:
+    resource_class: xlarge
     docker:
       - image: cimg/python:3.9-node
     steps:
