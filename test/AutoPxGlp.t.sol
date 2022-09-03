@@ -16,7 +16,9 @@ contract AutoPxGlpTest is Helper {
         address indexed caller,
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
-        uint256 pxGlpAmountOut
+        uint256 pxGlpAmountOut,
+        uint256 totalFee,
+        uint256 incentive
     );
     event ExtraRewardClaimed(
         address indexed account,
@@ -64,6 +66,52 @@ contract AutoPxGlpTest is Helper {
         pxGmxRewardState =
             pirexRewards.getRewardState(pxGmx, pxGmx) +
             pirexRewards.getRewardState(pxGlp, pxGmx);
+    }
+
+    function _assertPostCompoundStates(
+        uint256 pxGlpAmountOut,
+        uint256 totalFee,
+        uint256 incentive,
+        uint256 totalAssetsBeforeCompound,
+        uint256 shareToAssetAmountBeforeCompound,
+        uint256 userShareBalance
+    ) internal {
+        uint256 expectedTotalFee = (pxGlpAmountOut * autoPxGlp.platformFee()) /
+            autoPxGlp.FEE_DENOMINATOR();
+        uint256 expectedCompoundIncentive = (totalFee *
+            autoPxGlp.compoundIncentive()) / autoPxGlp.FEE_DENOMINATOR();
+        uint256 expectedTotalAssets = totalAssetsBeforeCompound +
+            pxGlpAmountOut -
+            totalFee;
+
+        assertGt(expectedTotalAssets, totalAssetsBeforeCompound);
+        assertEq(expectedTotalAssets, autoPxGlp.totalAssets());
+        assertEq(expectedTotalAssets, pxGlp.balanceOf(address(autoPxGlp)));
+        assertEq(expectedTotalFee, totalFee);
+        assertEq(expectedCompoundIncentive, incentive);
+        assertEq(
+            expectedTotalFee -
+                expectedCompoundIncentive +
+                expectedCompoundIncentive,
+            totalFee
+        );
+        assertEq(
+            expectedTotalFee - expectedCompoundIncentive,
+            pxGlp.balanceOf(autoPxGlp.owner())
+        );
+        assertEq(expectedCompoundIncentive, pxGlp.balanceOf(testAccounts[0]));
+
+        assertEq(userShareBalance, autoPxGlp.balanceOf(address(this)));
+        assertEq(
+            ((userShareBalance * expectedTotalAssets) /
+                autoPxGlp.totalSupply()) - shareToAssetAmountBeforeCompound,
+            autoPxGlp.convertToAssets(userShareBalance) -
+                shareToAssetAmountBeforeCompound
+        );
+        assertLt(
+            shareToAssetAmountBeforeCompound,
+            autoPxGlp.convertToAssets(userShareBalance)
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -359,34 +407,23 @@ contract AutoPxGlpTest is Helper {
 
         vm.expectEmit(true, false, false, false, address(autoPxGlp));
 
-        emit Compounded(receiver, 0, 0, 0);
+        emit Compounded(testAccounts[0], 0, 0, 0, 0, 0);
+
+        // Call as testAccounts[0] to test compound incentive transfer
+        vm.prank(testAccounts[0]);
 
         (
             uint256 wethAmountIn,
             uint256 pxGmxAmountOut,
-            uint256 pxGlpAmountOut
-        ) = autoPxGlp.compound(1);
-
-        uint256 expectedTotalAssets = totalAssetsBeforeCompound +
-            pxGlpAmountOut;
-        uint256 expectedShareToAssetAmountDifference = ((userShareBalance *
-            expectedTotalAssets) / autoPxGlp.totalSupply()) -
-            shareToAssetAmountBeforeCompound;
+            uint256 pxGlpAmountOut,
+            uint256 totalFee,
+            uint256 incentive
+        ) = autoPxGlp.compound(
+                1,
+                false
+            );
 
         assertEq(wethRewardState, wethAmountIn);
-        assertGt(expectedTotalAssets, totalAssetsBeforeCompound);
-        assertEq(expectedTotalAssets, autoPxGlp.totalAssets());
-        assertEq(expectedTotalAssets, pxGlp.balanceOf(address(autoPxGlp)));
-        assertEq(userShareBalance, autoPxGlp.balanceOf(address(this)));
-        assertEq(
-            expectedShareToAssetAmountDifference,
-            autoPxGlp.convertToAssets(userShareBalance) -
-                shareToAssetAmountBeforeCompound
-        );
-        assertLt(
-            shareToAssetAmountBeforeCompound,
-            autoPxGlp.convertToAssets(userShareBalance)
-        );
         assertEq(pxGmxAmountOut, pxGmxRewardState);
         assertEq(
             pxGmxRewardState,
@@ -396,6 +433,16 @@ contract AutoPxGlpTest is Helper {
             autoPxGlp.extraRewardPerToken(),
             (pxGmxRewardState * autoPxGlp.EXPANDED_DECIMALS()) /
                 autoPxGlp.totalSupply()
+        );
+
+        // Assert remaining updated states separately (stack-too-deep issue)
+        _assertPostCompoundStates(
+            pxGlpAmountOut,
+            totalFee,
+            incentive,
+            totalAssetsBeforeCompound,
+            shareToAssetAmountBeforeCompound,
+            userShareBalance
         );
     }
 

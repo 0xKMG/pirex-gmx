@@ -43,7 +43,9 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         address indexed caller,
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
-        uint256 pxGlpAmountOut
+        uint256 pxGlpAmountOut,
+        uint256 totalFee,
+        uint256 incentive
     );
     event ExtraRewardClaimed(
         address indexed account,
@@ -55,6 +57,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     error ZeroAddress();
     error InvalidAssetParam();
     error ExceedsMax();
+    error InvalidParam();
 
     /**
         @param  _asset         address  Asset address (vault asset, e.g. pxGLP)
@@ -204,20 +207,28 @@ contract AutoPxGlp is Owned, PirexERC4626 {
 
     /**
         @notice Compound pxGLP rewards
-        @param  minGlpAmount    uint256  Minimum GLP amount received from the deposit
-        @return wethAmountIn    uint256  WETH inbound amount
-        @return pxGmxAmountOut  uint256  pxGMX outbound amount
-        @return pxGlpAmountOut  uint256  pxGLP outbound amount
+        @param  minGlpAmount     uint256  Minimum GLP amount received from the deposit
+        @param  optOutIncentive  bool     Whether to opt out of the incentive
+        @return wethAmountIn     uint256  WETH inbound amount
+        @return pxGmxAmountOut   uint256  pxGMX outbound amount
+        @return pxGlpAmountOut   uint256  pxGLP outbound amount
+        @return totalFee         uint256  Total platform fee
+        @return incentive        uint256  Compound incentive
      */
-    function compound(uint256 minGlpAmount)
+    function compound(uint256 minGlpAmount, bool optOutIncentive)
         public
         returns (
             uint256 wethAmountIn,
             uint256 pxGmxAmountOut,
-            uint256 pxGlpAmountOut
+            uint256 pxGlpAmountOut,
+            uint256 totalFee,
+            uint256 incentive
         )
     {
+        if (minGlpAmount == 0) revert InvalidParam();
+
         uint256 preClaimPxGmxAmount = extraReward.balanceOf(address(this));
+        uint256 preClaimTotalAssets = asset.balanceOf(address(this));
 
         PirexRewards(rewardsModule).claim(asset, address(this));
         PirexRewards(rewardsModule).claim(extraReward, address(this));
@@ -246,11 +257,28 @@ contract AutoPxGlp is Owned, PirexERC4626 {
             );
         }
 
+        // Only distribute fees if the amount of vault assets increased (i.e. WETH and/or pxGMX rewards were non-zero)
+        if ((totalAssets() - preClaimTotalAssets) != 0) {
+            totalFee =
+                ((asset.balanceOf(address(this)) - preClaimTotalAssets) *
+                    platformFee) /
+                FEE_DENOMINATOR;
+            incentive = optOutIncentive
+                ? 0
+                : (totalFee * compoundIncentive) / FEE_DENOMINATOR;
+
+            if (incentive != 0) asset.safeTransfer(msg.sender, incentive);
+
+            asset.safeTransfer(owner, totalFee - incentive);
+        }
+
         emit Compounded(
             msg.sender,
             wethAmountIn,
             pxGmxAmountOut,
-            pxGlpAmountOut
+            pxGlpAmountOut,
+            totalFee,
+            incentive
         );
     }
 
@@ -278,7 +306,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         uint256,
         uint256
     ) internal override {
-        compound(1);
+        compound(1, true);
 
         _updateExtraReward(msg.sender);
         _updateExtraReward(receiver);
@@ -295,7 +323,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         uint256,
         uint256
     ) internal override {
-        compound(1);
+        compound(1, true);
 
         _updateExtraReward(owner);
         _updateExtraReward(receiver);
@@ -311,7 +339,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         address receiver,
         uint256
     ) internal override {
-        compound(1);
+        compound(1, true);
 
         _updateExtraReward(owner);
         _updateExtraReward(receiver);
@@ -324,7 +352,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     function claimExtraReward(address receiver) external {
         if (receiver == address(0)) revert ZeroAddress();
 
-        compound(1);
+        compound(1, true);
 
         _updateExtraReward(msg.sender);
 
