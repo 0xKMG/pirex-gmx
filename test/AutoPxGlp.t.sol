@@ -9,6 +9,7 @@ import {Helper} from "./Helper.t.sol";
 contract AutoPxGlpTest is Helper {
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
+    event CompoundIncentiveUpdated(uint256 incentive);
     event PlatformUpdated(address _platform);
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
@@ -158,6 +159,52 @@ contract AutoPxGlpTest is Helper {
 
         assertEq(expectedPlatformFee, autoPxGlp.platformFee());
         assertTrue(expectedPlatformFee != initialPlatformFee);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setCompoundIncentive TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotSetCompoundIncentiveUnauthorized() external {
+        uint256 incentive = 1;
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        vm.prank(testAccounts[0]);
+
+        autoPxGlp.setCompoundIncentive(incentive);
+    }
+
+    /**
+        @notice Test tx reversion: incentive exceeds max
+     */
+    function testCannotSetCompoundIncentiveExceedsMax() external {
+        uint256 invalidIncentive = autoPxGlp.MAX_COMPOUND_INCENTIVE() + 1;
+
+        vm.expectRevert(AutoPxGlp.ExceedsMax.selector);
+
+        autoPxGlp.setCompoundIncentive(invalidIncentive);
+    }
+
+    /**
+        @notice Test tx success: set compound incentive percent
+     */
+    function testSetCompoundIncentive() external {
+        uint256 initialCompoundIncentive = autoPxGlp.compoundIncentive();
+        uint256 incentive = 1;
+        uint256 expectedCompoundIncentive = incentive;
+
+        vm.expectEmit(false, false, false, true, address(autoPxGlp));
+
+        emit CompoundIncentiveUpdated(expectedCompoundIncentive);
+
+        autoPxGlp.setCompoundIncentive(incentive);
+
+        assertEq(expectedCompoundIncentive, autoPxGlp.compoundIncentive());
+        assertTrue(expectedCompoundIncentive != initialCompoundIncentive);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -318,7 +365,7 @@ contract AutoPxGlpTest is Helper {
             uint256 wethAmountIn,
             uint256 pxGmxAmountOut,
             uint256 pxGlpAmountOut
-        ) = autoPxGlp.compound();
+        ) = autoPxGlp.compound(1);
 
         uint256 expectedTotalAssets = totalAssetsBeforeCompound +
             pxGlpAmountOut;

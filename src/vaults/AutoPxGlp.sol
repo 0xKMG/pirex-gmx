@@ -19,12 +19,14 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     uint256 public constant MAX_WITHDRAWAL_PENALTY = 500;
     uint256 public constant MAX_PLATFORM_FEE = 2000;
     uint256 public constant FEE_DENOMINATOR = 10000;
+    uint256 public constant MAX_COMPOUND_INCENTIVE = 5000;
     uint256 public constant EXPANDED_DECIMALS = 1e30;
 
     ERC20 public immutable extraReward;
 
     uint256 public withdrawalPenalty = 300;
     uint256 public platformFee = 1000;
+    uint256 public compoundIncentive = 1000;
     address public platform;
     address public rewardsModule;
 
@@ -34,6 +36,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
 
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
+    event CompoundIncentiveUpdated(uint256 incentive);
     event PlatformUpdated(address _platform);
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
@@ -102,6 +105,18 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         platformFee = fee;
 
         emit PlatformFeeUpdated(fee);
+    }
+
+    /**
+        @notice Set the compound incentive
+        @param  incentive  uint256  Compound incentive
+     */
+    function setCompoundIncentive(uint256 incentive) external onlyOwner {
+        if (incentive > MAX_COMPOUND_INCENTIVE) revert ExceedsMax();
+
+        compoundIncentive = incentive;
+
+        emit CompoundIncentiveUpdated(incentive);
     }
 
     /**
@@ -188,12 +203,13 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     }
 
     /**
-        @notice Compound pxGLP rewards (privileged call to prevent manipulation)
+        @notice Compound pxGLP rewards
+        @param  minGlpAmount    uint256  Minimum GLP amount received from the deposit
         @return wethAmountIn    uint256  WETH inbound amount
         @return pxGmxAmountOut  uint256  pxGMX outbound amount
         @return pxGlpAmountOut  uint256  pxGLP outbound amount
      */
-    function compound()
+    function compound(uint256 minGlpAmount)
         public
         returns (
             uint256 wethAmountIn,
@@ -258,11 +274,11 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         @param  receiver  address  Receiver of the vault shares
      */
     function beforeDeposit(
+        address receiver,
         uint256,
-        uint256,
-        address receiver
+        uint256
     ) internal override {
-        compound();
+        compound(1);
 
         _updateExtraReward(msg.sender);
         _updateExtraReward(receiver);
@@ -274,52 +290,31 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         @param  receiver  address  Receiver of the vault assets
      */
     function beforeWithdraw(
-        uint256,
-        uint256,
         address owner,
-        address receiver
+        address receiver,
+        uint256,
+        uint256
     ) internal override {
-        compound();
+        compound(1);
 
         _updateExtraReward(owner);
         _updateExtraReward(receiver);
     }
 
     /**
-        @notice Override transfer method to handle pre-deposit logic related to extra rewards
-        @param  to      address  Account receiving apxGLP
-        @param  amount  uint256  Amount of apxGLP
-    */
-    function transfer(address to, uint256 amount)
-        public
-        override
-        returns (bool)
-    {
-        compound();
+        @notice Compound pxGLP rewards and handle extra rewards logic before transfer
+        @param  owner     address  Owner of the vault shares
+        @param  receiver  address  Receiver of the vault shares
+     */
+    function beforeTransfer(
+        address owner,
+        address receiver,
+        uint256
+    ) internal override {
+        compound(1);
 
-        _updateExtraReward(msg.sender);
-        _updateExtraReward(to);
-
-        return ERC20.transfer(to, amount);
-    }
-
-    /**
-        @notice Override transferFrom method to handle pre-deposit logic related to extra rewards
-        @param  from    address  Account sending apxGLP
-        @param  to      address  Account receiving apxGLP
-        @param  amount  uint256  Amount of apxGLP
-    */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public override returns (bool) {
-        compound();
-
-        _updateExtraReward(from);
-        _updateExtraReward(to);
-
-        return ERC20.transferFrom(from, to, amount);
+        _updateExtraReward(owner);
+        _updateExtraReward(receiver);
     }
 
     /**
@@ -329,7 +324,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     function claimExtraReward(address receiver) external {
         if (receiver == address(0)) revert ZeroAddress();
 
-        compound();
+        compound(1);
 
         _updateExtraReward(msg.sender);
 

@@ -58,7 +58,7 @@ abstract contract PirexERC4626 is ERC20 {
         virtual
         returns (uint256 shares)
     {
-        if (totalAssets() != 0) beforeDeposit(assets, shares, receiver);
+        if (totalAssets() != 0) beforeDeposit(receiver, assets, shares);
 
         // Check for rounding error since we round down in previewDeposit.
         require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
@@ -78,7 +78,7 @@ abstract contract PirexERC4626 is ERC20 {
         virtual
         returns (uint256 assets)
     {
-        if (totalAssets() != 0) beforeDeposit(assets, shares, receiver);
+        if (totalAssets() != 0) beforeDeposit(receiver, assets, shares);
 
         assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
 
@@ -106,7 +106,7 @@ abstract contract PirexERC4626 is ERC20 {
                 allowance[owner][msg.sender] = allowed - shares;
         }
 
-        beforeWithdraw(assets, shares, owner, receiver);
+        beforeWithdraw(owner, receiver, assets, shares);
 
         _burn(owner, shares);
 
@@ -130,7 +130,7 @@ abstract contract PirexERC4626 is ERC20 {
         // Check for rounding error since we round down in previewRedeem.
         require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
 
-        beforeWithdraw(assets, shares, owner, receiver);
+        beforeWithdraw(owner, receiver, assets, shares);
 
         _burn(owner, shares);
 
@@ -222,22 +222,59 @@ abstract contract PirexERC4626 is ERC20 {
         return balanceOf[owner];
     }
 
+    /**
+        @notice Override transfer method to allow for pre-transfer internal hook
+        @param  to      address  Account receiving apxGLP
+        @param  amount  uint256  Amount of apxGLP
+    */
+    function transfer(address to, uint256 amount)
+        public
+        override
+        returns (bool)
+    {
+        beforeTransfer(msg.sender, to, amount);
+
+        return ERC20.transfer(to, amount);
+    }
+
+    /**
+        @notice Override transferFrom method to allow for pre-transfer internal hook
+        @param  from    address  Account sending apxGLP
+        @param  to      address  Account receiving apxGLP
+        @param  amount  uint256  Amount of apxGLP
+    */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public override returns (bool) {
+        beforeTransfer(from, to, amount);
+
+        return ERC20.transferFrom(from, to, amount);
+    }
+
     /*//////////////////////////////////////////////////////////////
                           INTERNAL HOOKS LOGIC
     //////////////////////////////////////////////////////////////*/
 
     function beforeWithdraw(
-        uint256 assets,
-        uint256 shares,
         address owner,
-        address receiver
+        address receiver,
+        uint256 assets,
+        uint256 shares
     ) internal virtual {}
 
     function beforeDeposit(
+        address receiver,
         uint256 assets,
-        uint256 shares,
-        address receiver
+        uint256 shares
     ) internal virtual {}
 
     function afterDeposit(uint256 assets, uint256 shares) internal virtual {}
+
+    function beforeTransfer(
+        address owner,
+        address receiver,
+        uint256 amount
+    ) internal virtual {}
 }
