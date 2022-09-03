@@ -373,6 +373,21 @@ contract AutoPxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
+        @notice Test tx reversion: minGlpAmount is invalid (zero)
+     */
+    function testCannotCompoundMinAmountInvalidParam() external {
+        uint256 invalidMinGlpAmount = 0;
+        bool optOutIncentive = true;
+
+        vm.expectRevert(AutoPxGlp.InvalidParam.selector);
+
+        autoPxGlp.compound(
+            invalidMinGlpAmount,
+            optOutIncentive
+        );
+    }
+
+    /**
         @notice Test tx success: compound pxGLP rewards into more pxGLP and track extra rewards (pxGMX)
         @param  etherAmount     uint96  Amount of ETH to deposit
         @param  secondsElapsed  uint32  Seconds to forward timestamp
