@@ -201,7 +201,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     /**
         @notice Compound pxGMX rewards before depositing
      */
-    function beforeDeposit(uint256, uint256) internal override {
+    function beforeDeposit(uint256, uint256, address) internal override {
         compound(3000, 1, 0, true);
     }
 

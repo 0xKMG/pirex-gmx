@@ -58,7 +58,7 @@ abstract contract PirexERC4626 is ERC20 {
         virtual
         returns (uint256 shares)
     {
-        if (totalAssets() != 0) beforeDeposit(assets, shares);
+        if (totalAssets() != 0) beforeDeposit(assets, shares, receiver);
 
         // Check for rounding error since we round down in previewDeposit.
         require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
@@ -78,7 +78,7 @@ abstract contract PirexERC4626 is ERC20 {
         virtual
         returns (uint256 assets)
     {
-        if (totalAssets() != 0) beforeDeposit(assets, shares);
+        if (totalAssets() != 0) beforeDeposit(assets, shares, receiver);
 
         assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
 
@@ -106,7 +106,7 @@ abstract contract PirexERC4626 is ERC20 {
                 allowance[owner][msg.sender] = allowed - shares;
         }
 
-        beforeWithdraw(assets, shares);
+        beforeWithdraw(assets, shares, owner, receiver);
 
         _burn(owner, shares);
 
@@ -130,7 +130,7 @@ abstract contract PirexERC4626 is ERC20 {
         // Check for rounding error since we round down in previewRedeem.
         require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
 
-        beforeWithdraw(assets, shares);
+        beforeWithdraw(assets, shares, owner, receiver);
 
         _burn(owner, shares);
 
@@ -226,9 +226,18 @@ abstract contract PirexERC4626 is ERC20 {
                           INTERNAL HOOKS LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function beforeWithdraw(uint256 assets, uint256 shares) internal virtual {}
+    function beforeWithdraw(
+        uint256 assets,
+        uint256 shares,
+        address owner,
+        address receiver
+    ) internal virtual {}
 
-    function beforeDeposit(uint256 assets, uint256 shares) internal virtual {}
+    function beforeDeposit(
+        uint256 assets,
+        uint256 shares,
+        address receiver
+    ) internal virtual {}
 
     function afterDeposit(uint256 assets, uint256 shares) internal virtual {}
 }

@@ -2,14 +2,16 @@
 pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
-import {ERC4626} from "solmate/mixins/ERC4626.sol";
+import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
-contract AutoPxGlp is Owned, ERC4626 {
+contract AutoPxGlp is Owned, PirexERC4626 {
     using SafeTransferLib for ERC20;
+    using FixedPointMathLib for uint256;
 
     ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
@@ -64,7 +66,7 @@ contract AutoPxGlp is Owned, ERC4626 {
         string memory _name,
         string memory _symbol,
         address _platform
-    ) Owned(msg.sender) ERC4626(ERC20(_asset), _name, _symbol) {
+    ) Owned(msg.sender) PirexERC4626(ERC20(_asset), _name, _symbol) {
         if (_asset == address(0)) revert ZeroAddress();
         if (_extraReward == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
@@ -135,6 +137,57 @@ contract AutoPxGlp is Owned, ERC4626 {
     }
 
     /**
+        @notice Preview the amount of assets a user would receive from redeeming shares
+        @param  shares   uint256  Shares amount
+        @return          uint256  Assets amount
+     */
+    function previewRedeem(uint256 shares)
+        public
+        view
+        override
+        returns (uint256)
+    {
+        // Calculate assets based on a user's % ownership of vault shares
+        uint256 assets = convertToAssets(shares);
+
+        uint256 _totalSupply = totalSupply;
+
+        // Calculate a penalty - zero if user is the last to withdraw
+        uint256 penalty = (_totalSupply == 0 || _totalSupply - shares == 0)
+            ? 0
+            : assets.mulDivDown(withdrawalPenalty, FEE_DENOMINATOR);
+
+        // Redeemable amount is the post-penalty amount
+        return assets - penalty;
+    }
+
+    /**
+        @notice Preview the amount of shares a user would need to redeem the specified asset amount
+        @notice This modified version takes into consideration the withdrawal fee
+        @param  assets   uint256  Assets amount
+        @return          uint256  Shares amount
+     */
+    function previewWithdraw(uint256 assets)
+        public
+        view
+        override
+        returns (uint256)
+    {
+        // Calculate shares based on the specified assets' proportion of the pool
+        uint256 shares = convertToShares(assets);
+
+        // Save 1 SLOAD
+        uint256 _totalSupply = totalSupply;
+
+        // Factor in additional shares to fulfill withdrawal if user is not the last to withdraw
+        return
+            (_totalSupply == 0 || _totalSupply - shares == 0)
+                ? shares
+                : (shares * FEE_DENOMINATOR) /
+                    (FEE_DENOMINATOR - withdrawalPenalty);
+    }
+
+    /**
         @notice Compound pxGLP rewards (privileged call to prevent manipulation)
         @return wethAmountIn    uint256  WETH inbound amount
         @return pxGmxAmountOut  uint256  pxGMX outbound amount
@@ -169,13 +222,10 @@ contract AutoPxGlp is Owned, ERC4626 {
 
         if (wethAmountIn != 0) {
             // Deposit received WETH for pxGLP
-            // TODO: Properly calculate and use the minimum received amount
-            uint256 minGlpAmount = 0.000000000000001 ether;
-
             pxGlpAmountOut = PirexGmxGlp(platform).depositGlpWithERC20(
                 address(WETH),
                 wethAmountIn,
-                minGlpAmount,
+                1,
                 address(this)
             );
         }
@@ -204,81 +254,35 @@ contract AutoPxGlp is Owned, ERC4626 {
     }
 
     /**
-        @notice Override deposit method to handle pre-deposit logic related to extra rewards
-        @param  assets    uint256  Assets amount
-        @param  receiver  uint256  Receiver of the minted vault shares
-        @return shares    uint256  Shares amount
+        @notice Compound pxGLP rewards and handle extra rewards logic before deposit
+        @param  receiver  address  Receiver of the vault shares
      */
-    function deposit(uint256 assets, address receiver)
-        public
-        override
-        returns (uint256 shares)
-    {
+    function beforeDeposit(
+        uint256,
+        uint256,
+        address receiver
+    ) internal override {
         compound();
 
         _updateExtraReward(msg.sender);
         _updateExtraReward(receiver);
-
-        (shares) = ERC4626.deposit(assets, receiver);
     }
 
     /**
-        @notice Override mint method to handle pre-deposit logic related to extra rewards
-        @param  shares    uint256  Shares amount
-        @param  receiver  uint256  Receiver of the minted vault shares
-        @return assets    uint256  Assets amount
-     */
-    function mint(uint256 shares, address receiver)
-        public
-        override
-        returns (uint256 assets)
-    {
-        compound();
-
-        _updateExtraReward(msg.sender);
-        _updateExtraReward(receiver);
-
-        (assets) = ERC4626.mint(shares, receiver);
-    }
-
-    /**
-        @notice Override withdraw method to handle pre-deposit logic related to extra rewards
-        @param  assets    uint256  Assets amount
+        @notice Compound pxGLP rewards and handle extra rewards logic before withdrawal
+        @param  owner     address  Owner of the vault shares
         @param  receiver  address  Receiver of the vault assets
-        @param  owner     address  Owner address
-        @return shares    uint256  Shares amount
      */
-    function withdraw(
-        uint256 assets,
-        address receiver,
-        address owner
-    ) public override returns (uint256 shares) {
+    function beforeWithdraw(
+        uint256,
+        uint256,
+        address owner,
+        address receiver
+    ) internal override {
         compound();
 
         _updateExtraReward(owner);
         _updateExtraReward(receiver);
-
-        (shares) = ERC4626.withdraw(assets, receiver, owner);
-    }
-
-    /**
-        @notice Override redeem method to handle pre-deposit logic related to extra rewards
-        @param  shares    uint256  Shares amount
-        @param  receiver  address  Receiver of the vault assets
-        @param  owner     address  Owner address
-        @return assets    uint256  Assets amount
-     */
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public override returns (uint256 assets) {
-        compound();
-
-        _updateExtraReward(owner);
-        _updateExtraReward(receiver);
-
-        (assets) = ERC4626.redeem(shares, receiver, owner);
     }
 
     /**
