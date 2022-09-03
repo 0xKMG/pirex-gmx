@@ -106,7 +106,7 @@ abstract contract PirexERC4626 is ERC20 {
                 allowance[owner][msg.sender] = allowed - shares;
         }
 
-        beforeWithdraw(owner, receiver, assets, shares);
+        beforeWithdraw(owner, assets, shares);
 
         _burn(owner, shares);
 
@@ -130,7 +130,7 @@ abstract contract PirexERC4626 is ERC20 {
         // Check for rounding error since we round down in previewRedeem.
         require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
 
-        beforeWithdraw(owner, receiver, assets, shares);
+        beforeWithdraw(owner, assets, shares);
 
         _burn(owner, shares);
 
@@ -259,7 +259,6 @@ abstract contract PirexERC4626 is ERC20 {
 
     function beforeWithdraw(
         address owner,
-        address receiver,
         uint256 assets,
         uint256 shares
     ) internal virtual {}

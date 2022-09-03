@@ -45,7 +45,9 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         uint256 pxGmxAmountOut,
         uint256 pxGlpAmountOut,
         uint256 totalFee,
-        uint256 incentive
+        uint256 totalExtraFee,
+        uint256 incentive,
+        uint256 extraIncentive
     );
     event ExtraRewardClaimed(
         address indexed account,
@@ -206,14 +208,16 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     }
 
     /**
-        @notice Compound pxGLP rewards
-        @param  minGlpAmount     uint256  Minimum GLP amount received from the deposit
+        @notice Compound pxGLP (and additionally pxGMX) rewards
+        @param  minGlpAmount     uint256  Minimum GLP amount received from the WETH deposit
         @param  optOutIncentive  bool     Whether to opt out of the incentive
         @return wethAmountIn     uint256  WETH inbound amount
         @return pxGmxAmountOut   uint256  pxGMX outbound amount
         @return pxGlpAmountOut   uint256  pxGLP outbound amount
-        @return totalFee         uint256  Total platform fee
-        @return incentive        uint256  Compound incentive
+        @return totalFee         uint256  Total platform fee for main rewards (pxGLP)
+        @return totalExtraFee    uint256  Total platform fee for extra rewards (pxGMX)
+        @return incentive        uint256  Compound incentive for main rewards (pxGLP)
+        @return extraIncentive   uint256  Compound incentive for extra rewards (pxGMX)
      */
     function compound(uint256 minGlpAmount, bool optOutIncentive)
         public
@@ -222,7 +226,9 @@ contract AutoPxGlp is Owned, PirexERC4626 {
             uint256 pxGmxAmountOut,
             uint256 pxGlpAmountOut,
             uint256 totalFee,
-            uint256 incentive
+            uint256 totalExtraFee,
+            uint256 incentive,
+            uint256 extraIncentive
         )
     {
         if (minGlpAmount == 0) revert InvalidParam();
@@ -233,19 +239,8 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         PirexRewards(rewardsModule).claim(asset, address(this));
         PirexRewards(rewardsModule).claim(extraReward, address(this));
 
-        // Track the amount of WETH and pxGMX received
+        // Track the amount of WETH received
         wethAmountIn = WETH.balanceOf(address(this));
-        pxGmxAmountOut =
-            extraReward.balanceOf(address(this)) -
-            preClaimPxGmxAmount;
-
-        if (totalSupply != 0) {
-            // Update amount of reward per vault share/token
-            // Note that we expand the decimals to handle small rewards (less than supply)
-            extraRewardPerToken +=
-                (pxGmxAmountOut * EXPANDED_DECIMALS) /
-                totalSupply;
-        }
 
         if (wethAmountIn != 0) {
             // Deposit received WETH for pxGLP
@@ -257,7 +252,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
             );
         }
 
-        // Only distribute fees if the amount of vault assets increased (i.e. WETH and/or pxGMX rewards were non-zero)
+        // Distribute fees if the amount of vault assets increased
         if ((totalAssets() - preClaimTotalAssets) != 0) {
             totalFee =
                 ((asset.balanceOf(address(this)) - preClaimTotalAssets) *
@@ -272,13 +267,41 @@ contract AutoPxGlp is Owned, PirexERC4626 {
             asset.safeTransfer(owner, totalFee - incentive);
         }
 
+        // Track the amount of pxGMX received
+        pxGmxAmountOut =
+            extraReward.balanceOf(address(this)) -
+            preClaimPxGmxAmount;
+
+        if (pxGmxAmountOut != 0) {
+            // Calculate and distribute extra fees if the amount of extra tokens increased
+            totalExtraFee = (pxGmxAmountOut * platformFee) / FEE_DENOMINATOR;
+            extraIncentive = optOutIncentive
+                ? 0
+                : (totalExtraFee * compoundIncentive) / FEE_DENOMINATOR;
+
+            if (extraIncentive != 0)
+                extraReward.safeTransfer(msg.sender, extraIncentive);
+
+            extraReward.safeTransfer(owner, totalExtraFee - extraIncentive);
+
+            if (totalSupply != 0) {
+                // Update amount of reward per vault share/token (using reward amount subtracted by the fees)
+                // Note that we expand the decimals to handle small rewards (less than supply)
+                extraRewardPerToken +=
+                    ((pxGmxAmountOut - totalExtraFee) * EXPANDED_DECIMALS) /
+                    totalSupply;
+            }
+        }
+
         emit Compounded(
             msg.sender,
             wethAmountIn,
             pxGmxAmountOut,
             pxGlpAmountOut,
             totalFee,
-            incentive
+            totalExtraFee,
+            incentive,
+            extraIncentive
         );
     }
 
@@ -308,25 +331,23 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     ) internal override {
         compound(1, true);
 
-        _updateExtraReward(msg.sender);
+        // Update extra reward states using pre-deposit shares of the receiver
         _updateExtraReward(receiver);
     }
 
     /**
         @notice Compound pxGLP rewards and handle extra rewards logic before withdrawal
         @param  owner     address  Owner of the vault shares
-        @param  receiver  address  Receiver of the vault assets
      */
     function beforeWithdraw(
         address owner,
-        address receiver,
         uint256,
         uint256
     ) internal override {
         compound(1, true);
 
+        // Update extra reward states using pre-withdrawal shares of the owner
         _updateExtraReward(owner);
-        _updateExtraReward(receiver);
     }
 
     /**
@@ -341,6 +362,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     ) internal override {
         compound(1, true);
 
+        // Update extra reward states using pre-transfer shares for both owner and receiver
         _updateExtraReward(owner);
         _updateExtraReward(receiver);
     }
