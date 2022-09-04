@@ -41,6 +41,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
         address indexed caller,
+        uint256 minGlpAmount,
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
         uint256 pxGlpAmountOut,
@@ -247,7 +248,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
             pxGlpAmountOut = PirexGmxGlp(platform).depositGlpWithERC20(
                 address(WETH),
                 wethAmountIn,
-                1,
+                minGlpAmount,
                 address(this)
             );
         }
@@ -295,6 +296,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
 
         emit Compounded(
             msg.sender,
+            minGlpAmount,
             wethAmountIn,
             pxGmxAmountOut,
             pxGlpAmountOut,

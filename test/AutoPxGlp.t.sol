@@ -14,6 +14,7 @@ contract AutoPxGlpTest is Helper {
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
         address indexed caller,
+        uint256 minGlpAmount,
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
         uint256 pxGlpAmountOut,
@@ -530,7 +531,7 @@ contract AutoPxGlpTest is Helper {
 
         vm.expectEmit(true, false, false, false, address(autoPxGlp));
 
-        emit Compounded(testAccounts[0], 0, 0, 0, 0, 0, 0, 0);
+        emit Compounded(testAccounts[0], 0, 0, 0, 0, 0, 0, 0, 0);
 
         // Call as testAccounts[0] to test compound incentive transfer
         vm.prank(testAccounts[0]);
