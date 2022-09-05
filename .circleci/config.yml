@@ -55,6 +55,9 @@ jobs:
               # Install foundry via foundryup
               $BIN_PATH
 
+              # Install project dependencies
+              $FOUNDRY_BIN_DIR/forge i
+
               # Perform forge tests
               $FOUNDRY_BIN_DIR/forge test --fork-url $FORK_URL --fork-block-number $FORK_BLOCK_NUMBER
       - run:
