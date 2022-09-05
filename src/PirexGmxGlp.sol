@@ -225,13 +225,16 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Deposit and stake GMX for pxGMX
-        @param  gmxAmount  uint256  GMX amount
-        @param  receiver   address  Recipient of pxGMX
+        @param  gmxAmount   uint256  GMX amount
+        @param  receiver    address  Recipient of pxGMX
+        @return feeAmount   uint256  Amount of pxGMX taken as fees
+        @return mintAmount  uint256  Amount of pxGMX minted for the receiver
      */
     function depositGmx(uint256 gmxAmount, address receiver)
         external
         whenNotPaused
         nonReentrant
+        returns (uint256 feeAmount, uint256 mintAmount)
     {
         if (gmxAmount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
@@ -241,10 +244,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         REWARD_ROUTER_V2.stakeGmx(gmxAmount);
 
-        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
-            Fees.Deposit,
-            gmxAmount
-        );
+        (feeAmount, mintAmount) = _deriveAssetAmounts(Fees.Deposit, gmxAmount);
 
         // Mint pxGMX equal to the GMX deposit amount sans fees
         pxGmx.mint(receiver, mintAmount);
@@ -645,7 +645,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
                         VOTE DELEGATION LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    /** 
+    /**
         @notice Set delegationSpace
         @param  _delegationSpace  string  Convex Snapshot delegation space
         @param  shouldClear       bool    Whether to clear the vote delegate for current delegation space

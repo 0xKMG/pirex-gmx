@@ -362,7 +362,7 @@ contract PirexRewards is OwnableUpgradeable {
     }
 
     /**
-        @notice Harvest rewards
+        @notice Claim rewards
         @param  producerToken   ERC20    Producer token contract
         @param  user            address  User
     */
