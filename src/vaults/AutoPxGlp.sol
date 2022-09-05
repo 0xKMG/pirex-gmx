@@ -245,7 +245,7 @@ contract AutoPxGlp is Owned, PirexERC4626 {
 
         if (wethAmountIn != 0) {
             // Deposit received WETH for pxGLP
-            pxGlpAmountOut = PirexGmxGlp(platform).depositGlpWithERC20(
+            (, pxGlpAmountOut) = PirexGmxGlp(platform).depositGlpWithERC20(
                 address(WETH),
                 wethAmountIn,
                 minGlpAmount,

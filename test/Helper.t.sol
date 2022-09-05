@@ -499,7 +499,7 @@ contract Helper is Test {
     {
         vm.deal(address(this), etherAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+        (, uint256 assets) = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             1,
             receiver
         );
@@ -524,7 +524,7 @@ contract Helper is Test {
 
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
+        (, uint256 assets) = pirexGmxGlp.depositGlpWithERC20(
             address(WBTC),
             tokenAmount,
             1,

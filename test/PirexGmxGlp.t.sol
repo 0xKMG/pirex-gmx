@@ -400,7 +400,7 @@ contract PirexGmxGlpTest is Helper {
             0
         );
 
-        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+        (, uint256 assets) = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             minShares,
             receiver
         );
@@ -610,7 +610,7 @@ contract PirexGmxGlpTest is Helper {
             0
         );
 
-        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
+        (, uint256 assets) = pirexGmxGlp.depositGlpWithERC20(
             token,
             tokenAmount,
             minShares,
