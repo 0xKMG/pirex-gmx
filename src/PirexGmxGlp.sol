@@ -225,8 +225,10 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Deposit and stake GMX for pxGMX
-        @param  gmxAmount  uint256  GMX amount
-        @param  receiver   address  Recipient of pxGMX
+        @param  gmxAmount   uint256  GMX amount
+        @param  receiver    address  Recipient of pxGMX
+        @return feeAmount   uint256  Amount of pxGMX taken as fees
+        @return mintAmount  uint256  Amount of pxGMX minted for the receiver
      */
     function depositGmx(uint256 gmxAmount, address receiver)
         external
