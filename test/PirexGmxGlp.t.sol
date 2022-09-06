@@ -11,6 +11,15 @@ import {IWETH} from "src/interfaces/IWETH.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexGmxGlpTest is Helper {
+    bytes32 internal constant DEFAULT_DELEGATION_SPACE = bytes32("gmx.eth");
+
+    bytes internal constant PAUSED_ERROR = "Pausable: paused";
+    bytes internal constant NOT_PAUSED_ERROR = "Pausable: not paused";
+    bytes internal constant INSUFFICIENT_OUTPUT_ERROR =
+        "GlpManager: insufficient output";
+    bytes internal constant INSUFFICIENT_GLP_OUTPUT_ERROR =
+        "GlpManager: insufficient GLP output";
+
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
     event ClaimRewards(
@@ -26,26 +35,40 @@ contract PirexGmxGlpTest is Helper {
     event SetVoteDelegate(address voteDelegate);
     event ClearVoteDelegate();
 
+    /**
+        @notice Assert the default values for all fee types
+     */
+    function _assertDefaultFeeValues() internal {
+        for (uint256 i; i < feeTypes.length; ++i) {
+            assertEq(0, pirexGmxGlp.fees(feeTypes[i]));
+        }
+    }
+
     /*//////////////////////////////////////////////////////////////
                         setPirexRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to caller not being owner
+        @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetPirexRewardsUnauthorized() external {
+        assertEq(address(pirexRewards), pirexGmxGlp.pirexRewards());
+
         address _pirexRewards = address(this);
 
+        vm.expectRevert(UNAUTHORIZED_ERROR);
+
         vm.prank(testAccounts[0]);
-        vm.expectRevert("UNAUTHORIZED");
 
         pirexGmxGlp.setPirexRewards(_pirexRewards);
     }
 
     /**
-        @notice Test tx reversion due to _pirexRewards being zero
+        @notice Test tx reversion: _pirexRewards is zero address
      */
     function testCannotSetPirexRewardsZeroAddress() external {
+        assertEq(address(pirexRewards), pirexGmxGlp.pirexRewards());
+
         address invalidPirexRewards = address(0);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
@@ -54,12 +77,13 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test setting pirexRewards
+        @notice Test tx success: set pirexRewards
      */
     function testSetPirexRewards() external {
         address pirexRewardsBefore = address(pirexGmxGlp.pirexRewards());
         address _pirexRewards = address(this);
 
+        assertEq(address(pirexRewards), pirexGmxGlp.pirexRewards());
         assertTrue(pirexRewardsBefore != _pirexRewards);
 
         vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
@@ -76,22 +100,32 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: caller not being owner
+        @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetDelegateRegistryUnauthorized() external {
+        assertEq(
+            address(delegateRegistry),
+            address(pirexGmxGlp.delegateRegistry())
+        );
+
         address _delegateRegistry = address(this);
 
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
 
         pirexGmxGlp.setDelegateRegistry(_delegateRegistry);
     }
 
     /**
-        @notice Test tx reversion: _delegateRegistry being zero
+        @notice Test tx reversion: _delegateRegistry is zero address
      */
     function testCannotSetDelegateRegistryZeroAddress() external {
+        assertEq(
+            address(delegateRegistry),
+            address(pirexGmxGlp.delegateRegistry())
+        );
+
         address invalidDelegateRegistry = address(0);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
@@ -100,7 +134,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test setting delegateRegistry
+        @notice Test tx success: set delegateRegistry
      */
     function testSetDelegateRegistry() external {
         address delegateRegistryBefore = address(
@@ -108,6 +142,7 @@ contract PirexGmxGlpTest is Helper {
         );
         address _delegateRegistry = address(this);
 
+        assertEq(address(delegateRegistry), delegateRegistryBefore);
         assertFalse(delegateRegistryBefore == _delegateRegistry);
 
         vm.expectEmit(false, false, false, true, address(pirexGmxGlp));
@@ -124,10 +159,13 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: caller is not authorized
+        @notice Test tx reversion: caller is unauthorized
      */
-    function testCannotSetFeeNotOwner() external {
-        vm.expectRevert("UNAUTHORIZED");
+    function testCannotSetFeeUnauthorized() external {
+        _assertDefaultFeeValues();
+
+        vm.expectRevert(UNAUTHORIZED_ERROR);
+
         vm.prank(testAccounts[0]);
 
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, 1);
@@ -137,6 +175,8 @@ contract PirexGmxGlpTest is Helper {
         @notice Test tx reversion: fee amount exceeds the maximum
      */
     function testCannotSetFeeExceedsMax() external {
+        _assertDefaultFeeValues();
+
         for (uint256 i; i < feeTypes.length; ++i) {
             vm.expectRevert(PirexGmxGlp.InvalidFee.selector);
 
@@ -145,7 +185,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test setting fees for each type
+        @notice Test tx success: set fees for each type
         @param  deposit     uint256  Deposit fee
         @param  redemption  uint256  Redemption fee
         @param  reward      uint256  Reward fee
@@ -162,9 +202,7 @@ contract PirexGmxGlpTest is Helper {
         vm.assume(reward != 0);
         vm.assume(reward < feeMax);
 
-        assertEq(0, pirexGmxGlp.fees(feeTypes[0]));
-        assertEq(0, pirexGmxGlp.fees(feeTypes[1]));
-        assertEq(0, pirexGmxGlp.fees(feeTypes[2]));
+        _assertDefaultFeeValues();
 
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, deposit);
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Redemption, redemption);
@@ -180,23 +218,25 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if contract is paused
+        @notice Test tx reversion: contract is paused
      */
     function testCannotDepositGmxPaused() external {
         pirexGmxGlp.setPauseState(true);
+
+        assertEq(true, pirexGmxGlp.paused());
 
         uint256 gmxAmount = 1;
         address receiver = address(this);
 
         _mintGmx(gmxAmount);
 
-        vm.expectRevert("Pausable: paused");
+        vm.expectRevert(PAUSED_ERROR);
 
         pirexGmxGlp.depositGmx(gmxAmount, receiver);
     }
 
     /**
-        @notice Test tx reversion due to msg.value being zero
+        @notice Test tx reversion: amount is zero
      */
     function testCannotDepositGmxZeroValue() external {
         uint256 invalidGmxAmount = 0;
@@ -208,7 +248,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to receiver being the zero address
+        @notice Test tx reversion: receiver is zero address
      */
     function testCannotDepositGmxZeroReceiver() external {
         uint256 gmxAmount = 1e18;
@@ -220,7 +260,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to insufficient GMX balance
+        @notice Test tx reversion: insufficient GMX balance
      */
     function testCannotDepositGmxInsufficientBalance() external {
         uint256 invalidGmxAmount = 1e18;
@@ -236,7 +276,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test depositing GMX for pxGMX
+        @notice Test tx success: deposit GMX for pxGMX
         @param  gmxAmount  uint256  Amount of GMX
      */
     function testDepositGmx(uint256 gmxAmount) external {
@@ -256,6 +296,8 @@ contract PirexGmxGlpTest is Helper {
         );
 
         assertEq(previousGMXBalance - premintGMXBalance, gmxAmount);
+        assertEq(previousPxGmxBalance, 0);
+        assertEq(previousStakedGMXBalance, 0);
 
         GMX.approve(address(pirexGmxGlp), gmxAmount);
 
@@ -279,10 +321,12 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if contract is paused
+        @notice Test tx reversion: contract is paused
      */
     function testCannotDepositGlpWithETHPaused() external {
         pirexGmxGlp.setPauseState(true);
+
+        assertEq(true, pirexGmxGlp.paused());
 
         uint256 etherAmount = 1;
         uint256 minShares = 1;
@@ -290,25 +334,29 @@ contract PirexGmxGlpTest is Helper {
 
         vm.deal(address(this), etherAmount);
 
-        vm.expectRevert("Pausable: paused");
+        vm.expectRevert(PAUSED_ERROR);
 
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(minShares, receiver);
     }
 
     /**
-        @notice Test tx reversion due to msg.value being zero
+        @notice Test tx reversion: msg.value is zero
      */
     function testCannotDepositGlpWithETHZeroValue() external {
+        uint256 invalidEtherAmount = 0;
         uint256 minShares = 1;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.depositGlpWithETH{value: 0}(minShares, receiver);
+        pirexGmxGlp.depositGlpWithETH{value: invalidEtherAmount}(
+            minShares,
+            receiver
+        );
     }
 
     /**
-        @notice Test tx reversion due to minShares being zero
+        @notice Test tx reversion: minShares is zero
      */
     function testCannotDepositGlpWithETHZeroMinShares() external {
         uint256 etherAmount = 1 ether;
@@ -325,7 +373,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to receiver being the zero address
+        @notice Test tx reversion: receiver is zero address
      */
     function testCannotDepositGlpWithETHZeroReceiver() external {
         uint256 etherAmount = 1 ether;
@@ -342,7 +390,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to minShares being GT than actual GLP amount
+        @notice Test tx reversion: minShares is greater than actual GLP amount
      */
     function testCannotDepositGlpWithETHExcessiveMinShares() external {
         uint256 etherAmount = 1 ether;
@@ -354,7 +402,7 @@ contract PirexGmxGlpTest is Helper {
         address receiver = address(this);
 
         vm.deal(address(this), etherAmount);
-        vm.expectRevert(bytes("GlpManager: insufficient GLP output"));
+        vm.expectRevert(INSUFFICIENT_GLP_OUTPUT_ERROR);
 
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
             invalidMinShares,
@@ -363,7 +411,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test depositing pxGLP with ETH
+        @notice Test tx success: deposit for pxGLP with ETH
         @param  etherAmount  uint256  Amount of ether in wei units
      */
     function testDepositGlpWithETH(uint256 etherAmount) external {
@@ -371,13 +419,8 @@ contract PirexGmxGlpTest is Helper {
         vm.assume(etherAmount < 1_000 ether);
         vm.deal(address(this), etherAmount);
 
-        uint256 minShares = 1;
+        uint256 minShares = _calculateMinGlpAmount(address(0), etherAmount, 18);
         address receiver = address(this);
-        uint256 minGlpAmount = _calculateMinGlpAmount(
-            address(0),
-            etherAmount,
-            18
-        );
         uint256 premintETHBalance = address(this).balance;
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
@@ -385,6 +428,8 @@ contract PirexGmxGlpTest is Helper {
         );
 
         assertEq(premintETHBalance, etherAmount);
+        assertEq(premintPxGlpUserBalance, 0);
+        assertEq(premintGlpPirexBalance, 0);
 
         vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 
@@ -414,8 +459,8 @@ contract PirexGmxGlpTest is Helper {
         assertGt(pxGlpReceivedByUser, 0);
         assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
         assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minGlpAmount);
-        assertGe(glpReceivedByPirex, minGlpAmount);
+        assertGe(pxGlpReceivedByUser, minShares);
+        assertGe(glpReceivedByPirex, minShares);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -423,10 +468,12 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if contract is paused
+        @notice Test tx reversion: contract is paused
      */
     function testCannotDepositGlpWithERC20TokenPaused() external {
         pirexGmxGlp.setPauseState(true);
+
+        assertEq(true, pirexGmxGlp.paused());
 
         address token = address(WBTC);
         uint256 tokenAmount = 1;
@@ -436,7 +483,7 @@ contract PirexGmxGlpTest is Helper {
         _mintWbtc(tokenAmount);
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
 
-        vm.expectRevert("Pausable: paused");
+        vm.expectRevert(PAUSED_ERROR);
 
         pirexGmxGlp.depositGlpWithERC20(
             token,
@@ -447,7 +494,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to token being the zero address
+        @notice Test tx reversion: token is zero address
      */
     function testCannotDepositGlpWithERC20TokenZeroAddress() external {
         address invalidToken = address(0);
@@ -466,7 +513,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to token amount being zero
+        @notice Test tx reversion: amount is zero
      */
     function testCannotDepositGlpWithERC20TokenZeroAmount() external {
         address token = address(WBTC);
@@ -485,7 +532,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to minShares being zero
+        @notice Test tx reversion: minShares is zero
      */
     function testCannotDepositGlpWithERC20MinSharesZeroAmount() external {
         address token = address(WBTC);
@@ -504,7 +551,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to receiver being the zero address
+        @notice Test tx reversion: receiver is zero address
      */
     function testCannotDepositGlpWithERC20ReceiverZeroAddress() external {
         address token = address(WBTC);
@@ -523,7 +570,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to token not being whitelisted by GMX
+        @notice Test tx reversion: token is not whitelisted by GMX
      */
     function testCannotDepositGlpWithERC20InvalidToken() external {
         address invalidToken = address(this);
@@ -547,7 +594,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to minShares being GT than actual GLP amount
+        @notice Test tx reversion: minShares is greater than actual GLP amount
      */
     function testCannotDepositGlpWithERC20ExcessiveMinShares() external {
         uint256 tokenAmount = 1e8;
@@ -562,7 +609,7 @@ contract PirexGmxGlpTest is Helper {
         _mintWbtc(tokenAmount);
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
 
-        vm.expectRevert(bytes("GlpManager: insufficient GLP output"));
+        vm.expectRevert(INSUFFICIENT_GLP_OUTPUT_ERROR);
 
         pirexGmxGlp.depositGlpWithERC20(
             token,
@@ -573,7 +620,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test depositing pxGLP with whitelisted ERC20 tokens
+        @notice Test tx success: deposit for pxGLP with whitelisted ERC20 tokens
         @param  tokenAmount  uint256  Token amount
      */
     function testDepositGlpWithERC20(uint256 tokenAmount) external {
@@ -583,9 +630,8 @@ contract PirexGmxGlpTest is Helper {
         _mintWbtc(tokenAmount);
 
         address token = address(WBTC);
-        uint256 minShares = 1;
+        uint256 minShares = _calculateMinGlpAmount(token, tokenAmount, 8);
         address receiver = address(this);
-        uint256 minGlpAmount = _calculateMinGlpAmount(token, tokenAmount, 8);
         uint256 premintWBTCBalance = WBTC.balanceOf(address(this));
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
         uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
@@ -593,6 +639,8 @@ contract PirexGmxGlpTest is Helper {
         );
 
         assertTrue(WBTC.balanceOf(address(this)) == tokenAmount);
+        assertEq(premintPxGlpUserBalance, 0);
+        assertEq(premintGlpPirexBalance, 0);
 
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
 
@@ -629,8 +677,8 @@ contract PirexGmxGlpTest is Helper {
         assertGt(pxGlpReceivedByUser, 0);
         assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
         assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minGlpAmount);
-        assertGe(glpReceivedByPirex, minGlpAmount);
+        assertGe(pxGlpReceivedByUser, minShares);
+        assertGe(glpReceivedByPirex, minShares);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -638,7 +686,7 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if contract is paused
+        @notice Test tx reversion: contract is paused
      */
     function testCannotRedeemPxGlpForETHPaused() external {
         uint256 etherAmount = 1 ether;
@@ -653,13 +701,15 @@ contract PirexGmxGlpTest is Helper {
         // Pause after deposit
         pirexGmxGlp.setPauseState(true);
 
-        vm.expectRevert("Pausable: paused");
+        assertEq(true, pirexGmxGlp.paused());
+
+        vm.expectRevert(PAUSED_ERROR);
 
         pirexGmxGlp.redeemPxGlpForETH(assets, minRedemption, receiver);
     }
 
     /**
-        @notice Test tx reversion due to msg.value being zero
+        @notice Test tx reversion: amount is zero
      */
     function testCannotRedeemPxGlpForETHZeroValue() external {
         uint256 invalidAmount = 0;
@@ -672,7 +722,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to minRedemption being zero
+        @notice Test tx reversion: minRedemption is zero
      */
     function testCannotRedeemPxGlpForETHZeroMinRedemption() external {
         uint256 amount = 1;
@@ -685,7 +735,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to receiver being the zero address
+        @notice Test tx reversion: receiver is zero address
      */
     function testCannotRedeemPxGlpForETHZeroReceiver() external {
         uint256 amount = 1;
@@ -698,7 +748,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to minShares being GT than actual GLP amount
+        @notice Test tx reversion: minRedemption is greater than actual amount
      */
     function testCannotRedeemPxGlpForETHExcessiveMinRedemption() external {
         uint256 etherAmount = 1 ether;
@@ -710,13 +760,13 @@ contract PirexGmxGlpTest is Helper {
             assets
         ) * 2;
 
-        vm.expectRevert(bytes("GlpManager: insufficient output"));
+        vm.expectRevert(INSUFFICIENT_OUTPUT_ERROR);
 
         pirexGmxGlp.redeemPxGlpForETH(assets, invalidMinRedemption, receiver);
     }
 
     /**
-        @notice Test redeeming back ETH from pxGLP
+        @notice Test tx success: redeem pxGLP for ETH
         @param  etherAmount  uint256  Amount of ether in wei units
      */
     function testRedeemPxGlpForETH(uint256 etherAmount) external {
@@ -734,6 +784,8 @@ contract PirexGmxGlpTest is Helper {
         uint256 previousGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
             address(pirexGmxGlp)
         );
+
+        assertEq(previousPxGlpUserBalance, previousGlpPirexBalance);
 
         // Calculate the minimum redemption amount then perform the redemption
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
@@ -772,7 +824,7 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if contract is paused
+        @notice Test tx reversion: contract is paused
      */
     function testCannotRedeemPxGlpForERC20TokenPaused() external {
         uint256 etherAmount = 1 ether;
@@ -785,13 +837,15 @@ contract PirexGmxGlpTest is Helper {
         // Pause after deposit
         pirexGmxGlp.setPauseState(true);
 
-        vm.expectRevert("Pausable: paused");
+        assertEq(true, pirexGmxGlp.paused());
+
+        vm.expectRevert(PAUSED_ERROR);
 
         pirexGmxGlp.redeemPxGlpForERC20(token, assets, minRedemption, receiver);
     }
 
     /**
-        @notice Test tx reversion due to token being the zero address
+        @notice Test tx reversion: token is zero address
      */
     function testCannotRedeemPxGlpForERC20TokenZeroAddress() external {
         address invalidToken = address(0);
@@ -810,7 +864,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to msg.value being zero
+        @notice Test tx reversion: amount is zero
      */
     function testCannotRedeemPxGlpForERC20ZeroValue() external {
         address token = address(WBTC);
@@ -829,7 +883,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to minRedemption being zero
+        @notice Test tx reversion: minRedemption is zero
      */
     function testCannotRedeemPxGlpForERC20ZeroMinRedemption() external {
         address token = address(WBTC);
@@ -848,7 +902,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to receiver being the zero address
+        @notice Test tx reversion: receiver is zero address
      */
     function testCannotRedeemPxGlpForERC20ZeroReceiver() external {
         address token = address(WBTC);
@@ -867,7 +921,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to token not being whitelisted by GMX
+        @notice Test tx reversion: token is not whitelisted by GMX
      */
     function testCannotRedeemPxGlpForERC20InvalidToken() external {
         address invalidToken = address(this);
@@ -891,7 +945,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to minRedemption being GT than actual token amount
+        @notice Test tx reversion: minRedemption is greater than actual amount
      */
     function testCannotRedeemPxGlpForERC20ExcessiveMinRedemption() external {
         address token = address(WBTC);
@@ -904,7 +958,7 @@ contract PirexGmxGlpTest is Helper {
             assets
         ) * 2;
 
-        vm.expectRevert(bytes("GlpManager: insufficient output"));
+        vm.expectRevert(INSUFFICIENT_OUTPUT_ERROR);
 
         pirexGmxGlp.redeemPxGlpForERC20(
             token,
@@ -915,7 +969,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test redeeming back to whitelisted ERC20 tokens from pxGLP
+        @notice Test tx success: redeem pxGLP for whitelisted ERC20 tokens
         @param  tokenAmount  uint256  Token amount
      */
     function testRedeemPxGlpForERC20(uint256 tokenAmount) external {
@@ -933,6 +987,8 @@ contract PirexGmxGlpTest is Helper {
         uint256 previousGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
             address(pirexGmxGlp)
         );
+
+        assertEq(previousPxGlpUserBalance, previousGlpPirexBalance);
 
         // Calculate the minimum redemption amount then perform the redemption
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
@@ -972,7 +1028,7 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test calculating WETH and esGMX rewards produced by GMX and GLP
+        @notice Test tx success: calculate and return WETH and esGMX rewards produced by GMX and GLP
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
@@ -1052,14 +1108,15 @@ contract PirexGmxGlpTest is Helper {
         @notice Test tx reversion: caller is not pirexRewards
      */
     function testCannotClaimRewardsNotPirexRewards() external {
-        vm.prank(testAccounts[0]);
         vm.expectRevert(PirexGmxGlp.NotPirexRewards.selector);
+
+        vm.prank(testAccounts[0]);
 
         pirexGmxGlp.claimRewards();
     }
 
     /**
-        @notice Test claiming both WETH and esGMX rewards
+        @notice Test tx success: claim WETH and esGMX rewards + MP
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
@@ -1071,9 +1128,9 @@ contract PirexGmxGlpTest is Helper {
     ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
-        vm.assume(wbtcAmount > 1);
+        vm.assume(wbtcAmount > 1e5);
         vm.assume(wbtcAmount < 100e8);
-        vm.assume(gmxAmount != 0);
+        vm.assume(gmxAmount > 1e15);
         vm.assume(gmxAmount < 1000000e18);
 
         address pirexRewardsAddr = address(pirexRewards);
@@ -1104,6 +1161,10 @@ contract PirexGmxGlpTest is Helper {
             false,
             false
         );
+        uint256 expectedClaimableMp = REWARD_TRACKER_MP.claimable(
+            address(pirexGmxGlp)
+        );
+
         uint256 expectedWETHRewards = expectedWETHRewardsGmx +
             expectedWETHRewardsGlp;
         uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
@@ -1144,12 +1205,16 @@ contract PirexGmxGlpTest is Helper {
         assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
         assertGt(expectedWETHRewards, 0);
         assertGt(expectedEsGmxRewards, 0);
+        assertGt(expectedClaimableMp, 0);
 
-        // Claiming esGMX rewards should also be staked immediately
+        // Claimed esGMX rewards + MP should also be staked immediately
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)),
-            previousStakedGmxBalance + expectedEsGmxRewards
+            previousStakedGmxBalance +
+                expectedEsGmxRewards +
+                expectedClaimableMp
         );
+        assertEq(REWARD_TRACKER_MP.claimable(address(pirexGmxGlp)), 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1157,12 +1222,14 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to caller is not pirexRewards
+        @notice Test tx reversion: caller is not pirexRewards
      */
     function testCannotClaimUserRewardNotPirexRewards() external {
         address recipient = address(this);
         address rewardTokenAddress = address(WETH);
         uint256 rewardAmount = 1;
+
+        assertTrue(address(this) != pirexGmxGlp.pirexRewards());
 
         vm.expectRevert(PirexGmxGlp.NotPirexRewards.selector);
 
@@ -1174,16 +1241,16 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to recipient being zero
+        @notice Test tx reversion: recipient is zero address
      */
     function testCannotClaimUserRewardRecipientZeroAddress() external {
         address invalidRecipient = address(0);
         address rewardTokenAddress = address(WETH);
         uint256 rewardAmount = 1;
 
-        vm.prank(address(pirexRewards));
-
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        vm.prank(address(pirexRewards));
 
         pirexGmxGlp.claimUserReward(
             invalidRecipient,
@@ -1193,16 +1260,16 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to reward token being zero
+        @notice Test tx reversion: reward token is zero address
      */
     function testCannotClaimUserRewardTokenZeroAddress() external {
         address recipient = address(this);
         address invalidRewardTokenAddress = address(0);
         uint256 rewardAmount = 1;
 
-        vm.prank(address(pirexRewards));
-
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
+
+        vm.prank(address(pirexRewards));
 
         pirexGmxGlp.claimUserReward(
             recipient,
@@ -1212,7 +1279,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test claim user reward with valid reward tokens
+        @notice Test tx success: claim user reward
         @param  wethAmount  uint80  Amount of claimable WETH
         @param  pxGmxAmount   uint80  Amount of claimable pxGMX
      */
@@ -1251,111 +1318,46 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        compoundMultiplierPoints TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion if contract is paused
-     */
-    function testCannotCompoundMultiplierPointsPaused() external {
-        pirexGmxGlp.setPauseState(true);
-
-        vm.expectRevert("Pausable: paused");
-
-        pirexGmxGlp.compoundMultiplierPoints();
-    }
-
-    /**
-        @notice Test compounding multiplier points
-        @param  gmxAmount  uint256  Amount of GMX
-     */
-    function testCompoundMultiplierPoints(uint256 gmxAmount) external {
-        vm.assume(gmxAmount > 1e15);
-        vm.assume(gmxAmount < 1e22);
-
-        // Mint then deposit some GMX in order to gain multiplier points (MP) later on
-        address receiver = address(this);
-
-        _mintGmx(gmxAmount);
-
-        uint256 preDepositStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
-            address(pirexGmxGlp)
-        );
-
-        GMX.approve(address(pirexGmxGlp), gmxAmount);
-
-        pirexGmxGlp.depositGmx(gmxAmount, receiver);
-
-        uint256 postDepositStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
-            address(pirexGmxGlp)
-        );
-
-        assertEq(
-            postDepositStakedGMXBalance - preDepositStakedGMXBalance,
-            gmxAmount
-        );
-
-        // Time skip to accrue some multiplier points
-        vm.warp(block.timestamp + 1 hours);
-
-        uint256 claimableMp = REWARD_TRACKER_MP.claimable(address(pirexGmxGlp));
-
-        assertGt(claimableMp, 0);
-
-        pirexGmxGlp.compoundMultiplierPoints();
-
-        uint256 postCompoundStakedGMXBalance = REWARD_TRACKER_GMX.balanceOf(
-            address(pirexGmxGlp)
-        );
-
-        // Compounded MP should be reflected in the latest staked amount of GMX
-        assertEq(
-            postCompoundStakedGMXBalance,
-            postDepositStakedGMXBalance + claimableMp
-        );
-    }
-
-    /*//////////////////////////////////////////////////////////////
                         setPauseState TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to caller not being owner
+        @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetPauseStateUnauthorized() external {
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
 
         pirexGmxGlp.setPauseState(true);
     }
 
     /**
-        @notice Test tx reversion if unpausing when not paused
+        @notice Test tx reversion: contract is not paused
      */
     function testCannotSetPauseStateNotPaused() external {
         assertEq(pirexGmxGlp.paused(), false);
 
-        vm.expectRevert("Pausable: not paused");
+        vm.expectRevert(NOT_PAUSED_ERROR);
 
         pirexGmxGlp.setPauseState(false);
     }
 
     /**
-        @notice Test tx reversion if pausing when paused
+        @notice Test tx reversion: contract is paused
      */
     function testCannotSetPauseStatePaused() external {
         pirexGmxGlp.setPauseState(true);
 
         assertEq(pirexGmxGlp.paused(), true);
 
-        vm.expectRevert("Pausable: paused");
+        vm.expectRevert(PAUSED_ERROR);
 
         pirexGmxGlp.setPauseState(true);
     }
 
     /**
-        @notice Test setting pause state
+        @notice Test tx success: set pause state
      */
     function testSetPauseState() external {
         assertEq(pirexGmxGlp.paused(), false);
@@ -1374,38 +1376,42 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if contract is not paused
+        @notice Test tx reversion: contract is not paused
      */
     function testCannotInitiateMigrationNotPaused() external {
         assertEq(pirexGmxGlp.paused(), false);
 
         address newContract = address(this);
 
-        vm.expectRevert("Pausable: not paused");
+        vm.expectRevert(NOT_PAUSED_ERROR);
 
         pirexGmxGlp.initiateMigration(newContract);
     }
 
     /**
-        @notice Test tx reversion due to caller not being owner
+        @notice Test tx reversion: caller is unauthorized
      */
     function testCannotInitiateMigrationUnauthorized() external {
         pirexGmxGlp.setPauseState(true);
 
+        assertEq(pirexGmxGlp.paused(), true);
+
         address newContract = address(this);
 
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
 
         pirexGmxGlp.initiateMigration(newContract);
     }
 
     /**
-        @notice Test tx reversion due to newContract being zero
+        @notice Test tx reversion: newContract is zero address
      */
     function testCannotInitiateMigrationZeroAddress() external {
         pirexGmxGlp.setPauseState(true);
+
+        assertEq(pirexGmxGlp.paused(), true);
 
         address invalidNewContract = address(0);
 
@@ -1415,10 +1421,12 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test initiating migration
+        @notice Test tx success: initiate migration
      */
     function testInitiateMigration() external {
         pirexGmxGlp.setPauseState(true);
+
+        assertEq(pirexGmxGlp.paused(), true);
 
         address oldContract = address(pirexGmxGlp);
         address newContract = address(this);
@@ -1440,38 +1448,42 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if contract is not paused
+        @notice Test tx reversion: contract is not paused
      */
     function testCannotCompleteMigrationNotPaused() external {
         assertEq(pirexGmxGlp.paused(), false);
 
         address oldContract = address(this);
 
-        vm.expectRevert("Pausable: not paused");
+        vm.expectRevert(NOT_PAUSED_ERROR);
 
         pirexGmxGlp.completeMigration(oldContract);
     }
 
     /**
-        @notice Test tx reversion due to caller not being owner
+        @notice Test tx reversion: caller is unauthorized
      */
     function testCannotCompleteMigrationUnauthorized() external {
         pirexGmxGlp.setPauseState(true);
 
+        assertEq(pirexGmxGlp.paused(), true);
+
         address oldContract = address(pirexGmxGlp);
 
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
 
         pirexGmxGlp.completeMigration(oldContract);
     }
 
     /**
-        @notice Test tx reversion due to oldContract being zero
+        @notice Test tx reversion: oldContract is zero address
      */
     function testCannotCompleteMigrationZeroAddress() external {
         pirexGmxGlp.setPauseState(true);
+
+        assertEq(pirexGmxGlp.paused(), true);
 
         address invalidOldContract = address(0);
 
@@ -1486,10 +1498,14 @@ contract PirexGmxGlpTest is Helper {
     function testCannotCompleteMigrationInvalidNewContract() external {
         pirexGmxGlp.setPauseState(true);
 
+        assertEq(pirexGmxGlp.paused(), true);
+
         address oldContract = address(pirexGmxGlp);
         address newContract = address(this);
 
         pirexGmxGlp.initiateMigration(newContract);
+
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), newContract);
 
         // Deploy a test contract but not being assigned as the migration target
         PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
@@ -1538,6 +1554,8 @@ contract PirexGmxGlpTest is Helper {
 
         // Pause the contract before proceeding
         pirexGmxGlp.setPauseState(true);
+
+        assertEq(pirexGmxGlp.paused(), true);
 
         // Deploy the new contract for migration tests
         PirexGmxGlp newPirexGmxGlp = new PirexGmxGlp(
@@ -1589,15 +1607,17 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: caller is not authorized
+        @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetDelegationSpaceUnauthorized() external {
+        assertEq(DEFAULT_DELEGATION_SPACE, pirexGmxGlp.delegationSpace());
+
         string memory space = "test.eth";
         bool clear = false;
 
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
 
         pirexGmxGlp.setDelegationSpace(space, clear);
     }
@@ -1606,6 +1626,8 @@ contract PirexGmxGlpTest is Helper {
         @notice Test tx reversion: space is empty string
      */
     function testCannotSetDelegationSpaceEmptyString() external {
+        assertEq(DEFAULT_DELEGATION_SPACE, pirexGmxGlp.delegationSpace());
+
         string memory invalidSpace = "";
         bool clear = false;
 
@@ -1615,9 +1637,11 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test setting delegation space without clearing
+        @notice Test tx success: set delegation space without clearing
      */
     function testSetDelegationSpaceWithoutClearing() external {
+        assertEq(DEFAULT_DELEGATION_SPACE, pirexGmxGlp.delegationSpace());
+
         string memory space = "test.eth";
         bool clear = false;
 
@@ -1631,9 +1655,11 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test setting delegation space with clearing
+        @notice Test tx success: set delegation space with clearing
      */
     function testSetDelegationSpaceWithClearing() external {
+        assertEq(DEFAULT_DELEGATION_SPACE, pirexGmxGlp.delegationSpace());
+
         string memory oldSpace = "old.eth";
         string memory newSpace = "new.eth";
         bool clear = false;
@@ -1655,20 +1681,20 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion if caller is not authorized
+        @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetVoteDelegateUnauthorized() external {
         address delegate = address(this);
 
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
 
         pirexGmxGlp.setVoteDelegate(delegate);
     }
 
     /**
-        @notice Test tx reversion if using zero address as delegate
+        @notice Test tx reversion: delegate is zero address
      */
     function testCannotSetVoteDelegateZeroAddress() external {
         address invalidDelegate = address(0);
@@ -1679,7 +1705,7 @@ contract PirexGmxGlpTest is Helper {
     }
 
     /**
-        @notice Test setting vote delegate
+        @notice Test tx success: set vote delegate
      */
     function testSetVoteDelegate() external {
         address oldDelegate = delegateRegistry.delegation(
@@ -1688,7 +1714,7 @@ contract PirexGmxGlpTest is Helper {
         );
         address newDelegate = address(this);
 
-        assertFalse(oldDelegate == newDelegate);
+        assertTrue(oldDelegate != newDelegate);
 
         vm.expectEmit(false, false, false, true);
 
@@ -1709,33 +1735,49 @@ contract PirexGmxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: caller is not authorized
+        @notice Test tx reversion: caller is unauthorized
      */
     function testCannotClearVoteDelegateUnauthorized() external {
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.prank(testAccounts[0]);
 
         pirexGmxGlp.clearVoteDelegate();
     }
 
     /**
-        @notice Test tx reversion: clearing without first setting delegate
+        @notice Test tx reversion: clear with no delegate set
      */
     function testCannotClearVoteDelegateNoDelegate() external {
+        assertEq(
+            delegateRegistry.delegation(
+                address(pirexGmxGlp),
+                pirexGmxGlp.delegationSpace()
+            ),
+            address(0)
+        );
+
         vm.expectRevert("No delegate set");
 
         pirexGmxGlp.clearVoteDelegate();
     }
 
     /**
-        @notice Test clearing vote delegate
+        @notice Test tx success: clear vote delegate
      */
     function testClearVoteDelegate() external {
         pirexGmxGlp.setDelegationSpace("test.eth", false);
 
         // Set the vote delegate before clearing it when setting new delegation space
         pirexGmxGlp.setVoteDelegate(address(this));
+
+        assertEq(
+            delegateRegistry.delegation(
+                address(pirexGmxGlp),
+                pirexGmxGlp.delegationSpace()
+            ),
+            address(this)
+        );
 
         vm.expectEmit(false, false, false, true);
 
