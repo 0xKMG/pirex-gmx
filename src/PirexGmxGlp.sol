@@ -118,7 +118,6 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     error ZeroAddress();
     error InvalidToken(address token);
     error NotPirexRewards();
-    error InvalidReward(address token);
     error InvalidFee();
     error EmptyString();
 
