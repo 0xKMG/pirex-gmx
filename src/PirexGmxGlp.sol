@@ -16,6 +16,10 @@ import {PxGlp} from "src/PxGlp.sol";
 import {PirexFees} from "src/PirexFees.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
+interface IGmxVault {
+    function whitelistedTokens(address _token) external view returns (bool);
+}
+
 contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
 
@@ -26,28 +30,39 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         Reward
     }
 
-    // Miscellaneous dependency contracts (e.g. GMX) and addresses
-    // @TODO: Add a compound method for updating any that may change
-    IRewardRouterV2 public constant REWARD_ROUTER_V2 =
-        IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
-    RewardTracker public constant REWARD_TRACKER_GMX =
-        RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
-    RewardTracker public constant REWARD_TRACKER_GLP =
-        RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
-    RewardTracker public constant FEE_STAKED_GLP =
-        RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
-    RewardTracker public constant STAKED_GMX =
-        RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
-    Vault public constant GMX_VAULT =
-        Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
-    address public constant GLP_MANAGER =
-        0x321F653eED006AD1C29D174e17d96351BDe22649;
-    ERC20 public constant GMX =
-        ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
+    // Configurable external contracts
+    enum Contracts {
+        RewardRouterV2,
+        RewardTrackerGmx,
+        RewardTrackerGlp,
+        FeeStakedGlp,
+        StakedGmx,
+        GmxVault,
+        GlpManager
+    }
+
+    // External contracts which are extremely unlikely to change (e.g. protocol tokens)
     ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
-    ERC20 public constant ESGMX =
+    ERC20 public constant GMX =
+        ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
+    ERC20 public constant ES_GMX =
         ERC20(0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA);
+
+    // Dependency contracts which are modifiable by the contract owner
+    IRewardRouterV2 public gmxRewardRouterV2 =
+        IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
+    RewardTracker public rewardTrackerGmx =
+        RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
+    RewardTracker public rewardTrackerGlp =
+        RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
+    RewardTracker public feeStakedGlp =
+        RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
+    RewardTracker public stakedGmx =
+        RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
+    IGmxVault public gmxVault =
+        IGmxVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    address public glpManager = 0x321F653eED006AD1C29D174e17d96351BDe22649;
 
     // Fee denominator
     uint256 public constant FEE_DENOMINATOR = 1_000_000;
@@ -73,6 +88,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     event SetPirexRewards(address pirexRewards);
     event SetDelegateRegistry(address delegateRegistry);
     event SetFee(Fees indexed f, uint256 fee);
+    event SetContract(Contracts indexed c, address contractAddress);
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
@@ -140,7 +156,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address _pirexRewards,
         address _delegateRegistry
     ) Owned(msg.sender) {
-        // Started as being paused, and should only be unpaused after proper setup
+        // Start the contract paused, to ensure contract set is properly configured
         _pause();
 
         if (_pxGmx == address(0)) revert ZeroAddress();
@@ -157,13 +173,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         uint256 maxAmount = type(uint256).max;
 
-        // Pre-approve the stakedGmx contract for staking GMX on behalf of our vault
-        GMX.safeApprove(address(STAKED_GMX), maxAmount);
-
-        // Pre-approve the pirexFees contract for fee token types
+        // Max approve various token balances to be externally transferred on our behalf
+        WETH.safeApprove(_pirexFees, maxAmount);
+        GMX.safeApprove(address(stakedGmx), maxAmount);
         ERC20(pxGmx).safeApprove(_pirexFees, maxAmount);
         ERC20(pxGlp).safeApprove(_pirexFees, maxAmount);
-        WETH.safeApprove(_pirexFees, maxAmount);
     }
 
     /**
@@ -223,6 +237,59 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
+        @notice Set a contract address
+        @param  c                enum     Contracts
+        @param  contractAddress  address  Contract address
+     */
+    function setContract(Contracts c, address contractAddress)
+        external
+        onlyOwner
+    {
+        if (contractAddress == address(0)) revert ZeroAddress();
+
+        emit SetContract(c, contractAddress);
+
+        if (c == Contracts.RewardRouterV2) {
+            gmxRewardRouterV2 = IRewardRouterV2(contractAddress);
+            return;
+        }
+
+        if (c == Contracts.RewardTrackerGmx) {
+            rewardTrackerGmx = RewardTracker(contractAddress);
+            return;
+        }
+
+        if (c == Contracts.RewardTrackerGlp) {
+            rewardTrackerGlp = RewardTracker(contractAddress);
+            return;
+        }
+
+        if (c == Contracts.FeeStakedGlp) {
+            feeStakedGlp = RewardTracker(contractAddress);
+            return;
+        }
+
+        if (c == Contracts.StakedGmx) {
+            // Set the current stakedGmx (pending change) approval amount to 0
+            GMX.safeApprove(address(stakedGmx), 0);
+
+            stakedGmx = RewardTracker(contractAddress);
+
+            // Approve the new stakedGmx contract address allowance to the max
+            GMX.safeApprove(contractAddress, type(uint256).max);
+
+            return;
+        }
+
+        if (c == Contracts.GmxVault) {
+            gmxVault = IGmxVault(contractAddress);
+            return;
+        }
+
+        glpManager = contractAddress;
+    }
+
+    /**
         @notice Deposit and stake GMX for pxGMX
         @param  gmxAmount   uint256  GMX amount
         @param  receiver    address  Recipient of pxGMX
@@ -241,7 +308,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         // Transfer the caller's GMX before staking
         GMX.safeTransferFrom(msg.sender, address(this), gmxAmount);
 
-        REWARD_ROUTER_V2.stakeGmx(gmxAmount);
+        IRewardRouterV2(gmxRewardRouterV2).stakeGmx(gmxAmount);
 
         (feeAmount, mintAmount) = _deriveAssetAmounts(Fees.Deposit, gmxAmount);
 
@@ -275,10 +342,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (receiver == address(0)) revert ZeroAddress();
 
         // Buy GLP with the user's ETH, specifying the minimum amount of GLP
-        assets = REWARD_ROUTER_V2.mintAndStakeGlpETH{value: msg.value}(
-            0,
-            minShares
-        );
+        assets = IRewardRouterV2(gmxRewardRouterV2).mintAndStakeGlpETH{
+            value: msg.value
+        }(0, minShares);
 
         (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
             Fees.Deposit,
@@ -324,15 +390,15 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (tokenAmount == 0) revert ZeroAmount();
         if (minShares == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
-        if (!GMX_VAULT.whitelistedTokens(token)) revert InvalidToken(token);
+        if (!gmxVault.whitelistedTokens(token)) revert InvalidToken(token);
 
         ERC20 t = ERC20(token);
 
         // Intake user tokens and approve GLP Manager contract for amount
         t.safeTransferFrom(msg.sender, address(this), tokenAmount);
-        t.safeApprove(GLP_MANAGER, tokenAmount);
+        t.safeApprove(glpManager, tokenAmount);
 
-        assets = REWARD_ROUTER_V2.mintAndStakeGlp(
+        assets = IRewardRouterV2(gmxRewardRouterV2).mintAndStakeGlp(
             token,
             tokenAmount,
             0,
@@ -393,7 +459,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         }
 
         // Unstake and redeem the underlying GLP for ETH
-        redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlpETH(
+        redeemed = IRewardRouterV2(gmxRewardRouterV2).unstakeAndRedeemGlpETH(
             burnAmount,
             minRedemption,
             receiver
@@ -429,7 +495,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (amount == 0) revert ZeroAmount();
         if (minRedemption == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
-        if (!GMX_VAULT.whitelistedTokens(token)) revert InvalidToken(token);
+        if (!gmxVault.whitelistedTokens(token)) revert InvalidToken(token);
 
         (uint256 feeAmount, uint256 burnAmount) = _deriveAssetAmounts(
             Fees.Redemption,
@@ -445,7 +511,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         }
 
         // Unstake and redeem the underlying GLP for ERC20 token
-        redeemed = REWARD_ROUTER_V2.unstakeAndRedeemGlp(
+        redeemed = IRewardRouterV2(gmxRewardRouterV2).unstakeAndRedeemGlp(
             token,
             burnAmount,
             minRedemption,
@@ -476,15 +542,16 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         returns (uint256)
     {
         RewardTracker r;
+
         if (isWeth) {
-            r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+            r = useGmx ? rewardTrackerGmx : rewardTrackerGlp;
         } else {
-            r = useGmx ? STAKED_GMX : FEE_STAKED_GLP;
+            r = useGmx ? stakedGmx : feeStakedGlp;
         }
         address distributor = r.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
-        ERC20 token = (isWeth ? WETH : ESGMX);
+        ERC20 token = (isWeth ? WETH : ES_GMX);
         uint256 distributorBalance = token.balanceOf(distributor);
         uint256 blockReward = pendingRewards > distributorBalance
             ? distributorBalance
@@ -536,15 +603,15 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         uint256 gmxWethRewards = calculateRewards(true, true);
         uint256 glpWethRewards = calculateRewards(true, false);
 
-        uint256 esGmxBeforeClaim = STAKED_GMX.depositBalances(
+        uint256 esGmxBeforeClaim = stakedGmx.depositBalances(
             address(this),
-            address(ESGMX)
+            address(ES_GMX)
         );
         uint256 gmxEsGmxRewards = calculateRewards(false, true);
         uint256 glpEsGmxRewards = calculateRewards(false, false);
 
         // Claim and stake claimable esGMX + MP, while also claim WETH rewards
-        REWARD_ROUTER_V2.handleRewards(
+        IRewardRouterV2(gmxRewardRouterV2).handleRewards(
             false,
             false,
             true,
@@ -555,9 +622,9 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         );
 
         uint256 wethRewards = WETH.balanceOf(address(this)) - wethBeforeClaim;
-        uint256 esGmxRewards = STAKED_GMX.depositBalances(
+        uint256 esGmxRewards = stakedGmx.depositBalances(
             address(this),
-            address(ESGMX)
+            address(ES_GMX)
         ) - esGmxBeforeClaim;
 
         if (wethRewards != 0) {
@@ -702,7 +769,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         // Notify the reward router that the current/old contract is going to perform
         // full account transfer to the specified new contract
-        REWARD_ROUTER_V2.signalTransfer(newContract);
+        IRewardRouterV2(gmxRewardRouterV2).signalTransfer(newContract);
 
         emit InitiateMigration(newContract);
     }
@@ -722,7 +789,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         PirexRewards(pirexRewards).harvest();
 
         // Complete the full account transfer process
-        REWARD_ROUTER_V2.acceptTransfer(oldContract);
+        IRewardRouterV2(gmxRewardRouterV2).acceptTransfer(oldContract);
 
         emit CompleteMigration(oldContract);
     }
