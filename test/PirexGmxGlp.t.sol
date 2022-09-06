@@ -1471,7 +1471,7 @@ contract PirexGmxGlpTest is Test, Helper {
     function testCannotClaimUserRewardNotPirexRewards() external {
         address recipient = address(this);
         address rewardTokenAddress = address(WETH);
-        uint256 rewardAmount = 1;
+        uint256 amount = 1;
 
         assertTrue(address(this) != pirexGmxGlp.pirexRewards());
 
@@ -1480,7 +1480,7 @@ contract PirexGmxGlpTest is Test, Helper {
         pirexGmxGlp.claimUserReward(
             recipient,
             rewardTokenAddress,
-            rewardAmount
+            amount
         );
     }
 
@@ -1490,7 +1490,7 @@ contract PirexGmxGlpTest is Test, Helper {
     function testCannotClaimUserRewardRecipientZeroAddress() external {
         address invalidRecipient = address(0);
         address rewardTokenAddress = address(WETH);
-        uint256 rewardAmount = 1;
+        uint256 amount = 1;
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
@@ -1499,7 +1499,7 @@ contract PirexGmxGlpTest is Test, Helper {
         pirexGmxGlp.claimUserReward(
             invalidRecipient,
             rewardTokenAddress,
-            rewardAmount
+            amount
         );
     }
 
@@ -1509,7 +1509,7 @@ contract PirexGmxGlpTest is Test, Helper {
     function testCannotClaimUserRewardTokenZeroAddress() external {
         address recipient = address(this);
         address invalidRewardTokenAddress = address(0);
-        uint256 rewardAmount = 1;
+        uint256 amount = 1;
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
@@ -1518,7 +1518,7 @@ contract PirexGmxGlpTest is Test, Helper {
         pirexGmxGlp.claimUserReward(
             recipient,
             invalidRewardTokenAddress,
-            rewardAmount
+            amount
         );
     }
 

@@ -184,13 +184,13 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
         @param  f           Fees     Fee type
         @param  amount      uint256  GMX/GLP/WETH amount
-        @return feeAmount   uint256  Fee amount
         @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
+        @return feeAmount   uint256  Fee amount
      */
     function _deriveAssetAmounts(Fees f, uint256 amount)
         internal
         view
-        returns (uint256 feeAmount, uint256 userAmount)
+        returns (uint256 userAmount, uint256 feeAmount)
     {
         feeAmount = (amount * fees[f]) / FEE_DENOMINATOR;
         userAmount = amount - feeAmount;
@@ -293,14 +293,14 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         @notice Deposit and stake GMX for pxGMX
         @param  gmxAmount   uint256  GMX amount
         @param  receiver    address  Recipient of pxGMX
-        @return feeAmount   uint256  Amount of pxGMX taken as fees
         @return mintAmount  uint256  Amount of pxGMX minted for the receiver
+        @return feeAmount   uint256  Amount of pxGMX taken as fees
      */
     function depositGmx(uint256 gmxAmount, address receiver)
         external
         whenNotPaused
         nonReentrant
-        returns (uint256 feeAmount, uint256 mintAmount)
+        returns (uint256 mintAmount, uint256 feeAmount)
     {
         if (gmxAmount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
@@ -310,7 +310,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         IRewardRouterV2(gmxRewardRouterV2).stakeGmx(gmxAmount);
 
-        (feeAmount, mintAmount) = _deriveAssetAmounts(Fees.Deposit, gmxAmount);
+        (mintAmount, feeAmount) = _deriveAssetAmounts(Fees.Deposit, gmxAmount);
 
         // Mint pxGMX equal to the GMX deposit amount sans fees
         pxGmx.mint(receiver, mintAmount);
@@ -346,7 +346,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             value: msg.value
         }(0, minShares);
 
-        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
+        (uint256 mintAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Deposit,
             assets
         );
@@ -404,7 +404,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             0,
             minShares
         );
-        (uint256 feeAmount, uint256 mintAmount) = _deriveAssetAmounts(
+        (uint256 mintAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Deposit,
             assets
         );
@@ -444,7 +444,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (minRedemption == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        (uint256 feeAmount, uint256 burnAmount) = _deriveAssetAmounts(
+        (uint256 burnAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Redemption,
             amount
         );
@@ -497,7 +497,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         if (receiver == address(0)) revert ZeroAddress();
         if (!gmxVault.whitelistedTokens(token)) revert InvalidToken(token);
 
-        (uint256 feeAmount, uint256 burnAmount) = _deriveAssetAmounts(
+        (uint256 burnAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Redemption,
             amount
         );
@@ -657,26 +657,26 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         @notice Mint/transfer the specified reward token to the recipient
         @param  recipient           address  Recipient of the claim
         @param  rewardTokenAddress  address  Reward token address
-        @param  rewardAmount        uint256  Reward amount
+        @param  amount        uint256  Reward amount
      */
     function claimUserReward(
         address recipient,
         address rewardTokenAddress,
-        uint256 rewardAmount
+        uint256 amount
     ) external onlyPirexRewards {
         if (rewardTokenAddress == address(0)) revert ZeroAddress();
         if (recipient == address(0)) revert ZeroAddress();
 
-        (uint256 feeAmount, uint256 postFeeRewardAmount) = _deriveAssetAmounts(
+        (uint256 rewardAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Reward,
-            rewardAmount
+            amount
         );
 
         if (rewardTokenAddress == address(pxGmx)) {
             // Mint pxGMX for the user - the analog for esGMX rewards
-            pxGmx.mint(recipient, postFeeRewardAmount);
+            pxGmx.mint(recipient, rewardAmount);
         } else if (rewardTokenAddress == address(WETH)) {
-            WETH.safeTransfer(recipient, postFeeRewardAmount);
+            WETH.safeTransfer(recipient, rewardAmount);
         }
 
         if (feeAmount != 0) {

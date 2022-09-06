@@ -256,7 +256,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
             );
 
             // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
-            (, pxGmxMintAmount) = PirexGmxGlp(platform).depositGmx(
+            (pxGmxMintAmount, ) = PirexGmxGlp(platform).depositGmx(
                 GMX.balanceOf(address(this)),
                 address(this)
             );
