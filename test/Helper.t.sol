@@ -110,7 +110,7 @@ contract Helper is Test {
         address indexed caller,
         address indexed receiver,
         address indexed token,
-        uint256 minRedemption,
+        uint256 minOut,
         uint256 amount,
         uint256 redemption,
         uint256 burnAmount,
@@ -463,12 +463,12 @@ contract Helper is Test {
     }
 
     /**
-        @notice Calculate the minimum amount of token to be redeemed from selling GLP
-        @param  token     address  Token address
-        @param  amount    uint256  Amount of tokens
-        @return           uint256  Minimum GLP amount with slippage and decimal expansion
+        @notice Calculate the minimum token output amount from redeeming GLP
+        @param  token   address  Token address
+        @param  amount  uint256  Amount of tokens
+        @return         uint256  Minimum GLP amount with slippage and decimal expansion
      */
-    function _calculateMinRedemptionAmount(address token, uint256 amount)
+    function _calculateMinOutAmount(address token, uint256 amount)
         internal
         view
         returns (uint256)

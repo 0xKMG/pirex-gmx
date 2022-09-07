@@ -990,21 +990,17 @@ contract PirexGmxGlpTest is Test, Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        redeemPxGlpForETH TESTS
+                        redeemPxGlpETH TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: contract is paused
      */
-    function testCannotRedeemPxGlpForETHPaused() external {
+    function testCannotRedeemPxGlpETHPaused() external {
         uint256 etherAmount = 1 ether;
         address receiver = address(this);
-
         uint256 assets = _depositGlpETH(etherAmount, receiver);
-        uint256 minRedemption = _calculateMinRedemptionAmount(
-            address(WETH),
-            assets
-        );
+        uint256 minOut = _calculateMinOutAmount(address(WETH), assets);
 
         // Pause after deposit
         pirexGmxGlp.setPauseState(true);
@@ -1013,71 +1009,68 @@ contract PirexGmxGlpTest is Test, Helper {
 
         vm.expectRevert(PAUSED_ERROR);
 
-        pirexGmxGlp.redeemPxGlpForETH(assets, minRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpETH(assets, minOut, receiver);
     }
 
     /**
         @notice Test tx reversion: amount is zero
      */
-    function testCannotRedeemPxGlpForETHZeroValue() external {
+    function testCannotRedeemPxGlpETHZeroValue() external {
         uint256 invalidAmount = 0;
-        uint256 minRedemption = 1;
+        uint256 minOut = 1;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.redeemPxGlpForETH(invalidAmount, minRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpETH(invalidAmount, minOut, receiver);
     }
 
     /**
-        @notice Test tx reversion: minRedemption is zero
+        @notice Test tx reversion: minOut is zero
      */
-    function testCannotRedeemPxGlpForETHZeroMinRedemption() external {
+    function testCannotRedeemPxGlpETHZeroMinOut() external {
         uint256 amount = 1;
-        uint256 invalidMinRedemption = 0;
+        uint256 invalidMinOut = 0;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.redeemPxGlpForETH(amount, invalidMinRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpETH(amount, invalidMinOut, receiver);
     }
 
     /**
         @notice Test tx reversion: receiver is zero address
      */
-    function testCannotRedeemPxGlpForETHZeroReceiver() external {
+    function testCannotRedeemPxGlpETHZeroReceiver() external {
         uint256 amount = 1;
-        uint256 minRedemption = 1;
+        uint256 minOut = 1;
         address invalidReceiver = address(0);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGmxGlp.redeemPxGlpForETH(amount, minRedemption, invalidReceiver);
+        pirexGmxGlp.redeemPxGlpETH(amount, minOut, invalidReceiver);
     }
 
     /**
-        @notice Test tx reversion: minRedemption is greater than actual amount
+        @notice Test tx reversion: minOut is greater than actual amount
      */
-    function testCannotRedeemPxGlpForETHExcessiveMinRedemption() external {
+    function testCannotRedeemPxGlpETHExcessiveMinOut() external {
         uint256 etherAmount = 1 ether;
         address receiver = address(this);
-
         uint256 assets = _depositGlpETH(etherAmount, receiver);
-        uint256 invalidMinRedemption = _calculateMinRedemptionAmount(
-            address(WETH),
-            assets
-        ) * 2;
+        uint256 invalidMinOut = _calculateMinOutAmount(address(WETH), assets) *
+            2;
 
         vm.expectRevert(INSUFFICIENT_OUTPUT_ERROR);
 
-        pirexGmxGlp.redeemPxGlpForETH(assets, invalidMinRedemption, receiver);
+        pirexGmxGlp.redeemPxGlpETH(assets, invalidMinOut, receiver);
     }
 
     /**
         @notice Test tx success: redeem pxGLP for ETH
         @param  etherAmount  uint256  Amount of ether in wei units
      */
-    function testRedeemPxGlpForETH(uint256 etherAmount) external {
+    function testRedeemPxGlpETH(uint256 etherAmount) external {
         vm.assume(etherAmount > 0.1 ether);
         vm.assume(etherAmount < 1_000 ether);
 
@@ -1096,7 +1089,7 @@ contract PirexGmxGlpTest is Test, Helper {
         assertEq(previousPxGlpUserBalance, previousGlpPirexBalance);
 
         // Calculate the minimum redemption amount then perform the redemption
-        uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
+        uint256 minOut = _calculateMinOutAmount(token, assets);
 
         vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 
@@ -1104,20 +1097,16 @@ contract PirexGmxGlpTest is Test, Helper {
             address(this),
             receiver,
             address(0),
-            minRedemption,
+            minOut,
             etherAmount,
             0,
             0,
             0
         );
 
-        uint256 redeemed = pirexGmxGlp.redeemPxGlpForETH(
-            assets,
-            minRedemption,
-            receiver
-        );
+        uint256 redeemed = pirexGmxGlp.redeemPxGlpETH(assets, minOut, receiver);
 
-        assertGt(redeemed, minRedemption);
+        assertGt(redeemed, minOut);
         assertEq(receiver.balance - previousETHBalance, redeemed);
         assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
         assertEq(
@@ -1140,7 +1129,7 @@ contract PirexGmxGlpTest is Test, Helper {
         address token = address(WBTC);
 
         uint256 assets = _depositGlpETH(etherAmount, receiver);
-        uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
+        uint256 minRedemption = _calculateMinOutAmount(token, assets);
 
         // Pause after deposit
         pirexGmxGlp.setPauseState(true);
@@ -1261,10 +1250,8 @@ contract PirexGmxGlpTest is Test, Helper {
         address receiver = address(this);
 
         uint256 assets = _depositGlp(tokenAmount, receiver);
-        uint256 invalidMinRedemption = _calculateMinRedemptionAmount(
-            token,
-            assets
-        ) * 2;
+        uint256 invalidMinRedemption = _calculateMinOutAmount(token, assets) *
+            2;
 
         vm.expectRevert(INSUFFICIENT_OUTPUT_ERROR);
 
@@ -1299,7 +1286,7 @@ contract PirexGmxGlpTest is Test, Helper {
         assertEq(previousPxGlpUserBalance, previousGlpPirexBalance);
 
         // Calculate the minimum redemption amount then perform the redemption
-        uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
+        uint256 minRedemption = _calculateMinOutAmount(token, assets);
 
         vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 

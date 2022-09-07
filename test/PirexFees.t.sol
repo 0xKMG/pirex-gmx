@@ -396,7 +396,7 @@ contract PirexFeesTest is Helper {
     }
 
     /**
-        @notice Test tx success: distribute fees for redeemPxGlpForETH
+        @notice Test tx success: distribute fees for redeemPxGlpETH
         @param  redemptionFee   uint24  Redemption fee
         @param  ethAmount       uint96  ETH amount
         @param  balanceDivisor  uint8   Divides balance to vary redemption amount
@@ -463,9 +463,9 @@ contract PirexFeesTest is Helper {
                 treasuryPercent
             );
 
-        pirexGmxGlp.redeemPxGlpForETH(
+        pirexGmxGlp.redeemPxGlpETH(
             redemptionAmount,
-            _calculateMinRedemptionAmount(
+            _calculateMinOutAmount(
                 address(WETH),
                 redemptionAmount - expectedFeeAmount
             ),
@@ -492,7 +492,7 @@ contract PirexFeesTest is Helper {
     }
 
     /**
-        @notice Test tx success: distribute fees for redeemPxGlpForETH
+        @notice Test tx success: distribute fees for redeemPxGlpETH
         @param  redemptionFee   uint24  Redemption fee
         @param  ethAmount       uint96  ETH amount
         @param  balanceDivisor  uint8   Divides balance to vary redemption amount
@@ -561,7 +561,7 @@ contract PirexFeesTest is Helper {
         pirexGmxGlp.redeemPxGlpForERC20(
             address(WETH),
             redemptionAmount,
-            _calculateMinRedemptionAmount(
+            _calculateMinOutAmount(
                 address(WETH),
                 redemptionAmount - expectedFeeAmount
             ),
@@ -584,7 +584,7 @@ contract PirexFeesTest is Helper {
     }
 
     /**
-        @notice Test tx success: distribute fees for redeemPxGlpForETH
+        @notice Test tx success: distribute fees for redeemPxGlpETH
         @param  rewardFee       uint24  Reward fee
         @param  gmxAmount       uint96  Amount of pxGMX to get from the deposit
         @param  secondsElapsed  uint32  Seconds to forward timestamp
