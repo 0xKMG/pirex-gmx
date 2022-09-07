@@ -92,8 +92,8 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
-        uint256 gmxAmount,
-        uint256 mintAmount,
+        uint256 assets,
+        uint256 postFeeAmount,
         uint256 feeAmount
     );
     event DepositGlp(
@@ -290,38 +290,38 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Deposit and stake GMX for pxGMX
-        @param  gmxAmount   uint256  GMX amount
-        @param  receiver    address  Recipient of pxGMX
-        @return mintAmount  uint256  Amount of pxGMX minted for the receiver
-        @return feeAmount   uint256  Amount of pxGMX taken as fees
+        @notice Deposit GMX for pxGMX
+        @param  assets         uint256  GMX amount
+        @param  receiver       address  pxGMX receiver
+        @return postFeeAmount  uint256  pxGMX minted for the receiver
+        @return feeAmount      uint256  pxGMX distributed as fees
      */
-    function depositGmx(uint256 gmxAmount, address receiver)
+    function depositGmx(uint256 assets, address receiver)
         external
         whenNotPaused
         nonReentrant
-        returns (uint256 mintAmount, uint256 feeAmount)
+        returns (uint256 postFeeAmount, uint256 feeAmount)
     {
-        if (gmxAmount == 0) revert ZeroAmount();
+        if (assets == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Transfer the caller's GMX before staking
-        GMX.safeTransferFrom(msg.sender, address(this), gmxAmount);
+        // Transfer the caller's GMX to this contract and stake it for rewards
+        GMX.safeTransferFrom(msg.sender, address(this), assets);
+        IRewardRouterV2(gmxRewardRouterV2).stakeGmx(assets);
 
-        IRewardRouterV2(gmxRewardRouterV2).stakeGmx(gmxAmount);
+        // Get the pxGMX amounts for the receiver and the protocol (fees)
+        (postFeeAmount, feeAmount) = _deriveAssetAmounts(Fees.Deposit, assets);
 
-        (mintAmount, feeAmount) = _deriveAssetAmounts(Fees.Deposit, gmxAmount);
+        // Mint pxGMX for the receiver (excludes fees)
+        pxGmx.mint(receiver, postFeeAmount);
 
-        // Mint pxGMX equal to the GMX deposit amount sans fees
-        pxGmx.mint(receiver, mintAmount);
-
-        // Distribute fees in the form of pxGMX
+        // Mint pxGMX for the protocol
         if (feeAmount != 0) {
             pxGmx.mint(address(this), feeAmount);
             pirexFees.distributeFees(address(this), address(pxGmx), feeAmount);
         }
 
-        emit DepositGmx(msg.sender, receiver, gmxAmount, mintAmount, feeAmount);
+        emit DepositGmx(msg.sender, receiver, assets, postFeeAmount, feeAmount);
     }
 
     /**

@@ -469,46 +469,46 @@ contract PirexGmxGlpTest is Test, Helper {
 
         assertEq(true, pirexGmxGlp.paused());
 
-        uint256 gmxAmount = 1;
+        uint256 assets = 1;
         address receiver = address(this);
 
-        _mintGmx(gmxAmount);
+        _mintGmx(assets);
 
         vm.expectRevert(PAUSED_ERROR);
 
-        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+        pirexGmxGlp.depositGmx(assets, receiver);
     }
 
     /**
-        @notice Test tx reversion: amount is zero
+        @notice Test tx reversion: assets is zero
      */
     function testCannotDepositGmxZeroValue() external {
-        uint256 invalidGmxAmount = 0;
+        uint256 invalidAssets = 0;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.depositGmx(invalidGmxAmount, receiver);
+        pirexGmxGlp.depositGmx(invalidAssets, receiver);
     }
 
     /**
         @notice Test tx reversion: receiver is zero address
      */
     function testCannotDepositGmxZeroReceiver() external {
-        uint256 gmxAmount = 1e18;
+        uint256 assets = 1e18;
         address invalidReceiver = address(0);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGmxGlp.depositGmx(gmxAmount, invalidReceiver);
+        pirexGmxGlp.depositGmx(assets, invalidReceiver);
     }
 
     /**
         @notice Test tx reversion: insufficient GMX balance
      */
     function testCannotDepositGmxInsufficientBalance() external {
-        uint256 invalidGmxAmount = 1e18;
-        uint256 mintAmount = invalidGmxAmount / 2;
+        uint256 invalidAssets = 1e18;
+        uint256 mintAmount = invalidAssets / 2;
         address receiver = address(this);
 
         // Mint less token than the amount specified for staking
@@ -516,22 +516,22 @@ contract PirexGmxGlpTest is Test, Helper {
 
         vm.expectRevert("TRANSFER_FROM_FAILED");
 
-        pirexGmxGlp.depositGmx(invalidGmxAmount, receiver);
+        pirexGmxGlp.depositGmx(invalidAssets, receiver);
     }
 
     /**
         @notice Test tx success: deposit GMX for pxGMX
-        @param  gmxAmount  uint256  Amount of GMX
+        @param  assets  uint256  Amount of GMX
      */
-    function testDepositGmx(uint256 gmxAmount) external {
-        vm.assume(gmxAmount > 1e15);
-        vm.assume(gmxAmount < 1e22);
+    function testDepositGmx(uint256 assets) external {
+        vm.assume(assets > 1e15);
+        vm.assume(assets < 1e22);
 
         address receiver = address(this);
 
         uint256 premintGMXBalance = GMX.balanceOf(receiver);
 
-        _mintGmx(gmxAmount);
+        _mintGmx(assets);
 
         uint256 previousGMXBalance = GMX.balanceOf(receiver);
         uint256 previousPxGmxBalance = pxGmx.balanceOf(receiver);
@@ -539,24 +539,24 @@ contract PirexGmxGlpTest is Test, Helper {
             address(pirexGmxGlp)
         );
 
-        assertEq(previousGMXBalance - premintGMXBalance, gmxAmount);
+        assertEq(previousGMXBalance - premintGMXBalance, assets);
         assertEq(previousPxGmxBalance, 0);
         assertEq(previousStakedGMXBalance, 0);
 
-        GMX.approve(address(pirexGmxGlp), gmxAmount);
+        GMX.approve(address(pirexGmxGlp), assets);
 
         vm.expectEmit(true, true, false, false, address(pirexGmxGlp));
 
-        emit DepositGmx(address(this), receiver, gmxAmount, 0, 0);
+        emit DepositGmx(address(this), receiver, assets, 0, 0);
 
-        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+        pirexGmxGlp.depositGmx(assets, receiver);
 
-        assertEq(previousGMXBalance - GMX.balanceOf(receiver), gmxAmount);
-        assertEq(pxGmx.balanceOf(receiver) - previousPxGmxBalance, gmxAmount);
+        assertEq(previousGMXBalance - GMX.balanceOf(receiver), assets);
+        assertEq(pxGmx.balanceOf(receiver) - previousPxGmxBalance, assets);
         assertEq(
             REWARD_TRACKER_GMX.balanceOf(address(pirexGmxGlp)) -
                 previousStakedGMXBalance,
-            gmxAmount
+            assets
         );
     }
 
@@ -1477,11 +1477,7 @@ contract PirexGmxGlpTest is Test, Helper {
 
         vm.expectRevert(PirexGmxGlp.NotPirexRewards.selector);
 
-        pirexGmxGlp.claimUserReward(
-            recipient,
-            rewardTokenAddress,
-            amount
-        );
+        pirexGmxGlp.claimUserReward(recipient, rewardTokenAddress, amount);
     }
 
     /**
@@ -1770,14 +1766,14 @@ contract PirexGmxGlpTest is Test, Helper {
      */
     function testCompleteMigration() external {
         // Perform GMX deposit for balance tests after migration
-        uint256 gmxAmount = 1e18;
+        uint256 assets = 1e18;
         address receiver = address(this);
         address oldContract = address(pirexGmxGlp);
 
-        _mintGmx(gmxAmount);
+        _mintGmx(assets);
 
-        GMX.approve(oldContract, gmxAmount);
-        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+        GMX.approve(oldContract, assets);
+        pirexGmxGlp.depositGmx(assets, receiver);
 
         // Perform GLP deposit for balance tests after migration
         uint256 etherAmount = 1 ether;

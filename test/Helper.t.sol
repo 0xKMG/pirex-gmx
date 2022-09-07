@@ -81,7 +81,8 @@ contract Helper is Test {
     PirexGmxGlp.Fees[3] internal feeTypes;
 
     bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
-    bytes internal constant NOT_OWNER_ERROR = "Ownable: caller is not the owner";
+    bytes internal constant NOT_OWNER_ERROR =
+        "Ownable: caller is not the owner";
 
     event SetPirexRewards(address pirexRewards);
     event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
@@ -90,8 +91,8 @@ contract Helper is Test {
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
-        uint256 gmxAmount,
-        uint256 mintAmount,
+        uint256 assets,
+        uint256 postFeeAmount,
         uint256 feeAmount
     );
     event DepositGlp(
