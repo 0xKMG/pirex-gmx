@@ -99,21 +99,21 @@ contract Helper is Test {
         address indexed caller,
         address indexed receiver,
         address indexed token,
+        uint256 tokenAmount,
         uint256 minUsdg,
         uint256 minGlp,
-        uint256 amount,
         uint256 assets,
-        uint256 mintAmount,
+        uint256 postFeeAmount,
         uint256 feeAmount
     );
     event RedeemGlp(
         address indexed caller,
         address indexed receiver,
         address indexed token,
+        uint256 assets,
         uint256 minOut,
-        uint256 amount,
         uint256 redemption,
-        uint256 burnAmount,
+        uint256 postFeeAmount,
         uint256 feeAmount
     );
 

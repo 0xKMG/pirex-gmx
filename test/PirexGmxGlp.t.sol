@@ -1097,8 +1097,8 @@ contract PirexGmxGlpTest is Test, Helper {
             address(this),
             receiver,
             address(0),
-            minOut,
             etherAmount,
+            minOut,
             0,
             0,
             0
@@ -1261,8 +1261,8 @@ contract PirexGmxGlpTest is Test, Helper {
             address(this),
             receiver,
             token,
-            minOut,
             tokenAmount,
+            minOut,
             0,
             0,
             0
