@@ -20,6 +20,7 @@ import {IGMX} from "src/interfaces/IGMX.sol";
 import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {IVault} from "src/interfaces/IVault.sol";
+import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 
@@ -53,6 +54,8 @@ contract Helper is Test {
     ERC20 internal constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
+    address internal constant BN_GMX =
+        0x35247165119B69A40edD5304969560D0ef486921;
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
     uint256 internal constant FEE_BPS = 25;
@@ -542,5 +545,38 @@ contract Helper is Test {
         _mintGmx(tokenAmount);
         GMX.approve(address(pirexGmx), tokenAmount);
         pirexGmx.depositGmx(tokenAmount, receiver);
+    }
+
+    /**
+        @notice Precise calculations for bnGMX rewards (i.e. multiplier points)
+        @param  account  address  Account with bnGMX rewards
+        @return          uint256  bnGMX amount
+     */
+    function calculateBnGmxRewards(address account)
+        public
+        view
+        returns (uint256)
+    {
+        address distributor = REWARD_TRACKER_MP.distributor();
+        uint256 pendingRewards = IRewardDistributor(distributor)
+            .pendingRewards();
+        uint256 distributorBalance = ERC20(BN_GMX).balanceOf(distributor);
+        uint256 blockReward = pendingRewards > distributorBalance
+            ? distributorBalance
+            : pendingRewards;
+        uint256 precision = REWARD_TRACKER_MP.PRECISION();
+        uint256 cumulativeRewardPerToken = REWARD_TRACKER_MP
+            .cumulativeRewardPerToken() +
+            ((blockReward * precision) / REWARD_TRACKER_MP.totalSupply());
+
+        if (cumulativeRewardPerToken == 0) return 0;
+
+        return
+            REWARD_TRACKER_MP.claimableReward(account) +
+            ((REWARD_TRACKER_MP.stakedAmounts(account) *
+                (cumulativeRewardPerToken -
+                    REWARD_TRACKER_MP.previousCumulatedRewardPerToken(
+                        account
+                    ))) / precision);
     }
 }

@@ -136,9 +136,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx success: set delegateRegistry
      */
     function testSetDelegateRegistry() external {
-        address delegateRegistryBefore = address(
-            pirexGmx.delegateRegistry()
-        );
+        address delegateRegistryBefore = address(pirexGmx.delegateRegistry());
         address _delegateRegistry = address(this);
 
         assertEq(address(delegateRegistry), delegateRegistryBefore);
@@ -223,10 +221,7 @@ contract PirexGmxTest is Test, Helper {
         vm.prank(testAccounts[0]);
         vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        pirexGmx.setContract(
-            PirexGmx.Contracts.RewardRouterV2,
-            address(this)
-        );
+        pirexGmx.setContract(PirexGmx.Contracts.RewardRouterV2, address(this));
     }
 
     /**
@@ -235,19 +230,14 @@ contract PirexGmxTest is Test, Helper {
     function testCannotSetContractZeroAddress() external {
         vm.expectRevert(PirexGmx.ZeroAddress.selector);
 
-        pirexGmx.setContract(
-            PirexGmx.Contracts.RewardRouterV2,
-            address(0)
-        );
+        pirexGmx.setContract(PirexGmx.Contracts.RewardRouterV2, address(0));
     }
 
     /**
         @notice Test tx success: set gmxRewardRouterV2 to a new contract address
      */
     function testSetContractRewardRouterV2() external {
-        address currentContractAddress = address(
-            pirexGmx.gmxRewardRouterV2()
-        );
+        address currentContractAddress = address(pirexGmx.gmxRewardRouterV2());
         address contractAddress = address(this);
 
         // Validate existing state
@@ -279,9 +269,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx success: set rewardTrackerGmx to a new contract address
      */
     function testSetContractRewardTrackerGmx() external {
-        address currentContractAddress = address(
-            pirexGmx.rewardTrackerGmx()
-        );
+        address currentContractAddress = address(pirexGmx.rewardTrackerGmx());
         address contractAddress = address(this);
 
         assertFalse(currentContractAddress == contractAddress);
@@ -300,19 +288,14 @@ contract PirexGmxTest is Test, Helper {
             contractAddress
         );
 
-        assertEq(
-            expectedContractAddress,
-            address(pirexGmx.rewardTrackerGmx())
-        );
+        assertEq(expectedContractAddress, address(pirexGmx.rewardTrackerGmx()));
     }
 
     /**
         @notice Test tx success: set rewardTrackerGlp to a new contract address
      */
     function testSetContractRewardTrackerGlp() external {
-        address currentContractAddress = address(
-            pirexGmx.rewardTrackerGlp()
-        );
+        address currentContractAddress = address(pirexGmx.rewardTrackerGlp());
         address contractAddress = address(this);
 
         assertFalse(currentContractAddress == contractAddress);
@@ -331,10 +314,7 @@ contract PirexGmxTest is Test, Helper {
             contractAddress
         );
 
-        assertEq(
-            expectedContractAddress,
-            address(pirexGmx.rewardTrackerGlp())
-        );
+        assertEq(expectedContractAddress, address(pirexGmx.rewardTrackerGlp()));
     }
 
     /**
@@ -355,10 +335,7 @@ contract PirexGmxTest is Test, Helper {
             expectedContractAddress
         );
 
-        pirexGmx.setContract(
-            PirexGmx.Contracts.FeeStakedGlp,
-            contractAddress
-        );
+        pirexGmx.setContract(PirexGmx.Contracts.FeeStakedGlp, contractAddress);
 
         assertEq(expectedContractAddress, address(pirexGmx.feeStakedGlp()));
     }
@@ -382,15 +359,9 @@ contract PirexGmxTest is Test, Helper {
 
         vm.expectEmit(true, false, false, true, address(pirexGmx));
 
-        emit SetContract(
-            PirexGmx.Contracts.StakedGmx,
-            expectedContractAddress
-        );
+        emit SetContract(PirexGmx.Contracts.StakedGmx, expectedContractAddress);
 
-        pirexGmx.setContract(
-            PirexGmx.Contracts.StakedGmx,
-            contractAddress
-        );
+        pirexGmx.setContract(PirexGmx.Contracts.StakedGmx, contractAddress);
 
         assertEq(
             expectedCurrentContractAllowance,
@@ -416,15 +387,9 @@ contract PirexGmxTest is Test, Helper {
 
         vm.expectEmit(true, false, false, true, address(pirexGmx));
 
-        emit SetContract(
-            PirexGmx.Contracts.GmxVault,
-            expectedContractAddress
-        );
+        emit SetContract(PirexGmx.Contracts.GmxVault, expectedContractAddress);
 
-        pirexGmx.setContract(
-            PirexGmx.Contracts.GmxVault,
-            contractAddress
-        );
+        pirexGmx.setContract(PirexGmx.Contracts.GmxVault, contractAddress);
 
         assertEq(expectedContractAddress, address(pirexGmx.gmxVault()));
     }
@@ -447,10 +412,7 @@ contract PirexGmxTest is Test, Helper {
             expectedContractAddress
         );
 
-        pirexGmx.setContract(
-            PirexGmx.Contracts.GlpManager,
-            contractAddress
-        );
+        pirexGmx.setContract(PirexGmx.Contracts.GlpManager, contractAddress);
 
         assertEq(expectedContractAddress, address(pirexGmx.glpManager()));
     }
@@ -579,11 +541,7 @@ contract PirexGmxTest is Test, Helper {
 
         vm.expectRevert(PAUSED_ERROR);
 
-        pirexGmx.depositGlpETH{value: etherAmount}(
-            minUsdg,
-            minGlp,
-            receiver
-        );
+        pirexGmx.depositGlpETH{value: etherAmount}(minUsdg, minGlp, receiver);
     }
 
     /**
@@ -882,10 +840,7 @@ contract PirexGmxTest is Test, Helper {
         address receiver = address(this);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                PirexGmx.InvalidToken.selector,
-                invalidToken
-            )
+            abi.encodeWithSelector(PirexGmx.InvalidToken.selector, invalidToken)
         );
 
         pirexGmx.depositGlp(
@@ -1204,10 +1159,7 @@ contract PirexGmxTest is Test, Helper {
         address receiver = address(this);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                PirexGmx.InvalidToken.selector,
-                invalidToken
-            )
+            abi.encodeWithSelector(PirexGmx.InvalidToken.selector, invalidToken)
         );
 
         pirexGmx.redeemPxGlp(invalidToken, assets, minOut, receiver);
@@ -1312,14 +1264,8 @@ contract PirexGmxTest is Test, Helper {
 
         vm.warp(block.timestamp + secondsElapsed);
 
-        uint256 expectedWETHRewardsGmx = pirexGmx.calculateRewards(
-            true,
-            true
-        );
-        uint256 expectedWETHRewardsGlp = pirexGmx.calculateRewards(
-            true,
-            false
-        );
+        uint256 expectedWETHRewardsGmx = pirexGmx.calculateRewards(true, true);
+        uint256 expectedWETHRewardsGlp = pirexGmx.calculateRewards(true, false);
         uint256 expectedEsGmxRewardsGmx = pirexGmx.calculateRewards(
             false,
             true
@@ -1401,17 +1347,11 @@ contract PirexGmxTest is Test, Helper {
         // Forward timestamp to produce rewards
         vm.warp(block.timestamp + secondsElapsed);
 
-        // uint256 previousStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(
-        //     address(pirexGmx)
-        // );
-        uint256 expectedWETHRewardsGmx = pirexGmx.calculateRewards(
-            true,
-            true
+        uint256 previousStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(
+            address(pirexGmx)
         );
-        uint256 expectedWETHRewardsGlp = pirexGmx.calculateRewards(
-            true,
-            false
-        );
+        uint256 expectedWETHRewardsGmx = pirexGmx.calculateRewards(true, true);
+        uint256 expectedWETHRewardsGlp = pirexGmx.calculateRewards(true, false);
         uint256 expectedEsGmxRewardsGmx = pirexGmx.calculateRewards(
             false,
             true
@@ -1420,9 +1360,7 @@ contract PirexGmxTest is Test, Helper {
             false,
             false
         );
-        uint256 expectedClaimableMp = REWARD_TRACKER_MP.claimable(
-            address(pirexGmx)
-        );
+        uint256 expectedBnGmxRewards = calculateBnGmxRewards(address(pirexGmx));
         uint256 expectedWETHRewards = expectedWETHRewardsGmx +
             expectedWETHRewardsGlp;
         uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
@@ -1463,18 +1401,16 @@ contract PirexGmxTest is Test, Helper {
         assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
         assertGt(expectedWETHRewards, 0);
         assertGt(expectedEsGmxRewards, 0);
-        assertGt(expectedClaimableMp, 0);
+        assertGt(expectedBnGmxRewards, 0);
 
-        // @NOTE: Test fails after X number of fuzz runs, to be addressed in this PR
-        // Test fail arguments [31317560, 100001, 1000000000000001]
-        // // Claimed esGMX rewards + MP should also be staked immediately
-        // assertEq(
-        //     REWARD_TRACKER_GMX.balanceOf(address(pirexGmx)),
-        //     previousStakedGmxBalance +
-        //         expectedEsGmxRewards +
-        //         expectedClaimableMp
-        // );
-        assertEq(REWARD_TRACKER_MP.claimable(address(pirexGmx)), 0);
+        // Claimed esGMX rewards + MP should also be staked immediately
+        assertEq(
+            REWARD_TRACKER_GMX.balanceOf(address(pirexGmx)),
+            previousStakedGmxBalance +
+                expectedEsGmxRewards +
+                expectedBnGmxRewards
+        );
+        assertEq(calculateBnGmxRewards(address(pirexGmx)), 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1508,11 +1444,7 @@ contract PirexGmxTest is Test, Helper {
 
         vm.prank(address(pirexRewards));
 
-        pirexGmx.claimUserReward(
-            invalidRecipient,
-            rewardTokenAddress,
-            amount
-        );
+        pirexGmx.claimUserReward(invalidRecipient, rewardTokenAddress, amount);
     }
 
     /**
@@ -1527,11 +1459,7 @@ contract PirexGmxTest is Test, Helper {
 
         vm.prank(address(pirexRewards));
 
-        pirexGmx.claimUserReward(
-            recipient,
-            invalidRewardTokenAddress,
-            amount
-        );
+        pirexGmx.claimUserReward(recipient, invalidRewardTokenAddress, amount);
     }
 
     /**
