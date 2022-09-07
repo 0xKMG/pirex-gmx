@@ -101,7 +101,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address indexed receiver,
         address indexed token,
         uint256 minUsdg,
-        uint256 minShares,
+        uint256 minGlp,
         uint256 amount,
         uint256 assets,
         uint256 mintAmount,
@@ -376,22 +376,25 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Deposit whitelisted ERC20 token for pxGLP
-        @param  token        address  GMX-whitelisted token for buying GLP
+        @notice Deposit GLP (minted with ERC20 token) for pxGLP
+        @param  token        address  GMX-whitelisted token for minting GLP
         @param  tokenAmount  uint256  Whitelisted token amount
-        @param  minShares    uint256  Minimum amount of GLP
+        @param  minUsdg      uint256  minUsdg param for mintAndStakeGlp
+        @param  minGlp       uint256  minGlp param for mintAndStakeGlp
         @param  receiver     address  Recipient of pxGLP
         @return assets       uint256  Amount of pxGLP
      */
-    function depositGlpWithERC20(
+    function depositGlp(
         address token,
         uint256 tokenAmount,
-        uint256 minShares,
+        uint256 minUsdg,
+        uint256 minGlp,
         address receiver
     ) external whenNotPaused nonReentrant returns (uint256 assets) {
         if (token == address(0)) revert ZeroAddress();
         if (tokenAmount == 0) revert ZeroAmount();
-        if (minShares == 0) revert ZeroAmount();
+        if (minUsdg == 0) revert ZeroAmount();
+        if (minGlp == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
         if (!gmxVault.whitelistedTokens(token)) revert InvalidToken(token);
 
@@ -404,15 +407,15 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         assets = IRewardRouterV2(gmxRewardRouterV2).mintAndStakeGlp(
             token,
             tokenAmount,
-            0,
-            minShares
+            minUsdg,
+            minGlp
         );
-        (uint256 mintAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Deposit,
             assets
         );
 
-        pxGlp.mint(receiver, mintAmount);
+        pxGlp.mint(receiver, postFeeAmount);
 
         if (feeAmount != 0) {
             pxGlp.mint(address(this), feeAmount);
@@ -423,11 +426,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             msg.sender,
             receiver,
             token,
-            0,
-            minShares,
+            minUsdg,
+            minGlp,
             tokenAmount,
             assets,
-            mintAmount,
+            postFeeAmount,
             feeAmount
         );
     }

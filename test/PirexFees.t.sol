@@ -270,7 +270,7 @@ contract PirexFeesTest is Helper {
         @param  depositFee  uint24  Deposit fee
         @param  ethAmount   uint96  ETH amount
      */
-    function testDistributeFeesDepositGlpWithETH(
+    function testDistributeFeesDepositGlpETH(
         uint24 depositFee,
         uint96 ethAmount
     ) external {
@@ -330,14 +330,13 @@ contract PirexFeesTest is Helper {
     }
 
     /**
-        @notice Test tx success: distribute fees for depositGlpWithERC20
+        @notice Test tx success: distribute fees for depositGlp
         @param  depositFee  uint24  Deposit fee
         @param  wbtcAmount  uint40  WBTC amount
      */
-    function testDistributeFeesDepositGlpWithERC20(
-        uint24 depositFee,
-        uint40 wbtcAmount
-    ) external {
+    function testDistributeFeesDepositGlp(uint24 depositFee, uint40 wbtcAmount)
+        external
+    {
         vm.assume(depositFee != 0);
         vm.assume(depositFee < pirexGmxGlp.FEE_MAX());
         vm.assume(wbtcAmount > 1e5);
@@ -345,11 +344,8 @@ contract PirexFeesTest is Helper {
 
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, depositFee);
 
-        uint256 minShares = _calculateMinGlpAmount(
-            address(WBTC),
-            wbtcAmount,
-            8
-        );
+        uint256 minUsdg = 1;
+        uint256 minGlp = _calculateMinGlpAmount(address(WBTC), wbtcAmount, 8);
         address receiver = address(this);
         (
             uint256 feeNumerator,
@@ -368,10 +364,11 @@ contract PirexFeesTest is Helper {
         _mintWbtc(wbtcAmount);
         WBTC.approve(address(pirexGmxGlp), wbtcAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
+        uint256 assets = pirexGmxGlp.depositGlp(
             address(WBTC),
             wbtcAmount,
-            minShares,
+            minUsdg,
+            minGlp,
             receiver
         );
         (

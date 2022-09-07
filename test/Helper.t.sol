@@ -293,9 +293,10 @@ contract Helper is Test {
                     testAccount
                 );
             } else {
-                pirexGmxGlp.depositGlpWithERC20(
+                pirexGmxGlp.depositGlp(
                     address(WBTC),
                     tokenAmount,
+                    1,
                     1,
                     testAccount
                 );
@@ -514,7 +515,7 @@ contract Helper is Test {
         @param  receiver     address  Receiver of pxGLP
         @return              uint256  Amount of pxGLP minted
      */
-    function _depositGlpWithERC20(uint256 tokenAmount, address receiver)
+    function _depositGlp(uint256 tokenAmount, address receiver)
         internal
         returns (uint256)
     {
@@ -522,9 +523,10 @@ contract Helper is Test {
 
         WBTC.approve(address(pirexGmxGlp), tokenAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
+        uint256 assets = pirexGmxGlp.depositGlp(
             address(WBTC),
             tokenAmount,
+            1,
             1,
             receiver
         );
