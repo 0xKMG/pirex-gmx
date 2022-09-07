@@ -8,17 +8,13 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
+import {IVault} from "src/interfaces/IVault.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
-import {Vault} from "src/external/Vault.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PirexFees} from "src/PirexFees.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
-
-interface IGmxVault {
-    function whitelistedTokens(address _token) external view returns (bool);
-}
 
 contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
@@ -60,8 +56,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     RewardTracker public stakedGmx =
         RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
-    IGmxVault public gmxVault =
-        IGmxVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    IVault public gmxVault =
+        IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public glpManager = 0x321F653eED006AD1C29D174e17d96351BDe22649;
 
     // Fee denominator
@@ -283,7 +279,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         }
 
         if (c == Contracts.GmxVault) {
-            gmxVault = IGmxVault(contractAddress);
+            gmxVault = IVault(contractAddress);
             return;
         }
 

@@ -19,7 +19,7 @@ import {IReader} from "src/interfaces/IReader.sol";
 import {IGMX} from "src/interfaces/IGMX.sol";
 import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
-import {Vault} from "src/external/Vault.sol";
+import {IVault} from "src/interfaces/IVault.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 
@@ -42,8 +42,8 @@ contract Helper is Test {
         IGlpManager(0x321F653eED006AD1C29D174e17d96351BDe22649);
     IReader internal constant READER =
         IReader(0x22199a49A999c351eF7927602CFB187ec3cae489);
-    Vault internal constant VAULT =
-        Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    IVault internal constant VAULT =
+        IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     IGMX internal constant GMX =
         IGMX(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     IERC20 internal constant USDG =
@@ -287,11 +287,7 @@ contract Helper is Test {
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGmx.depositGlpETH{value: tokenAmount}(
-                    1,
-                    1,
-                    testAccount
-                );
+                pirexGmx.depositGlpETH{value: tokenAmount}(1, 1, testAccount);
             } else {
                 pirexGmx.depositGlp(
                     address(WBTC),

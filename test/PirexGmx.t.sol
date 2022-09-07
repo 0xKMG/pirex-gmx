@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
-import {Vault} from "src/external/Vault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {IWETH} from "src/interfaces/IWETH.sol";
 import {Helper} from "./Helper.t.sol";
