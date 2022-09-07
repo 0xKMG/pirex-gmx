@@ -56,8 +56,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     RewardTracker public stakedGmx =
         RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
-    IVault public gmxVault =
-        IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    IVault public gmxVault = IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public glpManager = 0x321F653eED006AD1C29D174e17d96351BDe22649;
 
     // Fee denominator
@@ -540,26 +539,26 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         } else {
             r = useGmx ? stakedGmx : feeStakedGlp;
         }
+
         address distributor = r.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
-        ERC20 token = (isWeth ? WETH : ES_GMX);
-        uint256 distributorBalance = token.balanceOf(distributor);
+        uint256 distributorBalance = ERC20(isWeth ? WETH : ES_GMX).balanceOf(
+            distributor
+        );
         uint256 blockReward = pendingRewards > distributorBalance
             ? distributorBalance
             : pendingRewards;
         uint256 precision = r.PRECISION();
-        uint256 _cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
+        uint256 cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
             ((blockReward * precision) / r.totalSupply());
 
-        if (_cumulativeRewardPerToken == 0) {
-            return 0;
-        }
+        if (cumulativeRewardPerToken == 0) return 0;
 
         return
             r.claimableReward(address(this)) +
             ((r.stakedAmounts(address(this)) *
-                (_cumulativeRewardPerToken -
+                (cumulativeRewardPerToken -
                     r.previousCumulatedRewardPerToken(address(this)))) /
                 precision);
     }
