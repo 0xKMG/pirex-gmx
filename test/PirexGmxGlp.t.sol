@@ -1155,17 +1155,17 @@ contract PirexGmxGlpTest is Test, Helper {
     }
 
     /**
-        @notice Test tx reversion: amount is zero
+        @notice Test tx reversion: assets is zero
      */
-    function testCannotRedeemPxGlpZeroValue() external {
+    function testCannotRedeemPxGlpZeroAssets() external {
         address token = address(WBTC);
-        uint256 invalidAmount = 0;
+        uint256 invalidAssets = 0;
         uint256 minOut = 1;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.redeemPxGlp(token, invalidAmount, minOut, receiver);
+        pirexGmxGlp.redeemPxGlp(token, invalidAssets, minOut, receiver);
     }
 
     /**
@@ -1173,13 +1173,13 @@ contract PirexGmxGlpTest is Test, Helper {
      */
     function testCannotRedeemPxGlpZeroMinOut() external {
         address token = address(WBTC);
-        uint256 amount = 1;
+        uint256 assets = 1;
         uint256 invalidMinOut = 0;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.redeemPxGlp(token, amount, invalidMinOut, receiver);
+        pirexGmxGlp.redeemPxGlp(token, assets, invalidMinOut, receiver);
     }
 
     /**
@@ -1187,13 +1187,13 @@ contract PirexGmxGlpTest is Test, Helper {
      */
     function testCannotRedeemPxGlpZeroReceiver() external {
         address token = address(WBTC);
-        uint256 amount = 1;
+        uint256 assets = 1;
         uint256 minOut = 1;
         address invalidReceiver = address(0);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGmxGlp.redeemPxGlp(token, amount, minOut, invalidReceiver);
+        pirexGmxGlp.redeemPxGlp(token, assets, minOut, invalidReceiver);
     }
 
     /**
@@ -1201,7 +1201,7 @@ contract PirexGmxGlpTest is Test, Helper {
      */
     function testCannotRedeemPxGlpInvalidToken() external {
         address invalidToken = address(this);
-        uint256 amount = 1;
+        uint256 assets = 1;
         uint256 minOut = 1;
         address receiver = address(this);
 
@@ -1212,7 +1212,7 @@ contract PirexGmxGlpTest is Test, Helper {
             )
         );
 
-        pirexGmxGlp.redeemPxGlp(invalidToken, amount, minOut, receiver);
+        pirexGmxGlp.redeemPxGlp(invalidToken, assets, minOut, receiver);
     }
 
     /**
@@ -1222,7 +1222,6 @@ contract PirexGmxGlpTest is Test, Helper {
         address token = address(WBTC);
         uint256 tokenAmount = 1e8;
         address receiver = address(this);
-
         uint256 assets = _depositGlp(tokenAmount, receiver);
         uint256 invalidMinOut = _calculateMinOutAmount(token, assets) * 2;
 
