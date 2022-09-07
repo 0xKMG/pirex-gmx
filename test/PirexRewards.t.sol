@@ -631,7 +631,7 @@ contract PirexRewardsTest is Helper {
         } else {
             vm.deal(address(this), tokenAmount);
 
-            pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, sender);
+            pirexGmxGlp.depositGlpETH{value: tokenAmount}(1, 1, sender);
         }
 
         // Forward time in order to accrue rewards for sender
@@ -723,7 +723,7 @@ contract PirexRewardsTest is Helper {
 
         vm.deal(user, tokenAmount);
 
-        pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(1, user);
+        pirexGmxGlp.depositGlpETH{value: tokenAmount}(1, 1, user);
 
         // Forward time in order to accrue rewards for user
         vm.warp(block.timestamp + secondsElapsed);
@@ -794,7 +794,7 @@ contract PirexRewardsTest is Helper {
         vm.deal(user, ethAmount);
 
         // Deposit GLP and GMX before proceeding
-        pirexGmxGlp.depositGlpWithETH{value: ethAmount}(1, user);
+        pirexGmxGlp.depositGlpETH{value: ethAmount}(1, 1, user);
 
         _mintGmx(gmxAmount);
         GMX.approve(address(pirexGmxGlp), gmxAmount);

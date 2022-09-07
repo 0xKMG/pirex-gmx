@@ -100,6 +100,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         address indexed caller,
         address indexed receiver,
         address indexed token,
+        uint256 minUsdg,
         uint256 minShares,
         uint256 amount,
         uint256 assets,
@@ -307,7 +308,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
 
         // Transfer the caller's GMX to this contract and stake it for rewards
         GMX.safeTransferFrom(msg.sender, address(this), assets);
-        IRewardRouterV2(gmxRewardRouterV2).stakeGmx(assets);
+        gmxRewardRouterV2.stakeGmx(assets);
 
         // Get the pxGMX amounts for the receiver and the protocol (fees)
         (postFeeAmount, feeAmount) = _deriveAssetAmounts(Fees.Deposit, assets);
@@ -315,7 +316,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         // Mint pxGMX for the receiver (excludes fees)
         pxGmx.mint(receiver, postFeeAmount);
 
-        // Mint pxGMX for the protocol
+        // Mint and distribute pxGMX for the protocol
         if (feeAmount != 0) {
             pxGmx.mint(address(this), feeAmount);
             pirexFees.distributeFees(address(this), address(pxGmx), feeAmount);
@@ -325,36 +326,37 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Deposit ETH for pxGLP
-        @param  minShares  uint256  Minimum amount of GLP
-        @param  receiver   address  Recipient of pxGLP
-        @return assets     uint256  Amount of pxGLP
+        @notice Deposit GLP (minted with ETH) for pxGLP
+        @param  minUsdg   uint256  minUsdg param for mintAndStakeGlpETH
+        @param  minGlp    uint256  minGlp param for mintAndStakeGlpETH
+        @param  receiver  address  pxGLP receiver
+        @return assets    uint256  GLP amount
      */
-    function depositGlpWithETH(uint256 minShares, address receiver)
-        external
-        payable
-        whenNotPaused
-        nonReentrant
-        returns (uint256 assets)
-    {
+    function depositGlpETH(
+        uint256 minUsdg,
+        uint256 minGlp,
+        address receiver
+    ) external payable whenNotPaused nonReentrant returns (uint256 assets) {
         if (msg.value == 0) revert ZeroAmount();
-        if (minShares == 0) revert ZeroAmount();
+        if (minUsdg == 0) revert ZeroAmount();
+        if (minGlp == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
-        // Buy GLP with the user's ETH, specifying the minimum amount of GLP
-        assets = IRewardRouterV2(gmxRewardRouterV2).mintAndStakeGlpETH{
-            value: msg.value
-        }(0, minShares);
+        // Mint and stake GLP with the user's ETH
+        assets = gmxRewardRouterV2.mintAndStakeGlpETH{value: msg.value}(
+            minUsdg,
+            minGlp
+        );
 
-        (uint256 mintAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Deposit,
             assets
         );
 
-        // Mint pxGLP equal to the GLP amount sans fees
-        pxGlp.mint(receiver, mintAmount);
+        // Mint pxGLP for the receiver (excludes fees)
+        pxGlp.mint(receiver, postFeeAmount);
 
-        // Distribute fees in the form of pxGLP
+        // Mint and distribute pxGLP for the protocol
         if (feeAmount != 0) {
             pxGlp.mint(address(this), feeAmount);
             pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
@@ -364,10 +366,11 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             msg.sender,
             receiver,
             address(0),
-            minShares,
+            minUsdg,
+            minGlp,
             msg.value,
             assets,
-            mintAmount,
+            postFeeAmount,
             feeAmount
         );
     }
@@ -420,6 +423,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             msg.sender,
             receiver,
             token,
+            0,
             minShares,
             tokenAmount,
             assets,

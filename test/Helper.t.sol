@@ -99,7 +99,8 @@ contract Helper is Test {
         address indexed caller,
         address indexed receiver,
         address indexed token,
-        uint256 minShares,
+        uint256 minUsdg,
+        uint256 minGlp,
         uint256 amount,
         uint256 assets,
         uint256 mintAmount,
@@ -286,7 +287,8 @@ contract Helper is Test {
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(
+                pirexGmxGlp.depositGlpETH{value: tokenAmount}(
+                    1,
                     1,
                     testAccount
                 );
@@ -488,13 +490,14 @@ contract Helper is Test {
         @param  receiver     address  Receiver of pxGLP
         @return              uint256  Amount of pxGLP minted
      */
-    function _depositGlpWithETH(uint256 etherAmount, address receiver)
+    function _depositGlpETH(uint256 etherAmount, address receiver)
         internal
         returns (uint256)
     {
         vm.deal(address(this), etherAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+        uint256 assets = pirexGmxGlp.depositGlpETH{value: etherAmount}(
+            1,
             1,
             receiver
         );

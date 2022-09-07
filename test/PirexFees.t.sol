@@ -266,7 +266,7 @@ contract PirexFeesTest is Helper {
     }
 
     /**
-        @notice Test tx success: distribute fees for depositGlpWithETH
+        @notice Test tx success: distribute fees for depositGlpETH
         @param  depositFee  uint24  Deposit fee
         @param  ethAmount   uint96  ETH amount
      */
@@ -281,7 +281,8 @@ contract PirexFeesTest is Helper {
 
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, depositFee);
 
-        uint256 minShares = _calculateMinGlpAmount(address(0), ethAmount, 18);
+        uint256 minUsdg = 1;
+        uint256 minGlp = _calculateMinGlpAmount(address(0), ethAmount, 18);
         address receiver = address(this);
         (
             uint256 feeNumerator,
@@ -299,8 +300,9 @@ contract PirexFeesTest is Helper {
 
         vm.deal(address(this), ethAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
-            minShares,
+        uint256 assets = pirexGmxGlp.depositGlpETH{value: ethAmount}(
+            minUsdg,
+            minGlp,
             receiver
         );
         (
@@ -431,7 +433,8 @@ contract PirexFeesTest is Helper {
 
         vm.deal(address(this), ethAmount);
 
-        pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
+        pirexGmxGlp.depositGlpETH{value: ethAmount}(
+            1,
             _calculateMinGlpAmount(address(0), ethAmount, 18),
             address(this)
         );
@@ -526,7 +529,8 @@ contract PirexFeesTest is Helper {
 
         vm.deal(address(this), ethAmount);
 
-        pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
+        pirexGmxGlp.depositGlpETH{value: ethAmount}(
+            1,
             _calculateMinGlpAmount(address(0), ethAmount, 18),
             address(this)
         );

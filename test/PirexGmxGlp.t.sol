@@ -561,7 +561,7 @@ contract PirexGmxGlpTest is Test, Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        depositGlpWithETH TESTS
+                        depositGlpETH TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -573,14 +573,19 @@ contract PirexGmxGlpTest is Test, Helper {
         assertEq(true, pirexGmxGlp.paused());
 
         uint256 etherAmount = 1;
-        uint256 minShares = 1;
+        uint256 minUsdg = 1;
+        uint256 minGlp = 1;
         address receiver = address(this);
 
         vm.deal(address(this), etherAmount);
 
         vm.expectRevert(PAUSED_ERROR);
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(minShares, receiver);
+        pirexGmxGlp.depositGlpETH{value: etherAmount}(
+            minUsdg,
+            minGlp,
+            receiver
+        );
     }
 
     /**
@@ -588,29 +593,52 @@ contract PirexGmxGlpTest is Test, Helper {
      */
     function testCannotDepositGlpWithETHZeroValue() external {
         uint256 invalidEtherAmount = 0;
-        uint256 minShares = 1;
+        uint256 minUsdg = 1;
+        uint256 minGlp = 1;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.depositGlpWithETH{value: invalidEtherAmount}(
-            minShares,
+        pirexGmxGlp.depositGlpETH{value: invalidEtherAmount}(
+            minUsdg,
+            minGlp,
             receiver
         );
     }
 
     /**
-        @notice Test tx reversion: minShares is zero
+        @notice Test tx reversion: minUsdg is zero
      */
-    function testCannotDepositGlpWithETHZeroMinShares() external {
+    function testCannotDepositGlpWithETHZeroMinUsdg() external {
         uint256 etherAmount = 1 ether;
+        uint256 invalidMinUsdg = 0;
+        uint256 minGlp = 1;
+        address receiver = address(this);
+
+        vm.deal(address(this), etherAmount);
+        vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
+
+        pirexGmxGlp.depositGlpETH{value: etherAmount}(
+            invalidMinUsdg,
+            minGlp,
+            receiver
+        );
+    }
+
+    /**
+        @notice Test tx reversion: minGlp is zero
+     */
+    function testCannotDepositGlpWithETHZeroMinGlp() external {
+        uint256 etherAmount = 1 ether;
+        uint256 minUsdg = 1;
         uint256 invalidMinShares = 0;
         address receiver = address(this);
 
         vm.deal(address(this), etherAmount);
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+        pirexGmxGlp.depositGlpETH{value: etherAmount}(
+            minUsdg,
             invalidMinShares,
             receiver
         );
@@ -621,23 +649,26 @@ contract PirexGmxGlpTest is Test, Helper {
      */
     function testCannotDepositGlpWithETHZeroReceiver() external {
         uint256 etherAmount = 1 ether;
-        uint256 minShares = 1;
+        uint256 minUsdg = 1;
+        uint256 minGlp = 1;
         address invalidReceiver = address(0);
 
         vm.deal(address(this), etherAmount);
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
-            minShares,
+        pirexGmxGlp.depositGlpETH{value: etherAmount}(
+            minUsdg,
+            minGlp,
             invalidReceiver
         );
     }
 
     /**
-        @notice Test tx reversion: minShares is greater than actual GLP amount
+        @notice Test tx reversion: minGlp is greater than actual GLP amount
      */
     function testCannotDepositGlpWithETHExcessiveMinShares() external {
         uint256 etherAmount = 1 ether;
+        uint256 minUsdg = 1;
         uint256 invalidMinShares = _calculateMinGlpAmount(
             address(0),
             etherAmount,
@@ -648,7 +679,8 @@ contract PirexGmxGlpTest is Test, Helper {
         vm.deal(address(this), etherAmount);
         vm.expectRevert(INSUFFICIENT_GLP_OUTPUT_ERROR);
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+        pirexGmxGlp.depositGlpETH{value: etherAmount}(
+            minUsdg,
             invalidMinShares,
             receiver
         );
@@ -663,7 +695,8 @@ contract PirexGmxGlpTest is Test, Helper {
         vm.assume(etherAmount < 1_000 ether);
         vm.deal(address(this), etherAmount);
 
-        uint256 minShares = _calculateMinGlpAmount(address(0), etherAmount, 18);
+        uint256 minUsdg = 1;
+        uint256 minGlp = _calculateMinGlpAmount(address(0), etherAmount, 18);
         address receiver = address(this);
         uint256 premintETHBalance = address(this).balance;
         uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
@@ -682,15 +715,17 @@ contract PirexGmxGlpTest is Test, Helper {
             address(this),
             receiver,
             address(0),
-            minShares,
+            minUsdg,
+            minGlp,
             etherAmount,
             0,
             0,
             0
         );
 
-        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
-            minShares,
+        uint256 assets = pirexGmxGlp.depositGlpETH{value: etherAmount}(
+            minUsdg,
+            minGlp,
             receiver
         );
         uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
@@ -703,8 +738,8 @@ contract PirexGmxGlpTest is Test, Helper {
         assertGt(pxGlpReceivedByUser, 0);
         assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
         assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minShares);
-        assertGe(glpReceivedByPirex, minShares);
+        assertGe(pxGlpReceivedByUser, minGlp);
+        assertGe(glpReceivedByPirex, minGlp);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -895,6 +930,7 @@ contract PirexGmxGlpTest is Test, Helper {
             address(this),
             receiver,
             token,
+            0,
             minShares,
             tokenAmount,
             0,
@@ -936,7 +972,7 @@ contract PirexGmxGlpTest is Test, Helper {
         uint256 etherAmount = 1 ether;
         address receiver = address(this);
 
-        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 assets = _depositGlpETH(etherAmount, receiver);
         uint256 minRedemption = _calculateMinRedemptionAmount(
             address(WETH),
             assets
@@ -998,7 +1034,7 @@ contract PirexGmxGlpTest is Test, Helper {
         uint256 etherAmount = 1 ether;
         address receiver = address(this);
 
-        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 assets = _depositGlpETH(etherAmount, receiver);
         uint256 invalidMinRedemption = _calculateMinRedemptionAmount(
             address(WETH),
             assets
@@ -1021,7 +1057,7 @@ contract PirexGmxGlpTest is Test, Helper {
         address receiver = address(this);
 
         // Mint pxGLP with ETH before attempting to redeem back into ETH
-        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 assets = _depositGlpETH(etherAmount, receiver);
 
         uint256 previousETHBalance = receiver.balance;
         uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
@@ -1075,7 +1111,7 @@ contract PirexGmxGlpTest is Test, Helper {
         address receiver = address(this);
         address token = address(WBTC);
 
-        uint256 assets = _depositGlpWithETH(etherAmount, receiver);
+        uint256 assets = _depositGlpETH(etherAmount, receiver);
         uint256 minRedemption = _calculateMinRedemptionAmount(token, assets);
 
         // Pause after deposit
@@ -1780,7 +1816,7 @@ contract PirexGmxGlpTest is Test, Helper {
 
         vm.deal(address(this), etherAmount);
 
-        pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
+        pirexGmxGlp.depositGlpETH{value: etherAmount}(1, 1, receiver);
 
         // Time skip to bypass the cooldown duration
         vm.warp(block.timestamp + 1 days);
