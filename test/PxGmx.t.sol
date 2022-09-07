@@ -65,7 +65,7 @@ contract PxGmxTest is Helper {
 
         vm.expectRevert(PxGmx.ZeroAddress.selector);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGmx.mint(invalidTo, amount);
     }
@@ -79,7 +79,7 @@ contract PxGmxTest is Helper {
 
         vm.expectRevert(PxGmx.ZeroAmount.selector);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGmx.mint(to, invalidAmount);
     }
@@ -96,7 +96,7 @@ contract PxGmxTest is Helper {
 
         assertEq(premintBalance, 0);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGmx.mint(to, amount);
 

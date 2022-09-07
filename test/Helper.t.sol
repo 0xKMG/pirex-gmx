@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
-import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
+import {PirexGmx} from "src/PirexGmx.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
@@ -63,7 +63,7 @@ contract Helper is Test {
     uint256 internal constant EXPANDED_GLP_DECIMALS = 18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
 
-    PirexGmxGlp internal immutable pirexGmxGlp;
+    PirexGmx internal immutable pirexGmx;
     PxGmx internal immutable pxGmx;
     AutoPxGmx internal immutable autoPxGmx;
     PxGlp internal immutable pxGlp;
@@ -78,7 +78,7 @@ contract Helper is Test {
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
 
-    PirexGmxGlp.Fees[3] internal feeTypes;
+    PirexGmx.Fees[3] internal feeTypes;
 
     bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
     bytes internal constant NOT_OWNER_ERROR =
@@ -130,7 +130,7 @@ contract Helper is Test {
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
         pirexFees = new PirexFees(testAccounts[0], testAccounts[1]);
-        pirexGmxGlp = new PirexGmxGlp(
+        pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
@@ -141,21 +141,21 @@ contract Helper is Test {
             address(pxGmx),
             "Autocompounding pxGMX",
             "apxGMX",
-            address(pirexGmxGlp)
+            address(pirexGmx)
         );
 
-        pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
-        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
-        pirexGmxGlp.setPirexRewards(address(pirexRewards));
-        pirexRewards.setProducer(address(pirexGmxGlp));
+        pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmx));
+        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmx));
+        pirexGmx.setPirexRewards(address(pirexRewards));
+        pirexRewards.setProducer(address(pirexGmx));
 
         // Unpause after completing the setup
-        pirexGmxGlp.setPauseState(false);
+        pirexGmx.setPauseState(false);
 
-        feeMax = pirexGmxGlp.FEE_MAX();
-        feeTypes[0] = PirexGmxGlp.Fees.Deposit;
-        feeTypes[1] = PirexGmxGlp.Fees.Redemption;
-        feeTypes[2] = PirexGmxGlp.Fees.Reward;
+        feeMax = pirexGmx.FEE_MAX();
+        feeTypes[0] = PirexGmx.Fees.Deposit;
+        feeTypes[1] = PirexGmx.Fees.Redemption;
+        feeTypes[2] = PirexGmx.Fees.Reward;
     }
 
     /**
@@ -184,7 +184,7 @@ contract Helper is Test {
         uint256 amount,
         bool useGmx
     ) internal {
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         if (useGmx) {
             pxGmx.mint(to, amount);
@@ -199,7 +199,7 @@ contract Helper is Test {
         @param  amount  uint256  Amount of pxGLP
      */
     function _burnPxGlp(address from, uint256 amount) internal {
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGlp.burn(from, amount);
     }
@@ -236,14 +236,14 @@ contract Helper is Test {
         uint256 total = tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2];
 
         _mintGmx(total);
-        GMX.approve(address(pirexGmxGlp), total);
+        GMX.approve(address(pirexGmx), total);
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
         for (uint256 i; i < tLen; ++i) {
             uint256 tokenAmount = tokenAmounts[i];
             address testAccount = testAccounts[i];
 
-            pirexGmxGlp.depositGmx(tokenAmount, testAccount);
+            pirexGmx.depositGmx(tokenAmount, testAccount);
         }
     }
 
@@ -277,7 +277,7 @@ contract Helper is Test {
                 tokenAmounts[2];
 
             _mintWbtc(wBtcTotalAmount);
-            WBTC.approve(address(pirexGmxGlp), wBtcTotalAmount);
+            WBTC.approve(address(pirexGmx), wBtcTotalAmount);
         }
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
@@ -287,13 +287,13 @@ contract Helper is Test {
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGmxGlp.depositGlpETH{value: tokenAmount}(
+                pirexGmx.depositGlpETH{value: tokenAmount}(
                     1,
                     1,
                     testAccount
                 );
             } else {
-                pirexGmxGlp.depositGlp(
+                pirexGmx.depositGlp(
                     address(WBTC),
                     tokenAmount,
                     1,
@@ -497,7 +497,7 @@ contract Helper is Test {
     {
         vm.deal(address(this), etherAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpETH{value: etherAmount}(
+        uint256 assets = pirexGmx.depositGlpETH{value: etherAmount}(
             1,
             1,
             receiver
@@ -521,9 +521,9 @@ contract Helper is Test {
     {
         _mintWbtc(tokenAmount);
 
-        WBTC.approve(address(pirexGmxGlp), tokenAmount);
+        WBTC.approve(address(pirexGmx), tokenAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlp(
+        uint256 assets = pirexGmx.depositGlp(
             address(WBTC),
             tokenAmount,
             1,
@@ -544,7 +544,7 @@ contract Helper is Test {
      */
     function _depositGmx(uint256 tokenAmount, address receiver) internal {
         _mintGmx(tokenAmount);
-        GMX.approve(address(pirexGmxGlp), tokenAmount);
-        pirexGmxGlp.depositGmx(tokenAmount, receiver);
+        GMX.approve(address(pirexGmx), tokenAmount);
+        pirexGmx.depositGmx(tokenAmount, receiver);
     }
 }

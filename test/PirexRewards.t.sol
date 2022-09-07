@@ -133,7 +133,7 @@ contract PirexRewardsTest is Helper {
         @notice Test tx reversion: caller is not authorized
      */
     function testCannotSetProducerNotAuthorized() external {
-        assertEq(address(pirexGmxGlp), address(pirexRewards.producer()));
+        assertEq(address(pirexGmx), address(pirexRewards.producer()));
 
         address _producer = address(this);
 
@@ -147,7 +147,7 @@ contract PirexRewardsTest is Helper {
         @notice Test tx reversion: _producer is zero address
      */
     function testCannotSetProducerZeroAddress() external {
-        assertEq(address(pirexGmxGlp), address(pirexRewards.producer()));
+        assertEq(address(pirexGmx), address(pirexRewards.producer()));
 
         address invalidProducer = address(0);
 
@@ -160,7 +160,7 @@ contract PirexRewardsTest is Helper {
         @notice Test tx success: set producer
      */
     function testSetProducer() external {
-        assertEq(address(pirexGmxGlp), address(pirexRewards.producer()));
+        assertEq(address(pirexGmx), address(pirexRewards.producer()));
 
         address producerBefore = address(pirexRewards.producer());
         address _producer = address(this);
@@ -626,12 +626,12 @@ contract PirexRewardsTest is Helper {
 
         if (useGmx) {
             _mintGmx(tokenAmount);
-            GMX.approve(address(pirexGmxGlp), tokenAmount);
-            pirexGmxGlp.depositGmx(tokenAmount, sender);
+            GMX.approve(address(pirexGmx), tokenAmount);
+            pirexGmx.depositGmx(tokenAmount, sender);
         } else {
             vm.deal(address(this), tokenAmount);
 
-            pirexGmxGlp.depositGlpETH{value: tokenAmount}(1, 1, sender);
+            pirexGmx.depositGlpETH{value: tokenAmount}(1, 1, sender);
         }
 
         // Forward time in order to accrue rewards for sender
@@ -723,7 +723,7 @@ contract PirexRewardsTest is Helper {
 
         vm.deal(user, tokenAmount);
 
-        pirexGmxGlp.depositGlpETH{value: tokenAmount}(1, 1, user);
+        pirexGmx.depositGlpETH{value: tokenAmount}(1, 1, user);
 
         // Forward time in order to accrue rewards for user
         vm.warp(block.timestamp + secondsElapsed);
@@ -732,7 +732,7 @@ contract PirexRewardsTest is Helper {
         uint256 burnAmount = (preBurnBalance * burnPercent) / 100;
         uint256 expectedRewardsAfterBurn = _calculateUserRewards(pxGlp, user);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGlp.burn(user, burnAmount);
 
@@ -794,11 +794,11 @@ contract PirexRewardsTest is Helper {
         vm.deal(user, ethAmount);
 
         // Deposit GLP and GMX before proceeding
-        pirexGmxGlp.depositGlpETH{value: ethAmount}(1, 1, user);
+        pirexGmx.depositGlpETH{value: ethAmount}(1, 1, user);
 
         _mintGmx(gmxAmount);
-        GMX.approve(address(pirexGmxGlp), gmxAmount);
-        pirexGmxGlp.depositGmx(gmxAmount, user);
+        GMX.approve(address(pirexGmx), gmxAmount);
+        pirexGmx.depositGmx(gmxAmount, user);
 
         // Time skip to accrue rewards
         vm.warp(block.timestamp + secondsElapsed);
@@ -820,10 +820,10 @@ contract PirexRewardsTest is Helper {
         expectedRewardTokens[1] = WETH;
         expectedRewardTokens[2] = ERC20(pxGmx); // esGMX rewards are distributed as pxGMX
         expectedRewardTokens[3] = ERC20(pxGmx);
-        expectedRewardAmounts[0] = pirexGmxGlp.calculateRewards(true, true);
-        expectedRewardAmounts[1] = pirexGmxGlp.calculateRewards(true, false);
-        expectedRewardAmounts[2] = pirexGmxGlp.calculateRewards(false, true);
-        expectedRewardAmounts[3] = pirexGmxGlp.calculateRewards(false, false);
+        expectedRewardAmounts[0] = pirexGmx.calculateRewards(true, true);
+        expectedRewardAmounts[1] = pirexGmx.calculateRewards(true, false);
+        expectedRewardAmounts[2] = pirexGmx.calculateRewards(false, true);
+        expectedRewardAmounts[3] = pirexGmx.calculateRewards(false, false);
 
         vm.expectEmit(true, true, true, true, address(pirexRewards));
 
@@ -1648,9 +1648,9 @@ contract PirexRewardsTest is Helper {
         address proxyAddress = address(proxy);
         PirexRewards pirexRewardsProxy = PirexRewards(proxyAddress);
 
-        pirexGmxGlp.setPirexRewards(proxyAddress);
+        pirexGmx.setPirexRewards(proxyAddress);
 
-        assertEq(pirexGmxGlp.pirexRewards(), proxyAddress);
+        assertEq(pirexGmx.pirexRewards(), proxyAddress);
 
         // Only admin can call the implementation getter
         vm.prank(admin);
@@ -1663,12 +1663,12 @@ contract PirexRewardsTest is Helper {
         uint256 gmxAmount = 100e18;
 
         _mintGmx(gmxAmount);
-        GMX.approve(address(pirexGmxGlp), gmxAmount);
-        pirexGmxGlp.depositGmx(gmxAmount, receiver);
+        GMX.approve(address(pirexGmx), gmxAmount);
+        pirexGmx.depositGmx(gmxAmount, receiver);
 
         vm.warp(block.timestamp + 1 days);
 
-        pirexRewardsProxy.setProducer(address(pirexGmxGlp));
+        pirexRewardsProxy.setProducer(address(pirexGmx));
         pirexRewardsProxy.harvest();
 
         uint256 oldMethodResult = pirexRewardsProxy.getRewardState(
@@ -1700,6 +1700,6 @@ contract PirexRewardsTest is Helper {
             oldMethodResult * 2
         );
         // Confirm that the address of the proxy doesn't change, only the implementation
-        assertEq(pirexGmxGlp.pirexRewards(), proxyAddress);
+        assertEq(pirexGmx.pirexRewards(), proxyAddress);
     }
 }

@@ -20,7 +20,7 @@ interface IGmxVault {
     function whitelistedTokens(address _token) external view returns (bool);
 }
 
-contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
+contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
 
     // Configurable fees
