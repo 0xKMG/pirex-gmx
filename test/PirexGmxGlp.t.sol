@@ -1117,19 +1117,18 @@ contract PirexGmxGlpTest is Test, Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        redeemPxGlpForERC20 TESTS
+                        redeemPxGlp TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: contract is paused
      */
-    function testCannotRedeemPxGlpForERC20TokenPaused() external {
+    function testCannotRedeemPxGlpTokenPaused() external {
         uint256 etherAmount = 1 ether;
         address receiver = address(this);
         address token = address(WBTC);
-
         uint256 assets = _depositGlpETH(etherAmount, receiver);
-        uint256 minRedemption = _calculateMinOutAmount(token, assets);
+        uint256 minOut = _calculateMinOutAmount(token, assets);
 
         // Pause after deposit
         pirexGmxGlp.setPauseState(true);
@@ -1138,92 +1137,72 @@ contract PirexGmxGlpTest is Test, Helper {
 
         vm.expectRevert(PAUSED_ERROR);
 
-        pirexGmxGlp.redeemPxGlpForERC20(token, assets, minRedemption, receiver);
+        pirexGmxGlp.redeemPxGlp(token, assets, minOut, receiver);
     }
 
     /**
         @notice Test tx reversion: token is zero address
      */
-    function testCannotRedeemPxGlpForERC20TokenZeroAddress() external {
+    function testCannotRedeemPxGlpTokenZeroAddress() external {
         address invalidToken = address(0);
         uint256 amount = 1;
-        uint256 minRedemption = 1;
+        uint256 minOut = 1;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGmxGlp.redeemPxGlpForERC20(
-            invalidToken,
-            amount,
-            minRedemption,
-            receiver
-        );
+        pirexGmxGlp.redeemPxGlp(invalidToken, amount, minOut, receiver);
     }
 
     /**
         @notice Test tx reversion: amount is zero
      */
-    function testCannotRedeemPxGlpForERC20ZeroValue() external {
+    function testCannotRedeemPxGlpZeroValue() external {
         address token = address(WBTC);
         uint256 invalidAmount = 0;
-        uint256 minRedemption = 1;
+        uint256 minOut = 1;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.redeemPxGlpForERC20(
-            token,
-            invalidAmount,
-            minRedemption,
-            receiver
-        );
+        pirexGmxGlp.redeemPxGlp(token, invalidAmount, minOut, receiver);
     }
 
     /**
-        @notice Test tx reversion: minRedemption is zero
+        @notice Test tx reversion: minOut is zero
      */
-    function testCannotRedeemPxGlpForERC20ZeroMinRedemption() external {
+    function testCannotRedeemPxGlpZeroMinOut() external {
         address token = address(WBTC);
         uint256 amount = 1;
-        uint256 invalidMinRedemption = 0;
+        uint256 invalidMinOut = 0;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmxGlp.ZeroAmount.selector);
 
-        pirexGmxGlp.redeemPxGlpForERC20(
-            token,
-            amount,
-            invalidMinRedemption,
-            receiver
-        );
+        pirexGmxGlp.redeemPxGlp(token, amount, invalidMinOut, receiver);
     }
 
     /**
         @notice Test tx reversion: receiver is zero address
      */
-    function testCannotRedeemPxGlpForERC20ZeroReceiver() external {
+    function testCannotRedeemPxGlpZeroReceiver() external {
         address token = address(WBTC);
         uint256 amount = 1;
-        uint256 minRedemption = 1;
+        uint256 minOut = 1;
         address invalidReceiver = address(0);
 
         vm.expectRevert(PirexGmxGlp.ZeroAddress.selector);
 
-        pirexGmxGlp.redeemPxGlpForERC20(
-            token,
-            amount,
-            minRedemption,
-            invalidReceiver
-        );
+        pirexGmxGlp.redeemPxGlp(token, amount, minOut, invalidReceiver);
     }
 
     /**
         @notice Test tx reversion: token is not whitelisted by GMX
      */
-    function testCannotRedeemPxGlpForERC20InvalidToken() external {
+    function testCannotRedeemPxGlpInvalidToken() external {
         address invalidToken = address(this);
         uint256 amount = 1;
-        uint256 minRedemption = 1;
+        uint256 minOut = 1;
         address receiver = address(this);
 
         vm.expectRevert(
@@ -1233,41 +1212,30 @@ contract PirexGmxGlpTest is Test, Helper {
             )
         );
 
-        pirexGmxGlp.redeemPxGlpForERC20(
-            invalidToken,
-            amount,
-            minRedemption,
-            receiver
-        );
+        pirexGmxGlp.redeemPxGlp(invalidToken, amount, minOut, receiver);
     }
 
     /**
-        @notice Test tx reversion: minRedemption is greater than actual amount
+        @notice Test tx reversion: minOut is greater than actual amount
      */
-    function testCannotRedeemPxGlpForERC20ExcessiveMinRedemption() external {
+    function testCannotRedeemPxGlpExcessiveMinOut() external {
         address token = address(WBTC);
         uint256 tokenAmount = 1e8;
         address receiver = address(this);
 
         uint256 assets = _depositGlp(tokenAmount, receiver);
-        uint256 invalidMinRedemption = _calculateMinOutAmount(token, assets) *
-            2;
+        uint256 invalidMinOut = _calculateMinOutAmount(token, assets) * 2;
 
         vm.expectRevert(INSUFFICIENT_OUTPUT_ERROR);
 
-        pirexGmxGlp.redeemPxGlpForERC20(
-            token,
-            assets,
-            invalidMinRedemption,
-            receiver
-        );
+        pirexGmxGlp.redeemPxGlp(token, assets, invalidMinOut, receiver);
     }
 
     /**
         @notice Test tx success: redeem pxGLP for whitelisted ERC20 tokens
         @param  tokenAmount  uint256  Token amount
      */
-    function testRedeemPxGlpForERC20(uint256 tokenAmount) external {
+    function testRedeemPxGlp(uint256 tokenAmount) external {
         vm.assume(tokenAmount > 1e5);
         vm.assume(tokenAmount < 100e8);
 
@@ -1286,7 +1254,7 @@ contract PirexGmxGlpTest is Test, Helper {
         assertEq(previousPxGlpUserBalance, previousGlpPirexBalance);
 
         // Calculate the minimum redemption amount then perform the redemption
-        uint256 minRedemption = _calculateMinOutAmount(token, assets);
+        uint256 minOut = _calculateMinOutAmount(token, assets);
 
         vm.expectEmit(true, true, true, false, address(pirexGmxGlp));
 
@@ -1294,21 +1262,21 @@ contract PirexGmxGlpTest is Test, Helper {
             address(this),
             receiver,
             token,
-            minRedemption,
+            minOut,
             tokenAmount,
             0,
             0,
             0
         );
 
-        uint256 redeemed = pirexGmxGlp.redeemPxGlpForERC20(
+        uint256 redeemed = pirexGmxGlp.redeemPxGlp(
             token,
             assets,
-            minRedemption,
+            minOut,
             receiver
         );
 
-        assertGt(redeemed, minRedemption);
+        assertGt(redeemed, minOut);
         assertEq(WBTC.balanceOf(receiver) - previousWBTCBalance, redeemed);
         assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
         assertEq(

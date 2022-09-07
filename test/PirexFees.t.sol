@@ -401,7 +401,7 @@ contract PirexFeesTest is Helper {
         @param  ethAmount       uint96  ETH amount
         @param  balanceDivisor  uint8   Divides balance to vary redemption amount
      */
-    function testDistributeFeesRedeemPxGlpForETH(
+    function testDistributeFeesRedeemPxGlpETH(
         uint24 redemptionFee,
         uint96 ethAmount,
         uint8 balanceDivisor
@@ -497,7 +497,7 @@ contract PirexFeesTest is Helper {
         @param  ethAmount       uint96  ETH amount
         @param  balanceDivisor  uint8   Divides balance to vary redemption amount
      */
-    function testDistributeFeesRedeemPxGlpForERC20(
+    function testDistributeFeesRedeemPxGlp(
         uint24 redemptionFee,
         uint96 ethAmount,
         uint8 balanceDivisor
@@ -558,7 +558,7 @@ contract PirexFeesTest is Helper {
                 treasuryPercent
             );
 
-        pirexGmxGlp.redeemPxGlpForERC20(
+        pirexGmxGlp.redeemPxGlp(
             address(WETH),
             redemptionAmount,
             _calculateMinOutAmount(

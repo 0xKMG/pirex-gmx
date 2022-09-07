@@ -104,7 +104,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         uint256 minGlp,
         uint256 amount,
         uint256 assets,
-        uint256 mintAmount,
+        uint256 postFeeAmount,
         uint256 feeAmount
     );
     event RedeemGlp(
@@ -114,7 +114,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
         uint256 minOut,
         uint256 amount,
         uint256 redemption,
-        uint256 burnAmount,
+        uint256 postFeeAmount,
         uint256 feeAmount
     );
     event InitiateMigration(address newContract);
@@ -376,7 +376,7 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Deposit GLP (minted with ERC20 token) for pxGLP
+        @notice Deposit GLP (minted with ERC20 tokens) for pxGLP
         @param  token        address  GMX-whitelisted token for minting GLP
         @param  tokenAmount  uint256  Whitelisted token amount
         @param  minUsdg      uint256  Minimum USDG purchased and used to mint GLP
@@ -485,43 +485,43 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Redeem back any of the whitelisted ERC20 tokens from pxGLP
-        @param  token          address  GMX-whitelisted token to be redeemed
-        @param  amount         uint256  Amount of pxGLP
-        @param  minRedemption  uint256  Minimum amount of token to be redeemed
-        @param  receiver       address  Recipient of the redeemed token
-        @return redeemed       uint256  Amount of token received
+        @notice Redeem pxGLP for ERC20 tokens (from unstaking and redeeming GLP)
+        @param  token     address  GMX-whitelisted token to be redeemed
+        @param  amount    uint256  pxGLP amount
+        @param  minOut    uint256  Minimum ERC20 output from GLP redemption
+        @param  receiver  address  ERC20 token recipient
+        @return redeemed  uint256  ERC20 tokens from redeeming GLP
      */
-    function redeemPxGlpForERC20(
+    function redeemPxGlp(
         address token,
         uint256 amount,
-        uint256 minRedemption,
+        uint256 minOut,
         address receiver
     ) external whenNotPaused nonReentrant returns (uint256 redeemed) {
         if (token == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
-        if (minRedemption == 0) revert ZeroAmount();
+        if (minOut == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
         if (!gmxVault.whitelistedTokens(token)) revert InvalidToken(token);
 
-        (uint256 burnAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Redemption,
             amount
         );
 
-        // Burn pxGLP before unstaking the underlying GLP
-        pxGlp.burn(receiver, burnAmount);
+        // Burn pxGLP before redeeming the underlying GLP
+        pxGlp.burn(msg.sender, postFeeAmount);
 
         if (feeAmount != 0) {
             ERC20(pxGlp).safeTransferFrom(msg.sender, address(this), feeAmount);
             pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
         }
 
-        // Unstake and redeem the underlying GLP for ERC20 token
-        redeemed = IRewardRouterV2(gmxRewardRouterV2).unstakeAndRedeemGlp(
+        // Unstake and redeem the underlying GLP for ERC20 tokens
+        redeemed = gmxRewardRouterV2.unstakeAndRedeemGlp(
             token,
-            burnAmount,
-            minRedemption,
+            postFeeAmount,
+            minOut,
             receiver
         );
 
@@ -529,10 +529,10 @@ contract PirexGmxGlp is ReentrancyGuard, Owned, Pausable {
             msg.sender,
             receiver,
             token,
-            minRedemption,
+            minOut,
             amount,
             redeemed,
-            burnAmount,
+            postFeeAmount,
             feeAmount
         );
     }
