@@ -268,22 +268,10 @@ contract PirexRewards is OwnableUpgradeable {
         @notice Update global rewards accrual state
         @param  producerToken  ERC20  Rewards-producing token
     */
-    function globalAccrue(ERC20 producerToken) public {
+    function globalAccrue(ERC20 producerToken) external {
         if (address(producerToken) == address(0)) revert ZeroAddress();
 
-        GlobalState storage g = producerTokens[producerToken].globalState;
-        uint256 totalSupply = producerToken.totalSupply();
-
-        // Calculate rewards, the product of seconds elapsed and last supply
-        uint256 rewards = g.rewards +
-            (block.timestamp - g.lastUpdate) *
-            g.lastSupply;
-
-        g.lastUpdate = block.timestamp;
-        g.lastSupply = totalSupply;
-        g.rewards = rewards;
-
-        emit GlobalAccrue(producerToken, block.timestamp, totalSupply, rewards);
+        _globalAccrue(producerTokens[producerToken].globalState, producerToken);
     }
 
     /**
@@ -311,20 +299,35 @@ contract PirexRewards is OwnableUpgradeable {
     }
 
     /**
-        @notice Update reward accrual state
-        @param  producerToken  ERC20    Producer token contract
-        @param  rewardToken    ERC20    Reward token contract
-        @param  rewardAmount   uint256  Reward amount
+        @notice Update global accrual state
+        @param  globalState    GlobalState  Global state of the producer token
+        @param  producerToken  ERC20        Producer token contract
     */
-    function _rewardAccrue(
-        ERC20 producerToken,
-        ERC20 rewardToken,
-        uint256 rewardAmount
-    ) internal {
-        if (address(producerToken) == address(0)) revert ZeroAddress();
-        if (address(rewardToken) == address(0)) revert ZeroAddress();
+    function _globalAccrue(GlobalState storage globalState, ERC20 producerToken)
+        internal
+    {
+        uint256 totalSupply = producerToken.totalSupply();
+        uint256 lastUpdate = globalState.lastUpdate;
+        uint256 lastSupply = globalState.lastSupply;
 
-        producerTokens[producerToken].rewardStates[rewardToken] += rewardAmount;
+        // Calculate rewards, the product of seconds elapsed and last supply
+        // Only calculate and update states when needed
+        if (block.timestamp != lastUpdate || totalSupply != lastSupply) {
+            uint256 rewards = globalState.rewards +
+                (block.timestamp - lastUpdate) *
+                lastSupply;
+
+            globalState.lastUpdate = block.timestamp;
+            globalState.lastSupply = totalSupply;
+            globalState.rewards = rewards;
+
+            emit GlobalAccrue(
+                producerToken,
+                block.timestamp,
+                totalSupply,
+                rewards
+            );
+        }
     }
 
     /**
@@ -351,10 +354,12 @@ contract PirexRewards is OwnableUpgradeable {
             uint256 r = rewardAmounts[i];
 
             // Update global reward accrual state and associate with the update of reward state
-            globalAccrue(p);
+            ProducerToken storage producerState = producerTokens[p];
+
+            _globalAccrue(producerState.globalState, p);
 
             if (r != 0) {
-                _rewardAccrue(p, rewardTokens[i], r);
+                producerState.rewardStates[rewardTokens[i]] += r;
             }
         }
 
@@ -363,8 +368,8 @@ contract PirexRewards is OwnableUpgradeable {
 
     /**
         @notice Claim rewards
-        @param  producerToken   ERC20    Producer token contract
-        @param  user            address  User
+        @param  producerToken  ERC20    Producer token contract
+        @param  user           address  User
     */
     function claim(ERC20 producerToken, address user) external {
         if (address(producerToken) == address(0)) revert ZeroAddress();
@@ -399,7 +404,11 @@ contract PirexRewards is OwnableUpgradeable {
                 // Update reward state (i.e. amount) to reflect reward tokens transferred out
                 p.rewardStates[rewardToken] -= amount;
 
-                producer.claimUserReward(recipient, address(rewardToken), amount);
+                producer.claimUserReward(
+                    recipient,
+                    address(rewardToken),
+                    amount
+                );
             }
         }
     }
