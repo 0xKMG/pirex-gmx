@@ -578,6 +578,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
             uint256[] memory rewardAmounts
         )
     {
+        // Assign return values used by the PirexRewards contract
         producerTokens = new ERC20[](4);
         rewardTokens = new ERC20[](4);
         rewardAmounts = new uint256[](4);
@@ -590,18 +591,20 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         rewardTokens[2] = ERC20(pxGmx); // esGMX rewards distributed as pxGMX
         rewardTokens[3] = ERC20(pxGmx);
 
+        // Get pre-reward claim reward token balances to calculate actual amount received
         uint256 wethBeforeClaim = WETH.balanceOf(address(this));
-        uint256 gmxWethRewards = calculateRewards(true, true);
-        uint256 glpWethRewards = calculateRewards(true, false);
-
         uint256 esGmxBeforeClaim = stakedGmx.depositBalances(
             address(this),
             address(ES_GMX)
         );
+
+        // Calculate the unclaimed reward token amounts produced for each token type
+        uint256 gmxWethRewards = calculateRewards(true, true);
+        uint256 glpWethRewards = calculateRewards(true, false);
         uint256 gmxEsGmxRewards = calculateRewards(false, true);
         uint256 glpEsGmxRewards = calculateRewards(false, false);
 
-        // Claim and stake claimable esGMX + MP, while also claim WETH rewards
+        // Claim and stake esGMX + MP, and claim WETH
         IRewardRouterV2(gmxRewardRouterV2).handleRewards(
             false,
             false,
