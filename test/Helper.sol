@@ -97,7 +97,7 @@ contract Helper is Test, HelperEvents, HelperState {
         pirexRewards.initialize();
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
-        pirexFees = new PirexFees(testAccounts[0], testAccounts[1]);
+        pirexFees = new PirexFees(testAccounts[1], testAccounts[2]);
         pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),

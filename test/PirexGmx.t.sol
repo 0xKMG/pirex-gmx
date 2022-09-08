@@ -31,6 +31,26 @@ contract PirexGmxTest is Test, Helper {
         assertTrue(unauthorizedCaller != pirexGmx.owner());
     }
 
+    /**
+        @notice Pause and verify pause state for contract
+     */
+    function _pauseContract() internal {
+        pirexGmx.setPauseState(true);
+
+        assertEq(true, pirexGmx.paused());
+    }
+
+    /**
+        @notice Set fee and verify contract state
+        @param  f    enum     Fee type
+        @param  fee  uint256  Fee
+     */
+    function _setFee(PirexGmx.Fees f, uint256 fee) internal {
+        pirexGmx.setFee(f, fee);
+
+        assertEq(fee, pirexGmx.fees(f));
+    }
+
     /*//////////////////////////////////////////////////////////////
                         setPirexRewards TESTS
     //////////////////////////////////////////////////////////////*/
@@ -125,7 +145,7 @@ contract PirexGmxTest is Test, Helper {
         uint24 rewardFee
     ) external {
         vm.assume(depositFee != 0);
-        vm.assume(depositFee < feeMax);
+        vm.assume(depositFee <= feeMax);
         vm.assume(redemptionFee != 0);
         vm.assume(redemptionFee < feeMax);
         vm.assume(rewardFee != 0);
@@ -360,9 +380,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: contract is paused
      */
     function testCannotDepositGmxPaused() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
+        _pauseContract();
 
         uint256 assets = 1;
         address receiver = address(this);
@@ -430,34 +448,40 @@ contract PirexGmxTest is Test, Helper {
     ) external {
         vm.assume(assets != 0);
         vm.assume(mintAmount >= assets);
-        vm.assume(depositFee < feeMax);
-
-        address caller = address(this);
-        address receiver = address(this);
+        vm.assume(depositFee <= feeMax);
 
         _mintGmx(mintAmount);
-        pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
+        _setFee(PirexGmx.Fees.Deposit, depositFee);
+        GMX.approve(address(pirexGmx), assets);
 
+        address caller = address(this);
+        address receiver = testAccounts[0];
         (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
             PirexGmx.Fees.Deposit,
             assets
         );
-        uint256 preDepositGmxBalancePirexGmx = REWARD_TRACKER_GMX.balanceOf(
-            address(pirexGmx)
+        uint256 expectedPreDepositGmxBalancePirexGmx = REWARD_TRACKER_GMX
+            .balanceOf(address(pirexGmx));
+        uint256 expectedPreDepositGmxBalanceCaller = mintAmount;
+        uint256 expectedPreDepositPxGmxBalanceReceiver = pxGmx.balanceOf(
+            receiver
         );
-        uint256 preDepositGmxBalanceCaller = GMX.balanceOf(caller);
-        uint256 preDepositPxGmxBalanceReceiver = pxGmx.balanceOf(receiver);
 
-        assertEq(0, preDepositGmxBalancePirexGmx);
-        assertEq(mintAmount, preDepositGmxBalanceCaller);
-        assertEq(0, preDepositPxGmxBalanceReceiver);
+        assertFalse(caller == receiver);
+        assertEq(
+            expectedPreDepositGmxBalancePirexGmx,
+            REWARD_TRACKER_GMX.balanceOf(address(pirexGmx))
+        );
+        assertEq(expectedPreDepositGmxBalanceCaller, GMX.balanceOf(caller));
+        assertEq(
+            expectedPreDepositPxGmxBalanceReceiver,
+            pxGmx.balanceOf(receiver)
+        );
 
         uint256 expectedPostDepositGmxBalancePirexGmx = assets;
-        uint256 expectedPostDepositGmxBalanceCaller = preDepositGmxBalanceCaller -
+        uint256 expectedPostDepositGmxBalanceCaller = expectedPreDepositGmxBalanceCaller -
                 assets;
         uint256 expectedPostDepositPxGmxBalanceReceiver = postFeeAmount;
-
-        GMX.approve(address(pirexGmx), assets);
 
         vm.expectEmit(true, true, false, true, address(pirexGmx));
 
@@ -490,9 +514,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: contract is paused
      */
     function testCannotDepositGlpETHPaused() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
+        _pauseContract();
 
         uint256 etherAmount = 1;
         uint256 minUsdg = 1;
@@ -500,7 +522,6 @@ contract PirexGmxTest is Test, Helper {
         address receiver = address(this);
 
         vm.deal(address(this), etherAmount);
-
         vm.expectRevert(PAUSED_ERROR);
 
         pirexGmx.depositGlpETH{value: etherAmount}(minUsdg, minGlp, receiver);
@@ -509,7 +530,7 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: msg.value is zero
      */
-    function testCannotDepositGlpETHZeroValue() external {
+    function testCannotDepositGlpETHMsgValueZeroAmount() external {
         uint256 invalidEtherAmount = 0;
         uint256 minUsdg = 1;
         uint256 minGlp = 1;
@@ -527,7 +548,7 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: minUsdg is zero
      */
-    function testCannotDepositGlpETHZeroMinUsdg() external {
+    function testCannotDepositGlpETHMinUsdgZeroAmount() external {
         uint256 etherAmount = 1 ether;
         uint256 invalidMinUsdg = 0;
         uint256 minGlp = 1;
@@ -546,7 +567,7 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: minGlp is zero
      */
-    function testCannotDepositGlpETHZeroMinGlp() external {
+    function testCannotDepositGlpETHMinGlpZeroAmount() external {
         uint256 etherAmount = 1 ether;
         uint256 minUsdg = 1;
         uint256 invalidMinGlp = 0;
@@ -565,7 +586,7 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: receiver is zero address
      */
-    function testCannotDepositGlpETHZeroReceiver() external {
+    function testCannotDepositGlpETHReceiverZeroAddress() external {
         uint256 etherAmount = 1 ether;
         uint256 minUsdg = 1;
         uint256 minGlp = 1;
@@ -582,9 +603,9 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test tx reversion: minGlp is greater than actual GLP amount
+        @notice Test tx reversion: minGlp is greater than output
      */
-    function testCannotDepositGlpETHExcessiveMinGlp() external {
+    function testCannotDepositGlpETHMinGlpInsufficientGlp() external {
         uint256 etherAmount = 1 ether;
         uint256 minUsdg = 1;
         uint256 invalidMinGlp = _calculateMinGlpAmount(
@@ -606,25 +627,35 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx success: deposit for pxGLP with ETH
-        @param  etherAmount  uint256  Amount of ether in wei units
+        @param  etherAmount  uint80  Amount of ether in wei units
+        @param  depositFee   uint24  Deposit fee
      */
-    function testDepositGlpETH(uint256 etherAmount) external {
-        vm.assume(etherAmount > 0.001 ether);
-        vm.assume(etherAmount < 1_000 ether);
+    function testDepositGlpETH(uint80 etherAmount, uint24 depositFee) external {
+        vm.assume(etherAmount > 1e15);
+        vm.assume(etherAmount < 1e22);
+        vm.assume(depositFee <= feeMax);
         vm.deal(address(this), etherAmount);
 
+        _setFee(PirexGmx.Fees.Deposit, depositFee);
+
+        address caller = address(this);
         uint256 minUsdg = 1;
         uint256 minGlp = _calculateMinGlpAmount(address(0), etherAmount, 18);
-        address receiver = address(this);
-        uint256 premintETHBalance = address(this).balance;
-        uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
-        uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
-            address(pirexGmx)
-        );
+        address receiver = testAccounts[0];
+        uint256 expectedPreDepositGlpBalancePirexGmx = 0;
+        uint256 expectedPreDepositETHBalanceCaller = etherAmount;
+        uint256 expectedPreDepositPxGlpBalanceReceiver = 0;
 
-        assertEq(premintETHBalance, etherAmount);
-        assertEq(premintPxGlpUserBalance, 0);
-        assertEq(premintGlpPirexBalance, 0);
+        assertFalse(caller == receiver);
+        assertEq(
+            expectedPreDepositGlpBalancePirexGmx,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+        );
+        assertEq(expectedPreDepositETHBalanceCaller, caller.balance);
+        assertEq(
+            expectedPreDepositPxGlpBalanceReceiver,
+            pxGlp.balanceOf(receiver)
+        );
 
         vm.expectEmit(true, true, true, false, address(pirexGmx));
 
@@ -646,18 +677,23 @@ contract PirexGmxTest is Test, Helper {
             minGlp,
             receiver
         );
-        uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
-            premintPxGlpUserBalance;
-        uint256 glpReceivedByPirex = FEE_STAKED_GLP.balanceOf(
-            address(pirexGmx)
-        ) - premintGlpPirexBalance;
+        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
+            PirexGmx.Fees.Deposit,
+            assets
+        );
+        uint256 expectedPostDepositGlpBalancePirexGmx = assets;
+        uint256 expectedPostDepositETHBalanceCaller = 0;
+        uint256 expectedPostDepositPxGlpBalanceReceiver = postFeeAmount;
 
-        assertEq(address(this).balance, premintETHBalance - etherAmount);
-        assertGt(pxGlpReceivedByUser, 0);
-        assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
-        assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minGlp);
-        assertGe(glpReceivedByPirex, minGlp);
+        assertEq(
+            expectedPostDepositGlpBalancePirexGmx,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+        );
+        assertEq(expectedPostDepositETHBalanceCaller, caller.balance);
+        assertEq(
+            expectedPostDepositPxGlpBalanceReceiver,
+            pxGlp.balanceOf(receiver)
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -668,9 +704,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: contract is paused
      */
     function testCannotDepositGlpTokenPaused() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
+        _pauseContract();
 
         address token = address(WBTC);
         uint256 tokenAmount = 1;
@@ -918,9 +952,7 @@ contract PirexGmxTest is Test, Helper {
         uint256 minOut = _calculateMinOutAmount(address(WETH), assets);
 
         // Pause after deposit
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
+        _pauseContract();
 
         vm.expectRevert(PAUSED_ERROR);
 
@@ -1046,9 +1078,7 @@ contract PirexGmxTest is Test, Helper {
         uint256 minOut = _calculateMinOutAmount(token, assets);
 
         // Pause after deposit
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
+        _pauseContract();
 
         vm.expectRevert(PAUSED_ERROR);
 
