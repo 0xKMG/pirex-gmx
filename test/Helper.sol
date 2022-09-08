@@ -544,4 +544,20 @@ contract Helper is Test, HelperEvents, HelperState {
                         account
                     ))) / precision);
     }
+
+    /**
+        @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
+        @param  f           Fees     Fee type
+        @param  amount      uint256  GMX/GLP/WETH amount
+        @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
+        @return feeAmount   uint256  Fee amount
+     */
+    function _deriveAssetAmounts(PirexGmx.Fees f, uint256 amount)
+        internal
+        view
+        returns (uint256 userAmount, uint256 feeAmount)
+    {
+        feeAmount = (amount * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
+        userAmount = amount - feeAmount;
+    }
 }

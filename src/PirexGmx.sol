@@ -268,7 +268,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
             // Approve the new stakedGmx contract address allowance to the max
             GMX.safeApprove(contractAddress, type(uint256).max);
-
             return;
         }
 
