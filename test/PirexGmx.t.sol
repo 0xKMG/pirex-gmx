@@ -35,13 +35,15 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetPirexRewardsUnauthorized() external {
+        address unauthorizedCaller = testAccounts[0];
+
         assertEq(address(pirexRewards), pirexGmx.pirexRewards());
+        assertTrue(unauthorizedCaller != pirexGmx.owner());
 
         address _pirexRewards = address(this);
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
-
-        vm.prank(testAccounts[0]);
+        vm.prank(unauthorizedCaller);
 
         pirexGmx.setPirexRewards(_pirexRewards);
     }
@@ -63,11 +65,11 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx success: set pirexRewards
      */
     function testSetPirexRewards() external {
-        address pirexRewardsBefore = address(pirexGmx.pirexRewards());
+        address currentPirexRewards = address(pirexRewards);
         address _pirexRewards = address(this);
 
-        assertEq(address(pirexRewards), pirexGmx.pirexRewards());
-        assertTrue(pirexRewardsBefore != _pirexRewards);
+        assertEq(currentPirexRewards, address(pirexGmx.pirexRewards()));
+        assertTrue(currentPirexRewards != _pirexRewards);
 
         vm.expectEmit(false, false, false, true, address(pirexGmx));
 
@@ -79,71 +81,14 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        setDelegateRegistry TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: caller is unauthorized
-     */
-    function testCannotSetDelegateRegistryUnauthorized() external {
-        assertEq(
-            address(delegateRegistry),
-            address(pirexGmx.delegateRegistry())
-        );
-
-        address _delegateRegistry = address(this);
-
-        vm.expectRevert(UNAUTHORIZED_ERROR);
-
-        vm.prank(testAccounts[0]);
-
-        pirexGmx.setDelegateRegistry(_delegateRegistry);
-    }
-
-    /**
-        @notice Test tx reversion: _delegateRegistry is zero address
-     */
-    function testCannotSetDelegateRegistryZeroAddress() external {
-        assertEq(
-            address(delegateRegistry),
-            address(pirexGmx.delegateRegistry())
-        );
-
-        address invalidDelegateRegistry = address(0);
-
-        vm.expectRevert(PirexGmx.ZeroAddress.selector);
-
-        pirexGmx.setDelegateRegistry(invalidDelegateRegistry);
-    }
-
-    /**
-        @notice Test tx success: set delegateRegistry
-     */
-    function testSetDelegateRegistry() external {
-        address delegateRegistryBefore = address(pirexGmx.delegateRegistry());
-        address _delegateRegistry = address(this);
-
-        assertEq(address(delegateRegistry), delegateRegistryBefore);
-        assertFalse(delegateRegistryBefore == _delegateRegistry);
-
-        vm.expectEmit(false, false, false, true, address(pirexGmx));
-
-        emit SetDelegateRegistry(_delegateRegistry);
-
-        pirexGmx.setDelegateRegistry(_delegateRegistry);
-
-        assertEq(address(pirexGmx.delegateRegistry()), _delegateRegistry);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        setFee TESTS
+                            setFee TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetFeeUnauthorized() external {
-        _assertDefaultFeeValues();
+        address unauthorizedCaller = testAccounts[0];
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
 
@@ -1768,6 +1713,63 @@ contract PirexGmxTest is Test, Helper {
             oldStakedGmxBalance + oldEsGmxClaimable + oldMpBalance
         );
         assertEq(FEE_STAKED_GLP.balanceOf(newContract), oldStakedGlpBalance);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setDelegateRegistry TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotSetDelegateRegistryUnauthorized() external {
+        assertEq(
+            address(delegateRegistry),
+            address(pirexGmx.delegateRegistry())
+        );
+
+        address _delegateRegistry = address(this);
+
+        vm.expectRevert(UNAUTHORIZED_ERROR);
+
+        vm.prank(testAccounts[0]);
+
+        pirexGmx.setDelegateRegistry(_delegateRegistry);
+    }
+
+    /**
+        @notice Test tx reversion: _delegateRegistry is zero address
+     */
+    function testCannotSetDelegateRegistryZeroAddress() external {
+        assertEq(
+            address(delegateRegistry),
+            address(pirexGmx.delegateRegistry())
+        );
+
+        address invalidDelegateRegistry = address(0);
+
+        vm.expectRevert(PirexGmx.ZeroAddress.selector);
+
+        pirexGmx.setDelegateRegistry(invalidDelegateRegistry);
+    }
+
+    /**
+        @notice Test tx success: set delegateRegistry
+     */
+    function testSetDelegateRegistry() external {
+        address delegateRegistryBefore = address(pirexGmx.delegateRegistry());
+        address _delegateRegistry = address(this);
+
+        assertEq(address(delegateRegistry), delegateRegistryBefore);
+        assertFalse(delegateRegistryBefore == _delegateRegistry);
+
+        vm.expectEmit(false, false, false, true, address(pirexGmx));
+
+        emit SetDelegateRegistry(_delegateRegistry);
+
+        pirexGmx.setDelegateRegistry(_delegateRegistry);
+
+        assertEq(address(pirexGmx.delegateRegistry()), _delegateRegistry);
     }
 
     /*//////////////////////////////////////////////////////////////
