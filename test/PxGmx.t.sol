@@ -2,7 +2,7 @@
 pragma solidity 0.8.13;
 
 import {PxGmx} from "src/PxGmx.sol";
-import {Helper} from "./Helper.t.sol";
+import {Helper} from "./Helper.sol";
 
 contract PxGmxTest is Helper {
     /*//////////////////////////////////////////////////////////////

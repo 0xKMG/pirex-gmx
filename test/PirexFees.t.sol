@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexFees} from "src/PirexFees.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
-import {Helper} from "./Helper.t.sol";
+import {Helper} from "./Helper.sol";
 
 contract PirexFeesTest is Helper {
     address internal immutable DEFAULT_TREASURY = testAccounts[0];

@@ -2,7 +2,7 @@
 pragma solidity 0.8.13;
 
 import {PxGlp} from "src/PxGlp.sol";
-import {Helper} from "./Helper.t.sol";
+import {Helper} from "./Helper.sol";
 
 contract PxGlpTest is Helper {
     /*//////////////////////////////////////////////////////////////

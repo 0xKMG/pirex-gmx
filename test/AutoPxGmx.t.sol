@@ -4,7 +4,7 @@ pragma solidity 0.8.13;
 import "forge-std/Test.sol";
 
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
-import {Helper} from "./Helper.t.sol";
+import {Helper} from "./Helper.sol";
 
 contract AutoPxGmxTest is Helper {
     event WithdrawalPenaltyUpdated(uint256 penalty);

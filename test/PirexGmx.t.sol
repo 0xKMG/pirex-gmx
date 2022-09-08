@@ -7,7 +7,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {IWETH} from "src/interfaces/IWETH.sol";
-import {Helper} from "./Helper.t.sol";
+import {Helper} from "./Helper.sol";
 
 contract PirexGmxTest is Test, Helper {
     bytes32 internal constant DEFAULT_DELEGATION_SPACE = bytes32("gmx.eth");
@@ -17,22 +17,6 @@ contract PirexGmxTest is Test, Helper {
         "GlpManager: insufficient output";
     bytes internal constant INSUFFICIENT_GLP_OUTPUT_ERROR =
         "GlpManager: insufficient GLP output";
-
-    event InitiateMigration(address newContract);
-    event CompleteMigration(address oldContract);
-    event ClaimRewards(
-        uint256 wethRewards,
-        uint256 esGmxRewards,
-        uint256 gmxWethRewards,
-        uint256 glpWethRewards,
-        uint256 gmxEsGmxRewards,
-        uint256 glpEsGmxRewards
-    );
-    event SetContract(PirexGmx.Contracts indexed c, address contractAddress);
-    event SetDelegateRegistry(address delegateRegistry);
-    event SetDelegationSpace(string delegationSpace, bool shouldClear);
-    event SetVoteDelegate(address voteDelegate);
-    event ClearVoteDelegate();
 
     /**
         @notice Assert the default values for all fee types

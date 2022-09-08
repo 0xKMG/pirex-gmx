@@ -23,8 +23,9 @@ import {IVault} from "src/interfaces/IVault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
+import {HelperEvents} from "./HelperEvents.sol";
 
-contract Helper is Test {
+contract Helper is Test, HelperEvents {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     RewardTracker public constant REWARD_TRACKER_GMX =
@@ -86,39 +87,6 @@ contract Helper is Test {
     bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
     bytes internal constant NOT_OWNER_ERROR =
         "Ownable: caller is not the owner";
-
-    event SetPirexRewards(address pirexRewards);
-    event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
-    event SetTreasuryPercent(uint8 _treasuryPercent);
-    event DistributeFees(address token, uint256 amount);
-    event DepositGmx(
-        address indexed caller,
-        address indexed receiver,
-        uint256 assets,
-        uint256 postFeeAmount,
-        uint256 feeAmount
-    );
-    event DepositGlp(
-        address indexed caller,
-        address indexed receiver,
-        address indexed token,
-        uint256 tokenAmount,
-        uint256 minUsdg,
-        uint256 minGlp,
-        uint256 assets,
-        uint256 postFeeAmount,
-        uint256 feeAmount
-    );
-    event RedeemGlp(
-        address indexed caller,
-        address indexed receiver,
-        address indexed token,
-        uint256 assets,
-        uint256 minOut,
-        uint256 redemption,
-        uint256 postFeeAmount,
-        uint256 feeAmount
-    );
 
     // For testing ETH transfers
     receive() external payable {}

@@ -81,7 +81,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     mapping(Fees => uint256) public fees;
 
     event SetPirexRewards(address pirexRewards);
-    event SetDelegateRegistry(address delegateRegistry);
     event SetFee(Fees indexed f, uint256 fee);
     event SetContract(Contracts indexed c, address contractAddress);
     event DepositGmx(
@@ -112,8 +111,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         uint256 postFeeAmount,
         uint256 feeAmount
     );
-    event InitiateMigration(address newContract);
-    event CompleteMigration(address oldContract);
     event ClaimRewards(
         uint256 wethRewards,
         uint256 esGmxRewards,
@@ -122,6 +119,16 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         uint256 gmxEsGmxRewards,
         uint256 glpEsGmxRewards
     );
+    event ClaimUserReward(
+        address indexed receiver,
+        address indexed token,
+        uint256 amount,
+        uint256 rewardAmount,
+        uint256 feeAmount
+    );
+    event InitiateMigration(address newContract);
+    event CompleteMigration(address oldContract);
+    event SetDelegateRegistry(address delegateRegistry);
     event SetDelegationSpace(string delegationSpace, bool shouldClear);
     event SetVoteDelegate(address voteDelegate);
     event ClearVoteDelegate();
@@ -650,7 +657,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (receiver == address(0)) revert ZeroAddress();
         if (amount == 0) return;
 
-        (uint256 rewardAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Reward,
             amount
         );
@@ -658,9 +665,9 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
         if (token == pxGmxAddress) {
             // Mint pxGMX for the user - the analog for esGMX rewards
-            pxGmx.mint(receiver, rewardAmount);
+            pxGmx.mint(receiver, postFeeAmount);
         } else if (token == address(WETH)) {
-            WETH.safeTransfer(receiver, rewardAmount);
+            WETH.safeTransfer(receiver, postFeeAmount);
         }
 
         if (feeAmount != 0) {
@@ -669,6 +676,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
             pirexFees.distributeFees(address(this), token, feeAmount);
         }
+
+        emit ClaimUserReward(receiver, token, amount, postFeeAmount, feeAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
