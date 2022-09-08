@@ -19,12 +19,16 @@ contract PirexGmxTest is Test, Helper {
         "GlpManager: insufficient GLP output";
 
     /**
-        @notice Assert the default values for all fee types
+        @notice Get an address that is unauthorized (i.e. not owner)
+        @return unauthorizedCaller  address  Unauthorized caller
      */
-    function _assertDefaultFeeValues() internal {
-        for (uint256 i; i < feeTypes.length; ++i) {
-            assertEq(0, pirexGmx.fees(feeTypes[i]));
-        }
+    function _getUnauthorizedCaller()
+        internal
+        returns (address unauthorizedCaller)
+    {
+        unauthorizedCaller = testAccounts[0];
+
+        assertTrue(unauthorizedCaller != pirexGmx.owner());
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -35,10 +39,9 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetPirexRewardsUnauthorized() external {
-        address unauthorizedCaller = testAccounts[0];
+        address unauthorizedCaller = _getUnauthorizedCaller();
 
         assertEq(address(pirexRewards), pirexGmx.pirexRewards());
-        assertTrue(unauthorizedCaller != pirexGmx.owner());
 
         address _pirexRewards = address(this);
 
@@ -88,55 +91,75 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetFeeUnauthorized() external {
-        address unauthorizedCaller = testAccounts[0];
+        address unauthorizedCaller = _getUnauthorizedCaller();
+        uint256 fee = 1;
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
+        vm.prank(unauthorizedCaller);
 
-        vm.prank(testAccounts[0]);
-
-        pirexGmx.setFee(PirexGmx.Fees.Deposit, 1);
+        pirexGmx.setFee(PirexGmx.Fees.Deposit, fee);
     }
 
     /**
-        @notice Test tx reversion: fee amount exceeds the maximum
+        @notice Test tx reversion: fee is invalid
      */
-    function testCannotSetFeeExceedsMax() external {
-        _assertDefaultFeeValues();
+    function testCannotSetFeeInvalidFee() external {
+        uint256 invalidFee = feeMax + 1;
 
         for (uint256 i; i < feeTypes.length; ++i) {
             vm.expectRevert(PirexGmx.InvalidFee.selector);
 
-            pirexGmx.setFee(feeTypes[i], feeMax + 1);
+            pirexGmx.setFee(feeTypes[i], invalidFee);
         }
     }
 
     /**
         @notice Test tx success: set fees for each type
-        @param  deposit     uint256  Deposit fee
-        @param  redemption  uint256  Redemption fee
-        @param  reward      uint256  Reward fee
+        @param  depositFee     uint24  Deposit fee
+        @param  redemptionFee  uint24  Redemption fee
+        @param  rewardFee      uint24  Reward fee
      */
     function testSetFee(
-        uint256 deposit,
-        uint256 redemption,
-        uint256 reward
+        uint24 depositFee,
+        uint24 redemptionFee,
+        uint24 rewardFee
     ) external {
-        vm.assume(deposit != 0);
-        vm.assume(deposit < feeMax);
-        vm.assume(redemption != 0);
-        vm.assume(redemption < feeMax);
-        vm.assume(reward != 0);
-        vm.assume(reward < feeMax);
+        vm.assume(depositFee != 0);
+        vm.assume(depositFee < feeMax);
+        vm.assume(redemptionFee != 0);
+        vm.assume(redemptionFee < feeMax);
+        vm.assume(rewardFee != 0);
+        vm.assume(rewardFee < feeMax);
 
-        _assertDefaultFeeValues();
+        PirexGmx.Fees depositFeeType = feeTypes[0];
+        PirexGmx.Fees redemptionFeeType = feeTypes[1];
+        PirexGmx.Fees rewardFeeType = feeTypes[2];
 
-        pirexGmx.setFee(PirexGmx.Fees.Deposit, deposit);
-        pirexGmx.setFee(PirexGmx.Fees.Redemption, redemption);
-        pirexGmx.setFee(PirexGmx.Fees.Reward, reward);
+        assertEq(0, pirexGmx.fees(depositFeeType));
+        assertEq(0, pirexGmx.fees(redemptionFeeType));
+        assertEq(0, pirexGmx.fees(rewardFeeType));
 
-        assertEq(deposit, pirexGmx.fees(feeTypes[0]));
-        assertEq(redemption, pirexGmx.fees(feeTypes[1]));
-        assertEq(reward, pirexGmx.fees(feeTypes[2]));
+        vm.expectEmit(true, false, false, true, address(pirexGmx));
+
+        emit SetFee(depositFeeType, depositFee);
+
+        pirexGmx.setFee(depositFeeType, depositFee);
+
+        vm.expectEmit(true, false, false, true, address(pirexGmx));
+
+        emit SetFee(redemptionFeeType, redemptionFee);
+
+        pirexGmx.setFee(redemptionFeeType, redemptionFee);
+
+        vm.expectEmit(true, false, false, true, address(pirexGmx));
+
+        emit SetFee(rewardFeeType, rewardFee);
+
+        pirexGmx.setFee(rewardFeeType, rewardFee);
+
+        assertEq(depositFee, pirexGmx.fees(depositFeeType));
+        assertEq(redemptionFee, pirexGmx.fees(redemptionFeeType));
+        assertEq(rewardFee, pirexGmx.fees(rewardFeeType));
     }
 
     /*//////////////////////////////////////////////////////////////

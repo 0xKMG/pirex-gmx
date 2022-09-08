@@ -24,8 +24,9 @@ import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 import {HelperEvents} from "./HelperEvents.sol";
+import {HelperState} from "./HelperState.sol";
 
-contract Helper is Test, HelperEvents {
+contract Helper is Test, HelperEvents, HelperState {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     RewardTracker public constant REWARD_TRACKER_GMX =
@@ -66,6 +67,9 @@ contract Helper is Test, HelperEvents {
     uint256 internal constant PRECISION = 1e30;
     uint256 internal constant EXPANDED_GLP_DECIMALS = 18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
+    bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
+    bytes internal constant NOT_OWNER_ERROR =
+        "Ownable: caller is not the owner";
 
     PirexGmx internal immutable pirexGmx;
     PxGmx internal immutable pxGmx;
@@ -74,19 +78,12 @@ contract Helper is Test, HelperEvents {
     PirexRewards internal immutable pirexRewards;
     PirexFees internal immutable pirexFees;
     DelegateRegistry internal immutable delegateRegistry;
-    uint256 internal immutable feeMax;
 
     address[3] internal testAccounts = [
         0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
         0xE36Ea790bc9d7AB70C55260C66D52b1eca985f84,
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
-
-    PirexGmx.Fees[3] internal feeTypes;
-
-    bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
-    bytes internal constant NOT_OWNER_ERROR =
-        "Ownable: caller is not the owner";
 
     // For testing ETH transfers
     receive() external payable {}
