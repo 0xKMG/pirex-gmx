@@ -11,6 +11,10 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
     @notice Pirex modifications
             - Add beforeDeposit method
             - Call beforeDeposit in deposit and mint methods
+            - Add afterWithdraw method
+            - Call afterWithdraw in redeem and withdraw methods
+            - Add afterTransfer method
+            - Call afterTransfer in transfer and transferFrom methods
  */
 abstract contract PirexERC4626 is ERC20 {
     using SafeTransferLib for ERC20;
@@ -70,7 +74,7 @@ abstract contract PirexERC4626 is ERC20 {
 
         emit Deposit(msg.sender, receiver, assets, shares);
 
-        afterDeposit(assets, shares);
+        afterDeposit(receiver, assets, shares);
     }
 
     function mint(uint256 shares, address receiver)
@@ -89,7 +93,7 @@ abstract contract PirexERC4626 is ERC20 {
 
         emit Deposit(msg.sender, receiver, assets, shares);
 
-        afterDeposit(assets, shares);
+        afterDeposit(receiver, assets, shares);
     }
 
     function withdraw(
@@ -113,6 +117,8 @@ abstract contract PirexERC4626 is ERC20 {
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
         asset.safeTransfer(receiver, assets);
+
+        afterWithdraw(owner, assets, shares);
     }
 
     function redeem(
@@ -137,6 +143,8 @@ abstract contract PirexERC4626 is ERC20 {
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
         asset.safeTransfer(receiver, assets);
+
+        afterWithdraw(owner, assets, shares);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -232,9 +240,11 @@ abstract contract PirexERC4626 is ERC20 {
         override
         returns (bool)
     {
-        beforeTransfer(msg.sender, to, amount);
+        bool status = ERC20.transfer(to, amount);
 
-        return ERC20.transfer(to, amount);
+        afterTransfer(msg.sender, to, amount);
+
+        return status;
     }
 
     /**
@@ -248,9 +258,11 @@ abstract contract PirexERC4626 is ERC20 {
         address to,
         uint256 amount
     ) public override returns (bool) {
-        beforeTransfer(from, to, amount);
+        bool status = ERC20.transferFrom(from, to, amount);
 
-        return ERC20.transferFrom(from, to, amount);
+        afterTransfer(from, to, amount);
+
+        return status;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -269,9 +281,19 @@ abstract contract PirexERC4626 is ERC20 {
         uint256 shares
     ) internal virtual {}
 
-    function afterDeposit(uint256 assets, uint256 shares) internal virtual {}
+    function afterWithdraw(
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual {}
 
-    function beforeTransfer(
+    function afterDeposit(
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual {}
+
+    function afterTransfer(
         address owner,
         address receiver,
         uint256 amount

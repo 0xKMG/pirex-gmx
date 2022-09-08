@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {Owned} from "solmate/auth/Owned.sol";
 import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
+import {PxGmxReward} from "src/vaults/PxGmxReward.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
-contract AutoPxGlp is Owned, PirexERC4626 {
+contract AutoPxGlp is PirexERC4626, PxGmxReward {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
@@ -22,17 +22,11 @@ contract AutoPxGlp is Owned, PirexERC4626 {
     uint256 public constant MAX_COMPOUND_INCENTIVE = 5000;
     uint256 public constant EXPANDED_DECIMALS = 1e30;
 
-    ERC20 public immutable extraReward;
-
     uint256 public withdrawalPenalty = 300;
     uint256 public platformFee = 1000;
     uint256 public compoundIncentive = 1000;
     address public platform;
     address public rewardsModule;
-
-    uint256 public extraRewardPerToken;
-    mapping(address => uint256) public pendingExtraRewards;
-    mapping(address => uint256) public userExtraRewardPerToken;
 
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
@@ -45,45 +39,37 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
         uint256 pxGlpAmountOut,
-        uint256 totalFee,
-        uint256 totalExtraFee,
-        uint256 incentive,
-        uint256 extraIncentive
-    );
-    event ExtraRewardClaimed(
-        address indexed account,
-        address receiver,
-        uint256 amount
+        uint256 totalPxGlpFee,
+        uint256 totalPxGmxFee,
+        uint256 pxGlpIncentive,
+        uint256 pxGmxIncentive
     );
 
     error ZeroAmount();
-    error ZeroAddress();
     error InvalidAssetParam();
     error ExceedsMax();
     error InvalidParam();
 
     /**
-        @param  _asset         address  Asset address (vault asset, e.g. pxGLP)
-        @param  _extraReward   address  Extra reward address (secondary reward, e.g. pxGMX)
-        @param  _name          string   Asset name (e.g. Autocompounding pxGLP)
-        @param  _symbol        string   Asset symbol (e.g. apxGLP)
-        @param  _platform      address  Platform address (e.g. PirexGmxGlp)
+        @param  _asset     address  Asset address (vault asset, e.g. pxGLP)
+        @param  _pxGmx     address  pxGMX address (as secondary reward)
+        @param  _name      string   Asset name (e.g. Autocompounding pxGLP)
+        @param  _symbol    string   Asset symbol (e.g. apxGLP)
+        @param  _platform  address  Platform address (e.g. PirexGmxGlp)
      */
     constructor(
         address _asset,
-        address _extraReward,
+        address _pxGmx,
         string memory _name,
         string memory _symbol,
         address _platform
-    ) Owned(msg.sender) PirexERC4626(ERC20(_asset), _name, _symbol) {
+    ) PxGmxReward(_pxGmx) PirexERC4626(ERC20(_asset), _name, _symbol) {
         if (_asset == address(0)) revert ZeroAddress();
-        if (_extraReward == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
         if (bytes(_symbol).length == 0) revert InvalidAssetParam();
         if (_platform == address(0)) revert ZeroAddress();
 
         platform = _platform;
-        extraReward = ERC20(_extraReward);
 
         // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
         WETH.safeApprove(address(_platform), type(uint256).max);
@@ -215,10 +201,10 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         @return wethAmountIn     uint256  WETH inbound amount
         @return pxGmxAmountOut   uint256  pxGMX outbound amount
         @return pxGlpAmountOut   uint256  pxGLP outbound amount
-        @return totalFee         uint256  Total platform fee for main rewards (pxGLP)
-        @return totalExtraFee    uint256  Total platform fee for extra rewards (pxGMX)
-        @return incentive        uint256  Compound incentive for main rewards (pxGLP)
-        @return extraIncentive   uint256  Compound incentive for extra rewards (pxGMX)
+        @return totalPxGlpFee    uint256  Total platform fee for pxGLP
+        @return totalPxGmxFee    uint256  Total platform fee for pxGMX
+        @return pxGlpIncentive   uint256  Compound incentive for pxGLP
+        @return pxGmxIncentive   uint256  Compound incentive for pxGMX
      */
     function compound(uint256 minGlpAmount, bool optOutIncentive)
         public
@@ -226,19 +212,19 @@ contract AutoPxGlp is Owned, PirexERC4626 {
             uint256 wethAmountIn,
             uint256 pxGmxAmountOut,
             uint256 pxGlpAmountOut,
-            uint256 totalFee,
-            uint256 totalExtraFee,
-            uint256 incentive,
-            uint256 extraIncentive
+            uint256 totalPxGlpFee,
+            uint256 totalPxGmxFee,
+            uint256 pxGlpIncentive,
+            uint256 pxGmxIncentive
         )
     {
         if (minGlpAmount == 0) revert InvalidParam();
 
-        uint256 preClaimPxGmxAmount = extraReward.balanceOf(address(this));
         uint256 preClaimTotalAssets = asset.balanceOf(address(this));
+        uint256 preClaimPxGmxAmount = pxGmx.balanceOf(address(this));
 
         PirexRewards(rewardsModule).claim(asset, address(this));
-        PirexRewards(rewardsModule).claim(extraReward, address(this));
+        PirexRewards(rewardsModule).claim(pxGmx, address(this));
 
         // Track the amount of WETH received
         wethAmountIn = WETH.balanceOf(address(this));
@@ -254,44 +240,36 @@ contract AutoPxGlp is Owned, PirexERC4626 {
         }
 
         // Distribute fees if the amount of vault assets increased
-        if ((totalAssets() - preClaimTotalAssets) != 0) {
-            totalFee =
-                ((asset.balanceOf(address(this)) - preClaimTotalAssets) *
-                    platformFee) /
-                FEE_DENOMINATOR;
-            incentive = optOutIncentive
+        uint256 newAssets = totalAssets() - preClaimTotalAssets;
+        if (newAssets != 0) {
+            totalPxGlpFee = (newAssets * platformFee) / FEE_DENOMINATOR;
+            pxGlpIncentive = optOutIncentive
                 ? 0
-                : (totalFee * compoundIncentive) / FEE_DENOMINATOR;
+                : (totalPxGlpFee * compoundIncentive) / FEE_DENOMINATOR;
 
-            if (incentive != 0) asset.safeTransfer(msg.sender, incentive);
+            if (pxGlpIncentive != 0)
+                asset.safeTransfer(msg.sender, pxGlpIncentive);
 
-            asset.safeTransfer(owner, totalFee - incentive);
+            asset.safeTransfer(owner, totalPxGlpFee - pxGlpIncentive);
         }
 
         // Track the amount of pxGMX received
-        pxGmxAmountOut =
-            extraReward.balanceOf(address(this)) -
-            preClaimPxGmxAmount;
+        pxGmxAmountOut = pxGmx.balanceOf(address(this)) - preClaimPxGmxAmount;
 
         if (pxGmxAmountOut != 0) {
-            // Calculate and distribute extra fees if the amount of extra tokens increased
-            totalExtraFee = (pxGmxAmountOut * platformFee) / FEE_DENOMINATOR;
-            extraIncentive = optOutIncentive
+            // Calculate and distribute pxGMX fees if the amount of pxGMX increased
+            totalPxGmxFee = (pxGmxAmountOut * platformFee) / FEE_DENOMINATOR;
+            pxGmxIncentive = optOutIncentive
                 ? 0
-                : (totalExtraFee * compoundIncentive) / FEE_DENOMINATOR;
+                : (totalPxGmxFee * compoundIncentive) / FEE_DENOMINATOR;
 
-            if (extraIncentive != 0)
-                extraReward.safeTransfer(msg.sender, extraIncentive);
+            if (pxGmxIncentive != 0)
+                pxGmx.safeTransfer(msg.sender, pxGmxIncentive);
 
-            extraReward.safeTransfer(owner, totalExtraFee - extraIncentive);
+            pxGmx.safeTransfer(owner, totalPxGmxFee - pxGmxIncentive);
 
-            if (totalSupply != 0) {
-                // Update amount of reward per vault share/token (using reward amount subtracted by the fees)
-                // Note that we expand the decimals to handle small rewards (less than supply)
-                extraRewardPerToken +=
-                    ((pxGmxAmountOut - totalExtraFee) * EXPANDED_DECIMALS) /
-                    totalSupply;
-            }
+            // Update the pxGmx reward accrual
+            _harvest(pxGmxAmountOut - totalPxGmxFee);
         }
 
         emit Compounded(
@@ -300,96 +278,72 @@ contract AutoPxGlp is Owned, PirexERC4626 {
             wethAmountIn,
             pxGmxAmountOut,
             pxGlpAmountOut,
-            totalFee,
-            totalExtraFee,
-            incentive,
-            extraIncentive
+            totalPxGlpFee,
+            totalPxGmxFee,
+            pxGlpIncentive,
+            pxGmxIncentive
         );
     }
 
     /**
-        @notice Update extra rewards related states
-        @param  account  address  Account address
-     */
-    function _updateExtraReward(address account) internal {
-        // Update pending claimable extra reward for the account based on vault shares
-        // Note that the stored reward per token data has expanded decimals
-        pendingExtraRewards[account] += ((balanceOf[account] *
-            (extraRewardPerToken - userExtraRewardPerToken[account])) /
-            EXPANDED_DECIMALS);
-
-        // Update reward per token for the account to the latest amount
-        userExtraRewardPerToken[account] = extraRewardPerToken;
-    }
-
-    /**
-        @notice Compound pxGLP rewards and handle extra rewards logic before deposit
-        @param  receiver  address  Receiver of the vault shares
+        @notice Compound and internally update pxGMX reward accrual before deposit
      */
     function beforeDeposit(
+        address,
+        uint256,
+        uint256
+    ) internal override {
+        compound(1, true);
+    }
+
+    /**
+        @notice Update pxGMX reward accrual after deposit
+        @param  receiver  address  Receiver of the vault shares
+     */
+    function afterDeposit(
         address receiver,
         uint256,
         uint256
     ) internal override {
-        compound(1, true);
-
-        // Update extra reward states using pre-deposit shares of the receiver
-        _updateExtraReward(receiver);
+        _globalAccrue();
+        _userAccrue(receiver);
     }
 
     /**
-        @notice Compound pxGLP rewards and handle extra rewards logic before withdrawal
-        @param  owner     address  Owner of the vault shares
+        @notice Compound and internally update pxGMX reward accrual before withdrawal
      */
     function beforeWithdraw(
-        address owner,
+        address,
         uint256,
         uint256
     ) internal override {
         compound(1, true);
-
-        // Update extra reward states using pre-withdrawal shares of the owner
-        _updateExtraReward(owner);
     }
 
     /**
-        @notice Compound pxGLP rewards and handle extra rewards logic before transfer
+        @notice Update pxGMX reward accrual after withdrawal
+        @param  owner  address  Owner of the vault shares
+     */
+    function afterWithdraw(
+        address owner,
+        uint256,
+        uint256
+    ) internal override {
+        _globalAccrue();
+        _userAccrue(owner);
+    }
+
+    /**
+        @notice Update pxGMX reward accrual for both sender and receiver after transfer
         @param  owner     address  Owner of the vault shares
         @param  receiver  address  Receiver of the vault shares
      */
-    function beforeTransfer(
+    function afterTransfer(
         address owner,
         address receiver,
         uint256
     ) internal override {
-        compound(1, true);
-
-        // Update extra reward states using pre-transfer shares for both owner and receiver
-        _updateExtraReward(owner);
-        _updateExtraReward(receiver);
-    }
-
-    /**
-        @notice Claim available extra rewards for the caller
-        @param  receiver  address  Receiver of the extra rewards
-     */
-    function claimExtraReward(address receiver) external {
-        if (receiver == address(0)) revert ZeroAddress();
-
-        compound(1, true);
-
-        _updateExtraReward(msg.sender);
-
-        uint256 claimable = pendingExtraRewards[msg.sender];
-
-        // Claim latest amount of available extra rewards
-        // and reset the accumulated reward state
-        if (claimable != 0) {
-            pendingExtraRewards[msg.sender] = 0;
-
-            extraReward.safeTransfer(receiver, claimable);
-
-            emit ExtraRewardClaimed(msg.sender, receiver, claimable);
-        }
+        _userAccrue(owner);
+        _userAccrue(receiver);
     }
 }

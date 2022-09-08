@@ -4,6 +4,8 @@ pragma solidity 0.8.13;
 import "forge-std/Test.sol";
 
 import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
+import {PxGmxReward} from "src/vaults/PxGmxReward.sol";
+import {Common} from "src/Common.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract AutoPxGlpTest is Helper {
@@ -18,16 +20,83 @@ contract AutoPxGlpTest is Helper {
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
         uint256 pxGlpAmountOut,
-        uint256 totalFee,
-        uint256 totalExtraFee,
-        uint256 incentive,
-        uint256 extraIncentive
+        uint256 totalPxGlpFee,
+        uint256 totalPxGmxFee,
+        uint256 pxGlpIncentive,
+        uint256 pxGmxIncentive
     );
-    event ExtraRewardClaimed(
+    event PxGmxClaimed(
         address indexed account,
         address receiver,
         uint256 amount
     );
+
+    /**
+        @notice Calculate the global rewards accrued since the last update
+        @return uint256  Global rewards
+    */
+    function _calculateGlobalRewards() internal view returns (uint256) {
+        (uint256 lastUpdate, uint256 lastSupply, uint256 rewards) = autoPxGlp
+            .globalState();
+
+        return rewards + (block.timestamp - lastUpdate) * lastSupply;
+    }
+
+    /**
+        @notice Calculate a user's rewards since the last update
+        @param  user  address  User
+        @return       uint256  User rewards
+    */
+    function _calculateUserRewards(address user)
+        internal
+        view
+        returns (uint256)
+    {
+        (uint256 lastUpdate, uint256 lastBalance, uint256 rewards) = autoPxGlp
+            .userRewardStates(user);
+
+        return rewards + lastBalance * (block.timestamp - lastUpdate);
+    }
+
+    /**
+        @notice Perform assertions for global state
+        @param  expectedLastUpdate  uint256  Expected last update timestamp
+        @param  expectedLastSupply  uint256  Expected last supply
+        @param  expectedRewards     uint256  Expected rewards
+    */
+    function _assertGlobalState(
+        uint256 expectedLastUpdate,
+        uint256 expectedLastSupply,
+        uint256 expectedRewards
+    ) internal {
+        (uint256 lastUpdate, uint256 lastSupply, uint256 rewards) = autoPxGlp
+            .globalState();
+
+        assertEq(expectedLastUpdate, lastUpdate);
+        assertEq(expectedLastSupply, lastSupply);
+        assertEq(expectedRewards, rewards);
+    }
+
+    /**
+        @notice Perform assertions for user reward state
+        @param  user                 address  User address
+        @param  expectedLastUpdate   uint256  Expected last update timestamp
+        @param  expectedLastBalance  uint256  Expected last user balance
+        @param  expectedRewards      uint256  Expected rewards
+    */
+    function _assertUserRewardState(
+        address user,
+        uint256 expectedLastUpdate,
+        uint256 expectedLastBalance,
+        uint256 expectedRewards
+    ) internal {
+        (uint256 lastUpdate, uint256 lastBalance, uint256 rewards) = autoPxGlp
+            .userRewardStates(user);
+
+        assertEq(expectedLastUpdate, lastUpdate);
+        assertEq(expectedLastBalance, lastBalance);
+        assertEq(expectedRewards, rewards);
+    }
 
     /**
         @notice Validate common parameters used for deposits in the tests
@@ -86,93 +155,94 @@ contract AutoPxGlpTest is Helper {
     }
 
     /**
-        @notice Assert extra reward states after performing mutative actions
-        @param  pxGmxRewardAfterFees  uint256  pxGMX rewards after fees
-        @param  supply                uint256  Total supply
-        @param  initialBalance        uint256  Initial balance
-        @param  account               address  Account address
-        @param  claim                 bool     Whether to check for claim related tests
-     */
-    function _assertExtraRewardStates(
-        uint256 pxGmxRewardAfterFees,
-        uint256 supply,
-        uint256 initialBalance,
-        address account,
-        bool claim
-    )
+        @notice Compound and perform assertions partially
+        @return wethAmount      uint256  WETH amount
+        @return pxGmxAmount     uint256  pxGMX amount
+        @return pxGlpAmount     uint256  pxGLP amount
+        @return pxGlpFee        uint256  pxGLP fee
+        @return pxGlpInc        uint256  pxGLP incentive
+        @return pxGmxFee        uint256  pxGMX fee
+    */
+    function _compoundAndAssert()
         internal
         returns (
-            uint256 expectedRewardPerToken,
-            uint256 expectedPendingExtraRewards
+            uint256 wethAmount,
+            uint256 pxGmxAmount,
+            uint256 pxGlpAmount,
+            uint256 pxGlpFee,
+            uint256 pxGlpInc,
+            uint256 pxGmxFee
         )
     {
-        // Expected reward per token should be using previous supply before the method being tested
-        expectedRewardPerToken =
-            (pxGmxRewardAfterFees * autoPxGlp.EXPANDED_DECIMALS()) /
-            supply;
-        expectedPendingExtraRewards =
-            (initialBalance * expectedRewardPerToken) /
-            autoPxGlp.EXPANDED_DECIMALS();
+        vm.expectEmit(true, false, false, false, address(autoPxGlp));
 
-        // Extra reward state should be updated
-        assertEq(
-            expectedRewardPerToken,
-            autoPxGlp.userExtraRewardPerToken(account)
+        emit Compounded(testAccounts[0], 0, 0, 0, 0, 0, 0, 0, 0);
+
+        // Call as testAccounts[0] to test compound incentive transfer
+        vm.prank(testAccounts[0]);
+
+        (
+            uint256 wethAmountIn,
+            uint256 pxGmxAmountOut,
+            uint256 pxGlpAmountOut,
+            uint256 totalPxGlpFee,
+            uint256 totalPxGmxFee,
+            uint256 pxGlpIncentive,
+            uint256 pxGmxIncentive
+        ) = autoPxGlp.compound(1, false);
+
+        // Assert updated states separately (stack-too-deep issue)
+        _assertPostCompoundPxGmxRewardStates(
+            pxGmxAmountOut,
+            totalPxGmxFee,
+            pxGmxIncentive
         );
-        assertEq(expectedRewardPerToken, autoPxGlp.extraRewardPerToken());
 
-        if (claim) {
-            // After claiming, the pending claimable should be back to 0
-            assertEq(0, autoPxGlp.pendingExtraRewards(account));
-        } else {
-            // Otherwise, pending claimable should be updated using previous balance
-            assertEq(
-                expectedPendingExtraRewards,
-                autoPxGlp.pendingExtraRewards(account)
-            );
-        }
+        wethAmount = wethAmountIn;
+        pxGmxAmount = pxGmxAmountOut;
+        pxGlpAmount = pxGlpAmountOut;
+        pxGlpFee = totalPxGlpFee;
+        pxGlpInc = pxGlpIncentive;
+        pxGmxFee = totalPxGmxFee;
     }
 
     /**
         @notice Assert main vault states after performing compound
-        @param  pxGlpAmountOut                    uint256  pxGLP rewards before fees
-        @param  totalFee                          uint256  Total fees fo pxGLP
-        @param  incentive                         uint256  Incentive for pxGLP
-        @param  totalAssetsBeforeCompound         uint256  Total assets before compound
-        @param  shareToAssetAmountBeforeCompound  uint256  Share to asset ratio before compound
-        @param  userShareBalance                  uint256  User shares amount
+        @param  pxGlpAmountOut             uint256  pxGLP rewards before fees
+        @param  totalPxGlpFee              uint256  Total fees for pxGLP
+        @param  pxGlpIncentive             uint256  Incentive for pxGLP
+        @param  totalAssetsBeforeCompound  uint256  Total assets before compound
      */
     function _assertPostCompoundVaultStates(
         uint256 pxGlpAmountOut,
-        uint256 totalFee,
-        uint256 incentive,
-        uint256 totalAssetsBeforeCompound,
-        uint256 shareToAssetAmountBeforeCompound,
-        uint256 userShareBalance
+        uint256 totalPxGlpFee,
+        uint256 pxGlpIncentive,
+        uint256 totalAssetsBeforeCompound
     ) internal {
-        uint256 expectedTotalFee = (pxGlpAmountOut * autoPxGlp.platformFee()) /
-            autoPxGlp.FEE_DENOMINATOR();
-        uint256 expectedCompoundIncentive = (totalFee *
+        uint256 userShareBalance = autoPxGlp.balanceOf(address(this));
+        uint256 expectedTotalPxGlpFee = (pxGlpAmountOut *
+            autoPxGlp.platformFee()) / autoPxGlp.FEE_DENOMINATOR();
+        uint256 expectedCompoundIncentive = (totalPxGlpFee *
             autoPxGlp.compoundIncentive()) / autoPxGlp.FEE_DENOMINATOR();
         uint256 expectedTotalAssets = totalAssetsBeforeCompound +
             pxGlpAmountOut -
-            totalFee;
+            totalPxGlpFee;
 
         assertGt(expectedTotalAssets, totalAssetsBeforeCompound);
         assertEq(expectedTotalAssets, autoPxGlp.totalAssets());
         assertEq(expectedTotalAssets, pxGlp.balanceOf(address(autoPxGlp)));
-        assertEq(expectedTotalFee, totalFee);
-        assertEq(expectedCompoundIncentive, incentive);
+        assertEq(expectedTotalPxGlpFee, totalPxGlpFee);
+        assertEq(expectedCompoundIncentive, pxGlpIncentive);
         assertEq(
-            expectedTotalFee -
+            expectedTotalPxGlpFee -
                 expectedCompoundIncentive +
                 expectedCompoundIncentive,
-            totalFee
+            totalPxGlpFee
         );
 
         // Check for vault asset balances of the fee receivers
         assertEq(
-            expectedTotalFee - expectedCompoundIncentive,
+            expectedTotalPxGlpFee - expectedCompoundIncentive,
             pxGlp.balanceOf(autoPxGlp.owner())
         );
         assertEq(expectedCompoundIncentive, pxGlp.balanceOf(testAccounts[0]));
@@ -180,53 +250,41 @@ contract AutoPxGlpTest is Helper {
         assertEq(userShareBalance, autoPxGlp.balanceOf(address(this)));
         assertEq(
             ((userShareBalance * expectedTotalAssets) /
-                autoPxGlp.totalSupply()) - shareToAssetAmountBeforeCompound,
+                autoPxGlp.totalSupply()) - totalAssetsBeforeCompound,
             autoPxGlp.convertToAssets(userShareBalance) -
-                shareToAssetAmountBeforeCompound
+                totalAssetsBeforeCompound
         );
         assertLt(
-            shareToAssetAmountBeforeCompound,
+            totalAssetsBeforeCompound,
             autoPxGlp.convertToAssets(userShareBalance)
         );
     }
 
     /**
-        @notice Assert extra reward states after performing compound
-        @param  pxGmxAmountOut              uint256  pGMX rewards before fees
-        @param  totalExtraFee               uint256  Total extra fees fo pxGMX
-        @param  extraIncentive              uint256  Extra incentive for pxGMX
-        @param  pxGmxBalanceBeforeCompound  uint256  pxGMX balance before compound
+        @notice Assert pxGMX reward states after performing compound
+        @param  pxGmxAmountOut  uint256  pxGMX rewards before fees
+        @param  totalPxGmxFee   uint256  Total fees for pxGMX
+        @param  pxGmxIncentive  uint256  Incentive for pxGMX
      */
-    function _assertPostCompoundExtraRewardStates(
+    function _assertPostCompoundPxGmxRewardStates(
         uint256 pxGmxAmountOut,
-        uint256 totalExtraFee,
-        uint256 extraIncentive,
-        uint256 pxGmxBalanceBeforeCompound
+        uint256 totalPxGmxFee,
+        uint256 pxGmxIncentive
     ) internal {
-        uint256 expectedTotalExtraFee = (pxGmxAmountOut *
+        uint256 expectedTotalPxGmxFee = (pxGmxAmountOut *
             autoPxGlp.platformFee()) / autoPxGlp.FEE_DENOMINATOR();
-        uint256 expectedCompoundExtraIncentive = (totalExtraFee *
+        uint256 expectedCompoundPxGmxIncentive = (totalPxGmxFee *
             autoPxGlp.compoundIncentive()) / autoPxGlp.FEE_DENOMINATOR();
+        assertEq(expectedTotalPxGmxFee, totalPxGmxFee);
+        assertEq(expectedCompoundPxGmxIncentive, pxGmxIncentive);
 
-        assertEq(expectedTotalExtraFee, totalExtraFee);
-        assertEq(expectedCompoundExtraIncentive, extraIncentive);
+        // Check for pxGMX reward balances of the fee receivers
         assertEq(
-            (pxGmxAmountOut - totalExtraFee),
-            pxGmx.balanceOf(address(autoPxGlp)) - pxGmxBalanceBeforeCompound
-        );
-        assertEq(
-            autoPxGlp.extraRewardPerToken(),
-            ((pxGmxAmountOut - totalExtraFee) * autoPxGlp.EXPANDED_DECIMALS()) /
-                autoPxGlp.totalSupply()
-        );
-
-        // Check for extra reward balances of the fee receivers
-        assertEq(
-            expectedTotalExtraFee - expectedCompoundExtraIncentive,
+            expectedTotalPxGmxFee - expectedCompoundPxGmxIncentive,
             pxGmx.balanceOf(autoPxGlp.owner())
         );
         assertEq(
-            expectedCompoundExtraIncentive,
+            expectedCompoundPxGmxIncentive,
             pxGmx.balanceOf(testAccounts[0])
         );
     }
@@ -395,7 +453,7 @@ contract AutoPxGlpTest is Helper {
     function testCannotSetPlatformZeroAddress() external {
         address invalidPlatform = address(0);
 
-        vm.expectRevert(AutoPxGlp.ZeroAddress.selector);
+        vm.expectRevert(PxGmxReward.ZeroAddress.selector);
 
         autoPxGlp.setPlatform(invalidPlatform);
     }
@@ -441,7 +499,7 @@ contract AutoPxGlpTest is Helper {
     function testCannotSetRewardsModuleZeroAddress() external {
         address invalidRewardsModule = address(0);
 
-        vm.expectRevert(AutoPxGlp.ZeroAddress.selector);
+        vm.expectRevert(PxGmxReward.ZeroAddress.selector);
 
         autoPxGlp.setRewardsModule(invalidRewardsModule);
     }
@@ -502,7 +560,7 @@ contract AutoPxGlpTest is Helper {
     }
 
     /**
-        @notice Test tx success: compound pxGLP rewards into more pxGLP and track extra rewards (pxGMX)
+        @notice Test tx success: compound pxGLP rewards into more pxGLP and track pxGMX reward states
         @param  etherAmount     uint96  Amount of ETH to deposit
         @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
@@ -515,56 +573,46 @@ contract AutoPxGlpTest is Helper {
         ) = _provisionRewardState(etherAmount, address(this), secondsElapsed);
 
         uint256 totalAssetsBeforeCompound = autoPxGlp.totalAssets();
-        uint256 userShareBalance = autoPxGlp.balanceOf(address(this));
-        uint256 shareToAssetAmountBeforeCompound = autoPxGlp.convertToAssets(
-            userShareBalance
-        );
         uint256 pxGmxBalanceBeforeCompound = pxGmx.balanceOf(
             address(autoPxGlp)
         );
+        uint256 expectedGlobalLastSupply = autoPxGlp.totalSupply();
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
 
         // Confirm current state prior to primary state mutating action
-        assertEq(totalAssetsBeforeCompound, userShareBalance);
+        assertEq(totalAssetsBeforeCompound, autoPxGlp.balanceOf(address(this)));
         assertGt(wethRewardState, 0);
         assertGt(pxGmxRewardState, 0);
-        assertEq(autoPxGlp.extraRewardPerToken(), 0);
 
-        vm.expectEmit(true, false, false, false, address(autoPxGlp));
-
-        emit Compounded(testAccounts[0], 0, 0, 0, 0, 0, 0, 0, 0);
-
-        // Call as testAccounts[0] to test compound incentive transfer
-        vm.prank(testAccounts[0]);
-
+        // Perform compound and assertions partially (stack-too-deep)
         (
             uint256 wethAmountIn,
             uint256 pxGmxAmountOut,
             uint256 pxGlpAmountOut,
-            uint256 totalFee,
-            uint256 totalExtraFee,
-            uint256 incentive,
-            uint256 extraIncentive
-        ) = autoPxGlp.compound(1, false);
+            uint256 totalPxGlpFee,
+            uint256 pxGlpIncentive,
+            uint256 totalPxGmxFee
+        ) = _compoundAndAssert();
 
+        // Perform the rest of the assertions (stack-too-deep)
         assertEq(wethRewardState, wethAmountIn);
-        assertEq(pxGmxAmountOut, pxGmxRewardState);
+        assertEq(pxGmxRewardState, pxGmxAmountOut);
 
-        // Assert updated states separately (stack-too-deep issue)
-        _assertPostCompoundExtraRewardStates(
-            pxGmxAmountOut,
-            totalExtraFee,
-            extraIncentive,
-            pxGmxBalanceBeforeCompound
+        _assertGlobalState(
+            block.timestamp,
+            expectedGlobalLastSupply,
+            expectedGlobalRewards
         );
-
-        // Assert updated states separately (stack-too-deep issue)
         _assertPostCompoundVaultStates(
             pxGlpAmountOut,
-            totalFee,
-            incentive,
-            totalAssetsBeforeCompound,
-            shareToAssetAmountBeforeCompound,
-            userShareBalance
+            totalPxGlpFee,
+            pxGlpIncentive,
+            totalAssetsBeforeCompound
+        );
+
+        assertEq(
+            (pxGmxAmountOut - totalPxGmxFee),
+            pxGmx.balanceOf(address(autoPxGlp)) - pxGmxBalanceBeforeCompound
         );
     }
 
@@ -573,7 +621,7 @@ contract AutoPxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx success: deposit to vault and assert the extra reward states updates
+        @notice Test tx success: deposit to vault and assert the pxGMX reward states updates
         @param  etherAmount     uint96  Amount of ETH to deposit
         @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
@@ -590,14 +638,16 @@ contract AutoPxGlpTest is Helper {
 
         uint256 initialBalance = autoPxGlp.balanceOf(receiver);
         uint256 supply = autoPxGlp.totalSupply();
+        uint256 expectedLastUpdate = block.timestamp;
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
+        uint256 expectedUserRewardState = _calculateUserRewards(receiver);
         uint256 pxGmxRewardAfterFees = pxGmxRewardState -
             (pxGmxRewardState * autoPxGlp.platformFee()) /
             autoPxGlp.FEE_DENOMINATOR();
+        uint256 initialPxGmxBalance = pxGmx.balanceOf(address(autoPxGlp));
 
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
-
-        // Perform another deposit and assert the updated extra reward states
-        vm.deal(address(this), etherAmount);
+        // Perform another deposit and assert the updated pxGMX reward states
+        vm.deal(receiver, etherAmount);
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
 
         pxGlp.approve(address(autoPxGlp), pxGlp.balanceOf(receiver));
@@ -606,18 +656,29 @@ contract AutoPxGlpTest is Helper {
             receiver
         );
 
-        // Assert extra reward states, which should be based on previous supply before the new deposit
-        _assertExtraRewardStates(
-            pxGmxRewardAfterFees,
-            supply,
-            initialBalance,
-            receiver,
-            false
+        // Assert pxGMX reward states
+        _assertGlobalState(
+            expectedLastUpdate,
+            autoPxGlp.totalSupply(),
+            expectedGlobalRewards
         );
+        _assertUserRewardState(
+            receiver,
+            expectedLastUpdate,
+            initialBalance + newShares,
+            expectedUserRewardState
+        );
+        assertEq(autoPxGlp.rewardState(), pxGmxRewardAfterFees);
 
         // Deposit should still increment the totalSupply and user shares
         assertEq(autoPxGlp.totalSupply(), supply + newShares);
         assertEq(autoPxGlp.balanceOf(receiver), initialBalance + newShares);
+
+        // Also check the updated pxGMX balance updated from compound call
+        assertEq(
+            pxGmx.balanceOf(address(autoPxGlp)),
+            initialPxGmxBalance + pxGmxRewardAfterFees
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -625,7 +686,7 @@ contract AutoPxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx success: mint vault shares and assert the extra reward states updates
+        @notice Test tx success: mint vault shares and assert the pxGMX reward states updates
         @param  etherAmount     uint96  Amount of ETH to deposit
         @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
@@ -642,13 +703,15 @@ contract AutoPxGlpTest is Helper {
 
         uint256 initialBalance = autoPxGlp.balanceOf(receiver);
         uint256 supply = autoPxGlp.totalSupply();
+        uint256 expectedLastUpdate = block.timestamp;
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
+        uint256 expectedUserRewardState = _calculateUserRewards(receiver);
         uint256 pxGmxRewardAfterFees = pxGmxRewardState -
             (pxGmxRewardState * autoPxGlp.platformFee()) /
             autoPxGlp.FEE_DENOMINATOR();
+        uint256 initialPxGmxBalance = pxGmx.balanceOf(address(autoPxGlp));
 
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
-
-        // Perform mint instead of deposit and assert the updated extra reward states
+        // Perform mint instead of deposit and assert the updated pxGMX reward states
         vm.deal(address(this), etherAmount);
         pirexGmxGlp.depositGlpWithETH{value: etherAmount}(1, receiver);
 
@@ -658,18 +721,29 @@ contract AutoPxGlpTest is Helper {
         ) / 2;
         autoPxGlp.mint(newShares, receiver);
 
-        // Assert extra reward states, which should be based on previous supply before the new deposit
-        _assertExtraRewardStates(
-            pxGmxRewardAfterFees,
-            supply,
-            initialBalance,
-            receiver,
-            false
+        // Assert pxGMX reward states
+        _assertGlobalState(
+            expectedLastUpdate,
+            autoPxGlp.totalSupply(),
+            expectedGlobalRewards
         );
+        _assertUserRewardState(
+            receiver,
+            expectedLastUpdate,
+            initialBalance + newShares,
+            expectedUserRewardState
+        );
+        assertEq(autoPxGlp.rewardState(), pxGmxRewardAfterFees);
 
         // Mint should still increment the totalSupply and user shares
         assertEq(autoPxGlp.totalSupply(), supply + newShares);
         assertEq(autoPxGlp.balanceOf(receiver), initialBalance + newShares);
+
+        // Also check the updated pxGMX balance updated from compound call
+        assertEq(
+            pxGmx.balanceOf(address(autoPxGlp)),
+            initialPxGmxBalance + pxGmxRewardAfterFees
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -677,7 +751,7 @@ contract AutoPxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx success: withdraw from vault and assert the extra reward states updates
+        @notice Test tx success: withdraw from vault and assert the pxGMX reward states updates
         @param  etherAmount     uint96  Amount of ETH to deposit
         @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
@@ -694,27 +768,40 @@ contract AutoPxGlpTest is Helper {
 
         uint256 initialBalance = autoPxGlp.balanceOf(receiver);
         uint256 supply = autoPxGlp.totalSupply();
+        uint256 expectedLastUpdate = block.timestamp;
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
+        uint256 expectedUserRewardState = _calculateUserRewards(receiver);
         uint256 pxGmxRewardAfterFees = pxGmxRewardState -
             (pxGmxRewardState * autoPxGlp.platformFee()) /
             autoPxGlp.FEE_DENOMINATOR();
+        uint256 initialPxGmxBalance = pxGmx.balanceOf(address(autoPxGlp));
 
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
-
-        // Withdraw from the vault and assert the updated extra reward states
+        // Withdraw from the vault and assert the updated pxGMX reward states
         uint256 shares = autoPxGlp.withdraw(initialBalance, receiver, receiver);
 
-        // Assert extra reward states, which should be based on previous supply before the withdrawal
-        _assertExtraRewardStates(
-            pxGmxRewardAfterFees,
-            supply,
-            initialBalance,
-            receiver,
-            false
+        // Assert pxGMX reward states
+        _assertGlobalState(
+            expectedLastUpdate,
+            autoPxGlp.totalSupply(),
+            expectedGlobalRewards
         );
+        _assertUserRewardState(
+            receiver,
+            expectedLastUpdate,
+            initialBalance - shares,
+            expectedUserRewardState
+        );
+        assertEq(autoPxGlp.rewardState(), pxGmxRewardAfterFees);
 
         // Withdrawal should still decrement the totalSupply and user shares
         assertEq(autoPxGlp.totalSupply(), supply - shares);
         assertEq(autoPxGlp.balanceOf(receiver), initialBalance - shares);
+
+        // Also check the updated pxGMX balance updated from compound call
+        assertEq(
+            pxGmx.balanceOf(address(autoPxGlp)),
+            initialPxGmxBalance + pxGmxRewardAfterFees
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -722,7 +809,7 @@ contract AutoPxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx success: redeem from vault and assert the extra reward states updates
+        @notice Test tx success: redeem from vault and assert the pxGMX reward states updates
         @param  etherAmount     uint96  Amount of ETH to deposit
         @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
@@ -739,52 +826,63 @@ contract AutoPxGlpTest is Helper {
 
         uint256 initialBalance = autoPxGlp.balanceOf(receiver);
         uint256 supply = autoPxGlp.totalSupply();
+        uint256 expectedLastUpdate = block.timestamp;
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
+        uint256 expectedUserRewardState = _calculateUserRewards(receiver);
         uint256 pxGmxRewardAfterFees = pxGmxRewardState -
             (pxGmxRewardState * autoPxGlp.platformFee()) /
             autoPxGlp.FEE_DENOMINATOR();
+        uint256 initialPxGmxBalance = pxGmx.balanceOf(address(autoPxGlp));
 
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
-
-        // Redeem from the vault and assert the updated extra reward states
+        // Redeem from the vault and assert the updated pxGMX reward states
         autoPxGlp.redeem(initialBalance, receiver, receiver);
 
-        // Assert extra reward states, which should be based on previous supply before the redemption
-        _assertExtraRewardStates(
-            pxGmxRewardAfterFees,
-            supply,
-            initialBalance,
-            receiver,
-            false
+        // Assert pxGMX reward states
+        _assertGlobalState(
+            expectedLastUpdate,
+            autoPxGlp.totalSupply(),
+            expectedGlobalRewards
         );
+        _assertUserRewardState(
+            receiver,
+            expectedLastUpdate,
+            0,
+            expectedUserRewardState
+        );
+        assertEq(autoPxGlp.rewardState(), pxGmxRewardAfterFees);
 
         // Redemption should still decrement the totalSupply and user shares
         assertEq(autoPxGlp.totalSupply(), supply - initialBalance);
         assertEq(autoPxGlp.balanceOf(receiver), 0);
+
+        // Also check the updated pxGMX balance updated from compound call
+        assertEq(
+            pxGmx.balanceOf(address(autoPxGlp)),
+            initialPxGmxBalance + pxGmxRewardAfterFees
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
-                        claimExtraReward TESTS
+                        claim TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: receiver is zero address
      */
-    function testCannotClaimExtraRewardsZeroAddress() external {
+    function testCannotClaimZeroAddress() external {
         address invalidReceiver = address(0);
 
-        vm.expectRevert(AutoPxGlp.ZeroAddress.selector);
+        vm.expectRevert(PxGmxReward.ZeroAddress.selector);
 
-        autoPxGlp.claimExtraReward(invalidReceiver);
+        autoPxGlp.claim(invalidReceiver);
     }
 
     /**
-        @notice Test tx success: claim extra rewards and assert the extra reward states updates
+        @notice Test tx success: claim pxGMX rewards and assert the reward states updates
         @param  etherAmount     uint96  Amount of ETH to deposit
         @param  secondsElapsed  uint32  Seconds to forward timestamp
      */
-    function testClaimExtraReward(uint96 etherAmount, uint32 secondsElapsed)
-        external
-    {
+    function testClaim(uint96 etherAmount, uint32 secondsElapsed) external {
         _validateTestArgs(etherAmount, secondsElapsed);
 
         address account = address(this);
@@ -796,31 +894,41 @@ contract AutoPxGlpTest is Helper {
             secondsElapsed
         );
 
-        uint256 initialBalance = autoPxGlp.balanceOf(account);
         uint256 pxGmxBalanceBeforeClaim = pxGmx.balanceOf(receiver);
-        uint256 supply = autoPxGlp.totalSupply();
         uint256 pxGmxRewardAfterFees = pxGmxRewardState -
             (pxGmxRewardState * autoPxGlp.platformFee()) /
             autoPxGlp.FEE_DENOMINATOR();
+        uint256 expectedLastUpdate = block.timestamp;
+        uint256 expectedLastBalance = autoPxGlp.balanceOf(account);
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
+        uint256 expectedUserRewardState = _calculateUserRewards(account);
+        uint256 expectedClaimableReward = (pxGmxRewardAfterFees *
+            expectedUserRewardState) / expectedGlobalRewards;
 
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(account));
+        assertEq(autoPxGlp.rewardState(), 0);
 
-        // Claim extra rewards (pxGMX) from the vault and transfer it to the receiver directly
-        autoPxGlp.claimExtraReward(receiver);
+        vm.expectEmit(true, false, false, false, address(autoPxGlp));
 
-        // Assert extra reward states, which should be based on previous supply before the claim
-        (, uint256 expectedPendingExtraRewards) = _assertExtraRewardStates(
-            pxGmxRewardAfterFees,
-            supply,
-            initialBalance,
-            account,
-            true
-        );
+        emit PxGmxClaimed(account, receiver, 0);
 
-        // Claiming should also update the extra rewards (pxGMX) balance for the receiver
+        // Claim pxGMX reward from the vault and transfer it to the receiver directly
+        autoPxGlp.claim(receiver);
+
+        // Claiming should also update the pxGMX balance for the receiver and the reward state
         assertEq(
-            expectedPendingExtraRewards,
-            pxGmx.balanceOf(receiver) - pxGmxBalanceBeforeClaim
+            pxGmx.balanceOf(receiver),
+            expectedClaimableReward + pxGmxBalanceBeforeClaim
+        );
+        _assertGlobalState(
+            expectedLastUpdate,
+            autoPxGlp.totalSupply(),
+            expectedGlobalRewards - expectedUserRewardState
+        );
+        _assertUserRewardState(
+            account,
+            expectedLastUpdate,
+            expectedLastBalance,
+            0
         );
     }
 
@@ -829,113 +937,70 @@ contract AutoPxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx success: transfer to another account and assert the extra reward states updates
-        @param  etherAmount     uint96  Amount of ETH to deposit
-        @param  secondsElapsed  uint32  Seconds to forward timestamp
+        @notice Test tx success: transfer (or transferFrom) to another account and assert the pxGMX reward states
+        @param  etherAmount         uint96  Amount of ETH to deposit
+        @param  transferPercentage  uint8   Percentage of sender balance to be transferred
+        @param  secondsElapsed      uint32  Seconds to forward timestamp
+        @param  useTransferFrom     bool    Whether to use transferFrom
      */
-    function testTransfer(uint96 etherAmount, uint32 secondsElapsed) external {
+    function testTransfer(
+        uint96 etherAmount,
+        uint8 transferPercentage,
+        uint32 secondsElapsed,
+        bool useTransferFrom
+    ) external {
         _validateTestArgs(etherAmount, secondsElapsed);
+
+        vm.assume(transferPercentage != 0);
+        vm.assume(transferPercentage <= 100);
 
         address account = address(this);
         address receiver = testAccounts[0];
 
-        (, uint256 pxGmxRewardState) = _provisionRewardState(
-            etherAmount,
-            account,
-            secondsElapsed
-        );
+        _provisionRewardState(etherAmount, account, secondsElapsed);
 
         uint256 initialBalance = autoPxGlp.balanceOf(account);
         uint256 supply = autoPxGlp.totalSupply();
-        uint256 pxGmxRewardAfterFees = pxGmxRewardState -
-            (pxGmxRewardState * autoPxGlp.platformFee()) /
-            autoPxGlp.FEE_DENOMINATOR();
+        uint256 expectedLastUpdate = block.timestamp;
+        uint256 expectedSenderRewardState = _calculateUserRewards(account);
+        uint256 expectedReceiverRewardState = _calculateUserRewards(receiver);
 
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(account));
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
+        // Transfer half of the apxGLP holding to the other account
+        uint256 transferAmount = (initialBalance * transferPercentage) / 100;
+        uint256 expectedSenderBalance = initialBalance - transferAmount;
+        uint256 expectedReceiverBalance = transferAmount;
 
-        // Transfer half of the apxGLP holding to another account
-        uint256 transferAmount = initialBalance / 2;
-        autoPxGlp.transfer(receiver, transferAmount);
+        assertEq(autoPxGlp.balanceOf(receiver), 0);
 
-        // Assert extra reward states, which should be based on previous supply before the transfer
-        (uint256 expectedRewardPerToken, ) = _assertExtraRewardStates(
-            pxGmxRewardAfterFees,
-            supply,
-            initialBalance,
+        // If transferFrom is used, make sure to properly approve the caller
+        if (useTransferFrom) {
+            autoPxGlp.approve(testAccounts[0], transferAmount);
+
+            vm.prank(testAccounts[0]);
+
+            autoPxGlp.transferFrom(account, receiver, transferAmount);
+        } else {
+            autoPxGlp.transfer(receiver, transferAmount);
+        }
+
+        // Assert pxGMX reward states for both sender and receiver
+        _assertUserRewardState(
             account,
-            false
+            expectedLastUpdate,
+            expectedSenderBalance,
+            expectedSenderRewardState
         );
-
-        // Should also check for the receiver's
-        assertEq(
-            expectedRewardPerToken,
-            autoPxGlp.userExtraRewardPerToken(receiver)
+        _assertUserRewardState(
+            receiver,
+            expectedLastUpdate,
+            expectedReceiverBalance,
+            expectedReceiverRewardState
         );
-        assertEq(0, autoPxGlp.pendingExtraRewards(receiver));
+        assertEq(expectedReceiverRewardState, 0);
 
         // Transfer should still update the balances and maintain totalSupply
         assertEq(autoPxGlp.totalSupply(), supply);
-        assertEq(autoPxGlp.balanceOf(account), initialBalance - transferAmount);
-        assertEq(autoPxGlp.balanceOf(receiver), transferAmount);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        transferFrom TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx success: transfer from one to another account and assert the extra reward states updates
-        @param  etherAmount     uint96  Amount of ETH to deposit
-        @param  secondsElapsed  uint32  Seconds to forward timestamp
-     */
-    function testTransferFrom(uint96 etherAmount, uint32 secondsElapsed)
-        external
-    {
-        _validateTestArgs(etherAmount, secondsElapsed);
-
-        address account = address(this);
-        address receiver = testAccounts[0];
-
-        (, uint256 pxGmxRewardState) = _provisionRewardState(
-            etherAmount,
-            account,
-            secondsElapsed
-        );
-
-        uint256 initialBalance = autoPxGlp.balanceOf(account);
-        uint256 supply = autoPxGlp.totalSupply();
-        uint256 pxGmxRewardAfterFees = pxGmxRewardState -
-            (pxGmxRewardState * autoPxGlp.platformFee()) /
-            autoPxGlp.FEE_DENOMINATOR();
-
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(account));
-        assertEq(0, autoPxGlp.userExtraRewardPerToken(receiver));
-
-        // Transfer half of the apxGLP holding to another account using `transferFrom`
-        uint256 transferAmount = initialBalance / 2;
-        autoPxGlp.approve(address(this), transferAmount);
-        autoPxGlp.transferFrom(account, receiver, transferAmount);
-
-        // Assert extra reward states, which should be based on previous supply before the transfer
-        (uint256 expectedRewardPerToken, ) = _assertExtraRewardStates(
-            pxGmxRewardAfterFees,
-            supply,
-            initialBalance,
-            account,
-            false
-        );
-
-        // Should also check for the receiver's
-        assertEq(
-            expectedRewardPerToken,
-            autoPxGlp.userExtraRewardPerToken(receiver)
-        );
-        assertEq(0, autoPxGlp.pendingExtraRewards(receiver));
-
-        // Transfer should still update the balances and maintain totalSupply
-        assertEq(autoPxGlp.totalSupply(), supply);
-        assertEq(autoPxGlp.balanceOf(account), initialBalance - transferAmount);
-        assertEq(autoPxGlp.balanceOf(receiver), transferAmount);
+        assertEq(autoPxGlp.balanceOf(account), expectedSenderBalance);
+        assertEq(autoPxGlp.balanceOf(receiver), expectedReceiverBalance);
     }
 }
