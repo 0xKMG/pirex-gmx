@@ -648,41 +648,38 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Mint/transfer the specified reward token to the recipient
-        @param  recipient           address  Recipient of the claim
-        @param  rewardTokenAddress  address  Reward token address
-        @param  amount        uint256  Reward amount
+        @notice Mint/transfer the specified reward token to the receiver
+        @param  receiver  address  Reward receiver
+        @param  token     address  Reward token address
+        @param  amount    uint256  Reward amount
      */
     function claimUserReward(
-        address recipient,
-        address rewardTokenAddress,
+        address receiver,
+        address token,
         uint256 amount
     ) external onlyPirexRewards {
-        if (rewardTokenAddress == address(0)) revert ZeroAddress();
-        if (recipient == address(0)) revert ZeroAddress();
+        if (token == address(0)) revert ZeroAddress();
+        if (receiver == address(0)) revert ZeroAddress();
+        if (amount == 0) return;
 
         (uint256 rewardAmount, uint256 feeAmount) = _deriveAssetAmounts(
             Fees.Reward,
             amount
         );
+        address pxGmxAddress = address(pxGmx);
 
-        if (rewardTokenAddress == address(pxGmx)) {
+        if (token == pxGmxAddress) {
             // Mint pxGMX for the user - the analog for esGMX rewards
-            pxGmx.mint(recipient, rewardAmount);
-        } else if (rewardTokenAddress == address(WETH)) {
-            WETH.safeTransfer(recipient, rewardAmount);
+            pxGmx.mint(receiver, rewardAmount);
+        } else if (token == address(WETH)) {
+            WETH.safeTransfer(receiver, rewardAmount);
         }
 
         if (feeAmount != 0) {
             // Mint the fees portion of the esGMX rewards
-            if (rewardTokenAddress == address(pxGmx))
-                pxGmx.mint(address(this), feeAmount);
+            if (token == pxGmxAddress) pxGmx.mint(address(this), feeAmount);
 
-            pirexFees.distributeFees(
-                address(this),
-                rewardTokenAddress,
-                feeAmount
-            );
+            pirexFees.distributeFees(address(this), token, feeAmount);
         }
     }
 

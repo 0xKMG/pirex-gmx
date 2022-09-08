@@ -1421,51 +1421,49 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is not pirexRewards
      */
     function testCannotClaimUserRewardNotPirexRewards() external {
-        address recipient = address(this);
-        address rewardTokenAddress = address(WETH);
+        address receiver = address(this);
+        address token = address(WETH);
         uint256 amount = 1;
 
         assertTrue(address(this) != pirexGmx.pirexRewards());
 
         vm.expectRevert(PirexGmx.NotPirexRewards.selector);
 
-        pirexGmx.claimUserReward(recipient, rewardTokenAddress, amount);
+        pirexGmx.claimUserReward(receiver, token, amount);
     }
 
     /**
-        @notice Test tx reversion: recipient is zero address
+        @notice Test tx reversion: receiver is zero address
      */
     function testCannotClaimUserRewardRecipientZeroAddress() external {
-        address invalidRecipient = address(0);
-        address rewardTokenAddress = address(WETH);
+        address invalidReceiver = address(0);
+        address token = address(WETH);
         uint256 amount = 1;
 
         vm.expectRevert(PirexGmx.ZeroAddress.selector);
-
         vm.prank(address(pirexRewards));
 
-        pirexGmx.claimUserReward(invalidRecipient, rewardTokenAddress, amount);
+        pirexGmx.claimUserReward(invalidReceiver, token, amount);
     }
 
     /**
-        @notice Test tx reversion: reward token is zero address
+        @notice Test tx reversion: token is zero address
      */
     function testCannotClaimUserRewardTokenZeroAddress() external {
-        address recipient = address(this);
-        address invalidRewardTokenAddress = address(0);
+        address receiver = address(this);
+        address token = address(0);
         uint256 amount = 1;
 
         vm.expectRevert(PirexGmx.ZeroAddress.selector);
-
         vm.prank(address(pirexRewards));
 
-        pirexGmx.claimUserReward(recipient, invalidRewardTokenAddress, amount);
+        pirexGmx.claimUserReward(receiver, token, amount);
     }
 
     /**
         @notice Test tx success: claim user reward
-        @param  wethAmount  uint80  Amount of claimable WETH
-        @param  pxGmxAmount   uint80  Amount of claimable pxGMX
+        @param  wethAmount   uint80  Amount of claimable WETH
+        @param  pxGmxAmount  uint80  Amount of claimable pxGMX
      */
     function testClaimUserReward(uint80 wethAmount, uint80 pxGmxAmount)
         external
@@ -1475,15 +1473,17 @@ contract PirexGmxTest is Test, Helper {
         vm.assume(pxGmxAmount != 0);
         vm.assume(pxGmxAmount < 1000000e18);
 
-        address user = address(this);
+        address receiver = address(this);
+        address tokenWeth = address(WETH);
+        address tokenPxGmx = address(pxGmx);
 
-        assertEq(0, WETH.balanceOf(user));
-        assertEq(0, pxGmx.balanceOf(user));
+        assertEq(0, WETH.balanceOf(receiver));
+        assertEq(0, pxGmx.balanceOf(receiver));
 
         // Mint and transfers tokens for user claim tests
         vm.deal(address(this), wethAmount);
 
-        IWETH(address(WETH)).depositTo{value: wethAmount}(address(pirexGmx));
+        IWETH(tokenWeth).depositTo{value: wethAmount}(address(pirexGmx));
 
         vm.prank(address(pirexGmx));
 
@@ -1492,13 +1492,13 @@ contract PirexGmxTest is Test, Helper {
         // Test claim via PirexRewards contract
         vm.startPrank(address(pirexRewards));
 
-        pirexGmx.claimUserReward(user, address(WETH), wethAmount);
-        pirexGmx.claimUserReward(user, address(pxGmx), pxGmxAmount);
+        pirexGmx.claimUserReward(receiver, tokenWeth, wethAmount);
+        pirexGmx.claimUserReward(receiver, tokenPxGmx, pxGmxAmount);
 
         vm.stopPrank();
 
-        assertEq(WETH.balanceOf(user), wethAmount);
-        assertEq(pxGmx.balanceOf(user), pxGmxAmount);
+        assertEq(WETH.balanceOf(receiver), wethAmount);
+        assertEq(pxGmx.balanceOf(receiver), pxGmxAmount);
     }
 
     /*//////////////////////////////////////////////////////////////
