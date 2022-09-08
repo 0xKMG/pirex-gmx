@@ -7,6 +7,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {TransparentUpgradeableProxy} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexRewardsMock} from "src/mocks/PirexRewardsMock.sol";
+import {Common} from "src/Common.sol";
 import {Helper} from "./Helper.t.sol";
 
 contract PirexRewardsTest is Helper {
@@ -56,7 +57,7 @@ contract PirexRewardsTest is Helper {
             uint256 rewards
         )
     {
-        PirexRewards.GlobalState memory globalState = pirexRewards
+        Common.GlobalState memory globalState = pirexRewards
             .producerTokens(producerToken);
 
         return (

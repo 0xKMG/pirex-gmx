@@ -5,6 +5,7 @@ import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/a
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IProducer} from "src/interfaces/IProducer.sol";
+import {Common} from "src/Common.sol";
 
 /**
     Originally inspired by Flywheel V2 (thank you Tribe team):
@@ -13,22 +14,10 @@ import {IProducer} from "src/interfaces/IProducer.sol";
 contract PirexRewards is OwnableUpgradeable {
     using SafeTransferLib for ERC20;
 
-    struct GlobalState {
-        uint256 lastUpdate;
-        uint256 lastSupply;
-        uint256 rewards;
-    }
-
-    struct UserState {
-        uint256 lastUpdate;
-        uint256 lastBalance;
-        uint256 rewards;
-    }
-
     struct ProducerToken {
         ERC20[] rewardTokens;
-        GlobalState globalState;
-        mapping(address => UserState) userStates;
+        Common.GlobalState globalState;
+        mapping(address => Common.UserState) userStates;
         mapping(ERC20 => uint256) rewardStates;
         mapping(address => mapping(ERC20 => address)) rewardRecipients;
     }
@@ -214,7 +203,7 @@ contract PirexRewards is OwnableUpgradeable {
             uint256 rewards
         )
     {
-        UserState memory userState = producerTokens[producerToken].userStates[
+        Common.UserState memory userState = producerTokens[producerToken].userStates[
             user
         ];
 
@@ -271,7 +260,7 @@ contract PirexRewards is OwnableUpgradeable {
     function globalAccrue(ERC20 producerToken) public {
         if (address(producerToken) == address(0)) revert ZeroAddress();
 
-        GlobalState storage g = producerTokens[producerToken].globalState;
+        Common.GlobalState storage g = producerTokens[producerToken].globalState;
         uint256 totalSupply = producerToken.totalSupply();
 
         // Calculate rewards, the product of seconds elapsed and last supply
@@ -295,7 +284,7 @@ contract PirexRewards is OwnableUpgradeable {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (user == address(0)) revert ZeroAddress();
 
-        UserState storage u = producerTokens[producerToken].userStates[user];
+        Common.UserState storage u = producerTokens[producerToken].userStates[user];
         uint256 balance = producerToken.balanceOf(user);
 
         // Calculate the amount of rewards accrued by the user up to this call
