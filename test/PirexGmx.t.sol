@@ -627,14 +627,20 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx success: deposit for pxGLP with ETH
-        @param  etherAmount  uint80  Amount of ether in wei units
+        @param  etherAmount  uint80  Ether amount
+        @param  dealAmount   uint80  Ether deal amount
         @param  depositFee   uint24  Deposit fee
      */
-    function testDepositGlpETH(uint80 etherAmount, uint24 depositFee) external {
+    function testDepositGlpETH(
+        uint80 etherAmount,
+        uint80 dealAmount,
+        uint24 depositFee
+    ) external {
         vm.assume(etherAmount > 1e15);
         vm.assume(etherAmount < 1e22);
+        vm.assume(dealAmount > etherAmount);
         vm.assume(depositFee <= feeMax);
-        vm.deal(address(this), etherAmount);
+        vm.deal(address(this), dealAmount);
 
         _setFee(PirexGmx.Fees.Deposit, depositFee);
 
@@ -643,7 +649,7 @@ contract PirexGmxTest is Test, Helper {
         uint256 minGlp = _calculateMinGlpAmount(address(0), etherAmount, 18);
         address receiver = testAccounts[0];
         uint256 expectedPreDepositGlpBalancePirexGmx = 0;
-        uint256 expectedPreDepositETHBalanceCaller = etherAmount;
+        uint256 expectedPreDepositETHBalanceCaller = dealAmount;
         uint256 expectedPreDepositPxGlpBalanceReceiver = 0;
 
         assertFalse(caller == receiver);
@@ -664,9 +670,9 @@ contract PirexGmxTest is Test, Helper {
             address(this),
             receiver,
             address(0),
+            etherAmount,
             minUsdg,
             minGlp,
-            etherAmount,
             0,
             0,
             0
@@ -677,12 +683,12 @@ contract PirexGmxTest is Test, Helper {
             minGlp,
             receiver
         );
-        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, ) = _deriveAssetAmounts(
             PirexGmx.Fees.Deposit,
             assets
         );
         uint256 expectedPostDepositGlpBalancePirexGmx = assets;
-        uint256 expectedPostDepositETHBalanceCaller = 0;
+        uint256 expectedPostDepositETHBalanceCaller = dealAmount - etherAmount;
         uint256 expectedPostDepositPxGlpBalanceReceiver = postFeeAmount;
 
         assertEq(
@@ -712,9 +718,6 @@ contract PirexGmxTest is Test, Helper {
         uint256 minGlp = 1;
         address receiver = address(this);
 
-        _mintWbtc(tokenAmount);
-        WBTC.approve(address(pirexGmx), tokenAmount);
-
         vm.expectRevert(PAUSED_ERROR);
 
         pirexGmx.depositGlp(token, tokenAmount, minUsdg, minGlp, receiver);
@@ -742,9 +745,32 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test tx reversion: amount is zero
+        @notice Test tx reversion: token is not whitelisted by GMX
      */
-    function testCannotDepositGlpTokenZeroAmount() external {
+    function testCannotDepositGlpInvalidToken() external {
+        address invalidToken = address(this);
+        uint256 tokenAmount = 1;
+        uint256 minUsdg = 1;
+        uint256 minGlp = 1;
+        address receiver = address(this);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(PirexGmx.InvalidToken.selector, invalidToken)
+        );
+
+        pirexGmx.depositGlp(
+            invalidToken,
+            tokenAmount,
+            minUsdg,
+            minGlp,
+            receiver
+        );
+    }
+
+    /**
+        @notice Test tx reversion: token amount is zero
+     */
+    function testCannotDepositGlpTokenAmountZeroAmount() external {
         address token = address(WBTC);
         uint256 invalidTokenAmount = 0;
         uint256 minUsdg = 1;
@@ -826,34 +852,11 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test tx reversion: token is not whitelisted by GMX
+        @notice Test tx reversion: minGlp is greater than output
      */
-    function testCannotDepositGlpInvalidToken() external {
-        address invalidToken = address(this);
-        uint256 tokenAmount = 1;
-        uint256 minUsdg = 1;
-        uint256 minGlp = 1;
-        address receiver = address(this);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(PirexGmx.InvalidToken.selector, invalidToken)
-        );
-
-        pirexGmx.depositGlp(
-            invalidToken,
-            tokenAmount,
-            minUsdg,
-            minGlp,
-            receiver
-        );
-    }
-
-    /**
-        @notice Test tx reversion: minGlp is greater than actual GLP amount
-     */
-    function testCannotDepositGlpExcessiveMinGlp() external {
-        uint256 tokenAmount = 1e8;
+    function testCannotDepositGlpMinGlpInsufficientGlpOutput() external {
         address token = address(WBTC);
+        uint256 tokenAmount = 1e8;
         uint256 minUsdg = 1;
         uint256 invalidMinGlp = _calculateMinGlpAmount(token, tokenAmount, 8) *
             2;
@@ -875,29 +878,45 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx success: deposit for pxGLP with whitelisted ERC20 tokens
-        @param  tokenAmount  uint256  Token amount
+        @param  tokenAmount  uint40  Token amount
+        @param  mintAmount   uint40  Token mint amount
+        @param  depositFee   uint24  Deposit fee
      */
-    function testDepositGlp(uint256 tokenAmount) external {
-        vm.assume(tokenAmount > 1e5);
+    function testDepositGlp(
+        uint40 tokenAmount,
+        uint40 mintAmount,
+        uint24 depositFee
+    ) external {
+        vm.assume(tokenAmount > 1e7);
         vm.assume(tokenAmount < 100e8);
+        vm.assume(mintAmount > tokenAmount);
+        vm.assume(depositFee <= feeMax);
 
-        _mintWbtc(tokenAmount);
+        _setFee(PirexGmx.Fees.Deposit, depositFee);
+        _mintWbtc(mintAmount);
+        WBTC.approve(address(pirexGmx), tokenAmount);
 
+        address caller = address(this);
         address token = address(WBTC);
         uint256 minUsdg = 1;
         uint256 minGlp = _calculateMinGlpAmount(token, tokenAmount, 8);
-        address receiver = address(this);
-        uint256 premintWBTCBalance = WBTC.balanceOf(address(this));
-        uint256 premintPxGlpUserBalance = pxGlp.balanceOf(receiver);
-        uint256 premintGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
-            address(pirexGmx)
+        address receiver = testAccounts[0];
+
+        // Commented out due to "Stack too deep..." compiler error
+        // uint256 expectedPreDepositGlpBalancePirexGmx = 0;
+        // uint256 expectedPreDepositWBTCBalanceCaller = mintAmount;
+        // uint256 expectedPreDepositPxGlpBalanceReceiver = 0;
+
+        assertFalse(caller == receiver);
+        assertEq(
+            0,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
         );
-
-        assertTrue(WBTC.balanceOf(address(this)) == tokenAmount);
-        assertEq(premintPxGlpUserBalance, 0);
-        assertEq(premintGlpPirexBalance, 0);
-
-        WBTC.approve(address(pirexGmx), tokenAmount);
+        assertEq(mintAmount, WBTC.balanceOf(caller));
+        assertEq(
+            0,
+            pxGlp.balanceOf(receiver)
+        );
 
         vm.expectEmit(true, true, true, false, address(pirexGmx));
 
@@ -906,9 +925,9 @@ contract PirexGmxTest is Test, Helper {
             address(this),
             receiver,
             token,
+            tokenAmount,
             minUsdg,
             minGlp,
-            tokenAmount,
             0,
             0,
             0
@@ -921,21 +940,23 @@ contract PirexGmxTest is Test, Helper {
             minGlp,
             receiver
         );
-        uint256 pxGlpReceivedByUser = pxGlp.balanceOf(receiver) -
-            premintPxGlpUserBalance;
-        uint256 glpReceivedByPirex = FEE_STAKED_GLP.balanceOf(
-            address(pirexGmx)
-        ) - premintGlpPirexBalance;
+        (uint256 postFeeAmount, ) = _deriveAssetAmounts(
+            PirexGmx.Fees.Deposit,
+            assets
+        );
+        uint256 expectedPostDepositGlpBalancePirexGmx = assets;
+        uint256 expectedPostDepositWBTCBalanceCaller = mintAmount - tokenAmount;
+        uint256 expectedPostDepositPxGlpBalanceReceiver = postFeeAmount;
 
         assertEq(
-            WBTC.balanceOf(address(this)),
-            premintWBTCBalance - tokenAmount
+            expectedPostDepositGlpBalancePirexGmx,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
         );
-        assertGt(pxGlpReceivedByUser, 0);
-        assertEq(pxGlpReceivedByUser, glpReceivedByPirex);
-        assertEq(glpReceivedByPirex, assets);
-        assertGe(pxGlpReceivedByUser, minGlp);
-        assertGe(glpReceivedByPirex, minGlp);
+        assertEq(expectedPostDepositWBTCBalanceCaller, WBTC.balanceOf(caller));
+        assertEq(
+            expectedPostDepositPxGlpBalanceReceiver,
+            pxGlp.balanceOf(receiver)
+        );
     }
 
     /*//////////////////////////////////////////////////////////////

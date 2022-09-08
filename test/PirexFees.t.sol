@@ -9,8 +9,8 @@ import {PirexGmx} from "src/PirexGmx.sol";
 import {Helper} from "./Helper.sol";
 
 contract PirexFeesTest is Helper {
-    address internal immutable DEFAULT_TREASURY = testAccounts[0];
-    address internal immutable DEFAULT_CONTRIBUTORS = testAccounts[1];
+    address internal immutable DEFAULT_TREASURY = testAccounts[1];
+    address internal immutable DEFAULT_CONTRIBUTORS = testAccounts[2];
     uint8 internal constant DEFAULT_TREASURY_PERCENT = 75;
 
     uint8 internal constant MAX_TREASURY_PERCENT = 75;
@@ -129,9 +129,10 @@ contract PirexFeesTest is Helper {
         assertEq(DEFAULT_CONTRIBUTORS, pirexFees.contributors());
 
         PirexFees.FeeRecipient f = PirexFees.FeeRecipient(fVal);
-        address recipient = testAccounts[2];
+        address recipient = testAccounts[0];
 
         vm.expectEmit(false, false, false, true);
+
         emit SetFeeRecipient(f, recipient);
 
         pirexFees.setFeeRecipient(f, recipient);
