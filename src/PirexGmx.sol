@@ -208,18 +208,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Set delegateRegistry
-        @param  _delegateRegistry  address  DelegateRegistry contract address
-     */
-    function setDelegateRegistry(address _delegateRegistry) external onlyOwner {
-        if (_delegateRegistry == address(0)) revert ZeroAddress();
-
-        delegateRegistry = DelegateRegistry(_delegateRegistry);
-
-        emit SetDelegateRegistry(_delegateRegistry);
-    }
-
-    /**
         @notice Set fee
         @param  f    enum     Fee
         @param  fee  uint256  Fee amount
@@ -688,9 +676,21 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     //////////////////////////////////////////////////////////////*/
 
     /**
+        @notice Set delegateRegistry
+        @param  _delegateRegistry  address  DelegateRegistry contract address
+     */
+    function setDelegateRegistry(address _delegateRegistry) external onlyOwner {
+        if (_delegateRegistry == address(0)) revert ZeroAddress();
+
+        delegateRegistry = DelegateRegistry(_delegateRegistry);
+
+        emit SetDelegateRegistry(_delegateRegistry);
+    }
+
+    /**
         @notice Set delegationSpace
-        @param  _delegationSpace  string  Convex Snapshot delegation space
-        @param  shouldClear       bool    Whether to clear the vote delegate for current delegation space
+        @param  _delegationSpace  string  Snapshot delegation space
+        @param  shouldClear       bool    Whether to clear the vote delegate for the current space
      */
     function setDelegationSpace(
         string memory _delegationSpace,
