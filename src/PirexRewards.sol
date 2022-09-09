@@ -398,8 +398,7 @@ contract PirexRewards is OwnableUpgradeable {
                 ? rewardRecipient
                 : user;
             uint256 rewardState = p.rewardStates[rewardToken];
-            uint256 amount = (rewardState * userRewards) /
-                globalRewards;
+            uint256 amount = (rewardState * userRewards) / globalRewards;
 
             if (amount != 0) {
                 // Update reward state (i.e. amount) to reflect reward tokens transferred out
