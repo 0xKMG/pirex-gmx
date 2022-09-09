@@ -66,7 +66,7 @@ contract PirexRewards is OwnableUpgradeable {
         ERC20 indexed producerToken,
         address indexed user,
         uint256 lastUpdate,
-        uint256 lastSupply,
+        uint256 lastBalance,
         uint256 rewards
     );
     event Harvest(

@@ -1130,6 +1130,50 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
+        @notice Test tx reversion: invalid index (empty list)
+     */
+    function testCannotRemoveRewardTokenArithmeticError() external {
+        ERC20 producerToken = pxGlp;
+        uint256 invalidRemovalIndex = 1;
+
+        ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+        uint256 len = rewardTokensBeforePush.length;
+
+        assertEq(0, len);
+        assertTrue(invalidRemovalIndex > len);
+
+        vm.expectRevert(stdError.arithmeticError);
+
+        pirexRewards.removeRewardToken(producerToken, invalidRemovalIndex);
+    }
+
+    /**
+        @notice Test tx reversion: invalid index (index out of bounds on non empty list)
+     */
+    function testCannotRemoveRewardTokenIndexOutOfBounds() external {
+        ERC20 producerToken = pxGlp;
+        address rewardToken = address(WETH);
+        uint256 invalidRemovalIndex = 2;
+
+        // Add 1 record then attempt to remove using larger index
+        pirexRewards.addRewardToken(producerToken, ERC20(rewardToken));
+
+        ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+        uint256 len = rewardTokensBeforePush.length;
+
+        assertEq(1, len);
+        assertTrue(invalidRemovalIndex > len);
+
+        vm.expectRevert(stdError.indexOOBError);
+
+        pirexRewards.removeRewardToken(producerToken, invalidRemovalIndex);
+    }
+
+    /**
         @notice Test tx success: remove reward token at a random index
         @param  removalIndex  uint8  Index of the element to be removed
      */
