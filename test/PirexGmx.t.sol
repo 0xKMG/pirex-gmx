@@ -1668,9 +1668,10 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotClearVoteDelegateUnauthorized() external {
-        vm.expectRevert(UNAUTHORIZED_ERROR);
+        address unauthorizedCaller = _getUnauthorizedCaller();
 
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(UNAUTHORIZED_ERROR);
+        vm.prank(unauthorizedCaller);
 
         pirexGmx.clearVoteDelegate();
     }
@@ -1680,11 +1681,11 @@ contract PirexGmxTest is Test, Helper {
      */
     function testCannotClearVoteDelegateNoDelegate() external {
         assertEq(
+            address(0),
             delegateRegistry.delegation(
                 address(pirexGmx),
                 pirexGmx.delegationSpace()
-            ),
-            address(0)
+            )
         );
 
         vm.expectRevert("No delegate set");
@@ -1698,29 +1699,31 @@ contract PirexGmxTest is Test, Helper {
     function testClearVoteDelegate() external {
         pirexGmx.setDelegationSpace("test.eth", false);
 
+        address voteDelegate = address(this);
+
         // Set the vote delegate before clearing it when setting new delegation space
-        pirexGmx.setVoteDelegate(address(this));
+        pirexGmx.setVoteDelegate(voteDelegate);
 
         assertEq(
+            voteDelegate,
             delegateRegistry.delegation(
                 address(pirexGmx),
                 pirexGmx.delegationSpace()
-            ),
-            address(this)
+            )
         );
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit(false, false, false, true, address(pirexGmx));
 
         emit ClearVoteDelegate();
 
         pirexGmx.clearVoteDelegate();
 
         assertEq(
+            address(0),
             delegateRegistry.delegation(
                 address(pirexGmx),
                 pirexGmx.delegationSpace()
-            ),
-            address(0)
+            )
         );
     }
 
