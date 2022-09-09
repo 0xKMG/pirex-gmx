@@ -90,9 +90,6 @@ contract PirexRewards is OwnableUpgradeable {
     );
 
     error ZeroAddress();
-    error ZeroAmount();
-    error EmptyArray();
-    error NoRewardRecipient();
     error NotContract();
     error TokenAlreadyAdded();
 
