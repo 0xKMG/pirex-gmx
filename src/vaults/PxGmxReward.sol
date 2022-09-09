@@ -3,12 +3,14 @@ pragma solidity 0.8.13;
 
 import {Owned} from "solmate/auth/Owned.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IAutoPxGlp} from "src/interfaces/IAutoPxGlp.sol";
 import {Common} from "src/Common.sol";
 
 contract PxGmxReward is Owned {
     using SafeTransferLib for ERC20;
+    using SafeCastLib for uint256;
 
     ERC20 public pxGmx;
 
@@ -52,8 +54,8 @@ contract PxGmxReward is Owned {
             (block.timestamp - globalState.lastUpdate) *
             globalState.lastSupply;
 
-        globalState.lastUpdate = block.timestamp;
-        globalState.lastSupply = totalSupply;
+        globalState.lastUpdate = block.timestamp.safeCastTo32();
+        globalState.lastSupply = totalSupply.safeCastTo224();
         globalState.rewards = rewards;
 
         emit GlobalAccrue(block.timestamp, totalSupply, rewards);
@@ -74,8 +76,8 @@ contract PxGmxReward is Owned {
             u.lastBalance *
             (block.timestamp - u.lastUpdate);
 
-        u.lastUpdate = block.timestamp;
-        u.lastBalance = balance;
+        u.lastUpdate = block.timestamp.safeCastTo32();
+        u.lastBalance = balance.safeCastTo224();
         u.rewards = rewards;
 
         emit UserAccrue(user, block.timestamp, balance, rewards);
@@ -112,15 +114,16 @@ contract PxGmxReward is Owned {
         // Claim should be skipped and not reverted on zero global/user reward
         if (globalRewards != 0 && userRewards != 0) {
             // Update global and user reward states to reflect the claim
-            globalState.rewards -= userRewards;
+            globalState.rewards = globalRewards - userRewards;
             userRewardStates[msg.sender].rewards = 0;
 
             // Transfer the proportionate reward token amounts to the recipient
-            uint256 amount = (rewardState * userRewards) / globalRewards;
+            uint256 _rewardState = rewardState;
+            uint256 amount = (_rewardState * userRewards) / globalRewards;
 
             if (amount != 0) {
                 // Update reward state (i.e. amount) to reflect reward tokens transferred out
-                rewardState -= amount;
+                rewardState = _rewardState - amount;
 
                 pxGmx.safeTransfer(receiver, amount);
 

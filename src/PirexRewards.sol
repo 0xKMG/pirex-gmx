@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IProducer} from "src/interfaces/IProducer.sol";
 import {Common} from "src/Common.sol";
@@ -13,6 +14,7 @@ import {Common} from "src/Common.sol";
 */
 contract PirexRewards is OwnableUpgradeable {
     using SafeTransferLib for ERC20;
+    using SafeCastLib for uint256;
 
     struct ProducerToken {
         ERC20[] rewardTokens;
@@ -268,8 +270,8 @@ contract PirexRewards is OwnableUpgradeable {
             (block.timestamp - g.lastUpdate) *
             g.lastSupply;
 
-        g.lastUpdate = block.timestamp;
-        g.lastSupply = totalSupply;
+        g.lastUpdate = block.timestamp.safeCastTo32();
+        g.lastSupply = totalSupply.safeCastTo224();
         g.rewards = rewards;
 
         emit GlobalAccrue(producerToken, block.timestamp, totalSupply, rewards);
@@ -292,8 +294,8 @@ contract PirexRewards is OwnableUpgradeable {
             u.lastBalance *
             (block.timestamp - u.lastUpdate);
 
-        u.lastUpdate = block.timestamp;
-        u.lastBalance = balance;
+        u.lastUpdate = block.timestamp.safeCastTo32();
+        u.lastBalance = balance.safeCastTo224();
         u.rewards = rewards;
 
         emit UserAccrue(producerToken, user, block.timestamp, balance, rewards);

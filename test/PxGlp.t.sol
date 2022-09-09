@@ -84,9 +84,9 @@ contract PxGlpTest is Helper {
 
     /**
         @notice Test minting pxGLP
-        @param  amount  uint256  Amount to mint
+        @param  amount  uint224  Amount to mint
      */
-    function testMint(uint256 amount) external {
+    function testMint(uint224 amount) external {
         vm.assume(amount != 0);
 
         address to = address(this);
@@ -145,9 +145,9 @@ contract PxGlpTest is Helper {
 
     /**
         @notice Test burning pxGLP
-        @param  amount  uint256  Amount to burn
+        @param  amount  uint224  Amount to burn
      */
-    function testBurn(uint256 amount) external {
+    function testBurn(uint224 amount) external {
         vm.assume(amount != 0);
 
         address account = address(this);

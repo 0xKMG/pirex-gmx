@@ -84,9 +84,9 @@ contract PxGmxTest is Helper {
 
     /**
         @notice Test minting pxGMX
-        @param  amount  uint256  Amount to mint
+        @param  amount  uint224  Amount to mint
      */
-    function testMint(uint256 amount) external {
+    function testMint(uint224 amount) external {
         vm.assume(amount != 0);
 
         address to = address(this);
