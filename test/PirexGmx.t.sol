@@ -1572,9 +1572,9 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx success: set delegation space
-        @param  shouldClear  bool  Whether to clear the vote delegate
+        @param  clear  bool  Whether to clear the vote delegate
      */
-    function testSetDelegationSpace(bool shouldClear) external {
+    function testSetDelegationSpace(bool clear) external {
         DelegateRegistry d = DelegateRegistry(pirexGmx.delegateRegistry());
         address voteDelegate = address(this);
 
@@ -1588,9 +1588,8 @@ contract PirexGmxTest is Test, Helper {
         );
 
         string memory space = "new.eth";
-        bool clear = true;
         bytes32 expectedDelegationSpace = bytes32(bytes(space));
-        address expectedVoteDelegate = shouldClear ? address(0) : voteDelegate;
+        address expectedVoteDelegate = clear ? address(0) : voteDelegate;
 
         assertFalse(expectedDelegationSpace == DEFAULT_DELEGATION_SPACE);
 
@@ -1615,11 +1614,11 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetVoteDelegateUnauthorized() external {
+        address unauthorizedCaller = _getUnauthorizedCaller();
         address delegate = address(this);
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
-
-        vm.prank(testAccounts[0]);
+        vm.prank(unauthorizedCaller);
 
         pirexGmx.setVoteDelegate(delegate);
     }
@@ -1627,7 +1626,7 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: delegate is zero address
      */
-    function testCannotSetVoteDelegateZeroAddress() external {
+    function testCannotSetVoteDelegateDelegateZeroAddress() external {
         address invalidDelegate = address(0);
 
         vm.expectRevert(PirexGmx.ZeroAddress.selector);
@@ -1647,7 +1646,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertTrue(oldDelegate != newDelegate);
 
-        vm.expectEmit(false, false, false, true);
+        vm.expectEmit(false, false, false, true, address(pirexGmx));
 
         emit SetVoteDelegate(newDelegate);
 
