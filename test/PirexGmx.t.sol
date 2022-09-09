@@ -1378,10 +1378,7 @@ contract PirexGmxTest is Test, Helper {
         // uint256 expectedWethBalanceAfterClaim = expectedWETHRewards;
         // uint256 expectedEsGmxBalanceAfterClaim = expectedEsGmxRewards;
 
-        assertEq(
-            expectedWETHRewards,
-            WETH.balanceOf(address(pirexGmx))
-        );
+        assertEq(expectedWETHRewards, WETH.balanceOf(address(pirexGmx)));
         assertEq(
             expectedEsGmxRewards,
             STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX)
@@ -1499,9 +1496,11 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetPauseStateUnauthorized() external {
+        address invalidCaller = testAccounts[0];
+
         vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.prank(testAccounts[0]);
+        vm.prank(invalidCaller);
 
         pirexGmx.setPauseState(true);
     }
@@ -1510,7 +1509,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: contract is not paused
      */
     function testCannotSetPauseStateNotPaused() external {
-        assertEq(pirexGmx.paused(), false);
+        assertEq(false, pirexGmx.paused());
 
         vm.expectRevert(NOT_PAUSED_ERROR);
 
@@ -1523,7 +1522,7 @@ contract PirexGmxTest is Test, Helper {
     function testCannotSetPauseStatePaused() external {
         pirexGmx.setPauseState(true);
 
-        assertEq(pirexGmx.paused(), true);
+        assertEq(true, pirexGmx.paused());
 
         vm.expectRevert(PAUSED_ERROR);
 
@@ -1534,15 +1533,15 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx success: set pause state
      */
     function testSetPauseState() external {
-        assertEq(pirexGmx.paused(), false);
+        assertEq(false, pirexGmx.paused());
 
         pirexGmx.setPauseState(true);
 
-        assertEq(pirexGmx.paused(), true);
+        assertEq(true, pirexGmx.paused());
 
         pirexGmx.setPauseState(false);
 
-        assertEq(pirexGmx.paused(), false);
+        assertEq(false, pirexGmx.paused());
     }
 
     /*//////////////////////////////////////////////////////////////
