@@ -1283,10 +1283,9 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is not pirexRewards
      */
     function testCannotClaimRewardsNotPirexRewards() external {
-        address invalidCaller = address(this);
+        assertTrue(address(this) != pirexGmx.pirexRewards());
 
         vm.expectRevert(PirexGmx.NotPirexRewards.selector);
-        vm.prank(invalidCaller);
 
         pirexGmx.claimRewards();
     }
@@ -1496,11 +1495,11 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetPauseStateUnauthorized() external {
-        address invalidCaller = testAccounts[0];
+        address unauthorizedCaller = _getUnauthorizedCaller();
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.prank(invalidCaller);
+        vm.prank(unauthorizedCaller);
 
         pirexGmx.setPauseState(true);
     }
@@ -1567,12 +1566,12 @@ contract PirexGmxTest is Test, Helper {
     function testCannotInitiateMigrationUnauthorized() external {
         _pauseContract();
 
-        address invalidCaller = testAccounts[0];
+        address unauthorizedCaller = _getUnauthorizedCaller();
         address newContract = address(this);
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.prank(invalidCaller);
+        vm.prank(unauthorizedCaller);
 
         pirexGmx.initiateMigration(newContract);
     }
@@ -1628,7 +1627,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: contract is not paused
      */
     function testCannotCompleteMigrationNotPaused() external {
-        assertEq(pirexGmx.paused(), false);
+        assertEq(false, pirexGmx.paused());
 
         address oldContract = address(this);
 
@@ -1641,15 +1640,14 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotCompleteMigrationUnauthorized() external {
-        pirexGmx.setPauseState(true);
+        _pauseContract();
 
-        assertEq(pirexGmx.paused(), true);
-
+        address unauthorizedCaller = _getUnauthorizedCaller();
         address oldContract = address(pirexGmx);
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.prank(testAccounts[0]);
+        vm.prank(unauthorizedCaller);
 
         pirexGmx.completeMigration(oldContract);
     }
@@ -1658,9 +1656,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: oldContract is zero address
      */
     function testCannotCompleteMigrationZeroAddress() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(pirexGmx.paused(), true);
+        _pauseContract();
 
         address invalidOldContract = address(0);
 
@@ -1673,9 +1669,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion due to the caller not being the assigned new contract
      */
     function testCannotCompleteMigrationInvalidNewContract() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(pirexGmx.paused(), true);
+        _pauseContract();
 
         address oldContract = address(pirexGmx);
         address newContract = address(this);
@@ -1730,9 +1724,7 @@ contract PirexGmxTest is Test, Helper {
         uint256 oldMpBalance = REWARD_TRACKER_MP.claimable(oldContract);
 
         // Pause the contract before proceeding
-        pirexGmx.setPauseState(true);
-
-        assertEq(pirexGmx.paused(), true);
+        _pauseContract();
 
         // Deploy the new contract for migration tests
         PirexGmx newPirexGmx = new PirexGmx(
