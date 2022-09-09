@@ -1276,97 +1276,6 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        calculateRewards TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx success: calculate reward amounts for the different tokens
-        @param  secondsElapsed  uint32  Seconds to forward timestamp
-        @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
-        @param  gmxAmount       uint80  Amount of GMX to mint and deposit
-     */
-    function testCalculateRewards(
-        uint32 secondsElapsed,
-        uint40 wbtcAmount,
-        uint80 gmxAmount
-    ) external {
-        vm.assume(secondsElapsed > 10);
-        vm.assume(secondsElapsed < 365 days);
-        vm.assume(wbtcAmount > 1);
-        vm.assume(wbtcAmount < 100e8);
-        vm.assume(gmxAmount != 0);
-        vm.assume(gmxAmount < 1000000e18);
-
-        _depositGlp(wbtcAmount, address(this));
-        _depositGmx(gmxAmount, address(this));
-
-        vm.warp(block.timestamp + secondsElapsed);
-
-        uint256 expectedWethBalanceBeforeClaim = 0;
-        uint256 expectedEsGmxBalanceBeforeClaim = 0;
-
-        assertEq(
-            expectedWethBalanceBeforeClaim,
-            WETH.balanceOf(address(pirexGmx))
-        );
-        assertEq(
-            expectedEsGmxBalanceBeforeClaim,
-            STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX)
-        );
-
-        uint256 expectedWETHRewardsGmx = pirexGmx.calculateRewards(true, true);
-        uint256 expectedWETHRewardsGlp = pirexGmx.calculateRewards(true, false);
-        uint256 expectedEsGmxRewardsGmx = pirexGmx.calculateRewards(
-            false,
-            true
-        );
-        uint256 expectedEsGmxRewardsGlp = pirexGmx.calculateRewards(
-            false,
-            false
-        );
-        uint256 expectedWETHRewards = expectedWETHRewardsGmx +
-            expectedWETHRewardsGlp;
-        uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
-            expectedEsGmxRewardsGlp;
-        uint256 expectedWethBalanceAfterClaim = expectedWethBalanceBeforeClaim +
-            expectedWETHRewards;
-        uint256 expectedEsGmxBalanceAfterClaim = expectedEsGmxBalanceBeforeClaim +
-                expectedEsGmxRewards;
-
-        vm.prank(address(pirexRewards));
-
-        (
-            ERC20[] memory producerTokens,
-            ERC20[] memory rewardTokens,
-            uint256[] memory rewardAmounts
-        ) = pirexGmx.claimRewards();
-        address wethAddr = address(WETH);
-        address pxGlpAddr = address(pxGlp);
-        address pxGmxAddr = address(pxGmx);
-
-        assertEq(pxGmxAddr, address(producerTokens[0]));
-        assertEq(pxGlpAddr, address(producerTokens[1]));
-        assertEq(pxGmxAddr, address(producerTokens[2]));
-        assertEq(pxGlpAddr, address(producerTokens[3]));
-        assertEq(wethAddr, address(rewardTokens[0]));
-        assertEq(wethAddr, address(rewardTokens[1]));
-        assertEq(pxGmxAddr, address(rewardTokens[2]));
-        assertEq(pxGmxAddr, address(rewardTokens[3]));
-        assertEq(expectedWETHRewardsGmx, rewardAmounts[0]);
-        assertEq(expectedWETHRewardsGlp, rewardAmounts[1]);
-        assertEq(expectedEsGmxRewardsGmx, rewardAmounts[2]);
-        assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
-        assertEq(
-            expectedWethBalanceAfterClaim,
-            WETH.balanceOf(address(pirexGmx))
-        );
-        assertEq(
-            expectedEsGmxBalanceAfterClaim,
-            STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX)
-        );
-    }
-
-    /*//////////////////////////////////////////////////////////////
                         claimRewards TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -1374,15 +1283,16 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is not pirexRewards
      */
     function testCannotClaimRewardsNotPirexRewards() external {
-        vm.expectRevert(PirexGmx.NotPirexRewards.selector);
+        address invalidCaller = address(this);
 
-        vm.prank(testAccounts[0]);
+        vm.expectRevert(PirexGmx.NotPirexRewards.selector);
+        vm.prank(invalidCaller);
 
         pirexGmx.claimRewards();
     }
 
     /**
-        @notice Test tx success: claim WETH and esGMX rewards + MP
+        @notice Test tx success: claim WETH, esGMX, and bnGMX/MP rewards
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
@@ -1399,13 +1309,17 @@ contract PirexGmxTest is Test, Helper {
         vm.assume(gmxAmount > 1e15);
         vm.assume(gmxAmount < 1000000e18);
 
-        address pirexRewardsAddr = address(pirexRewards);
-
         _depositGlp(wbtcAmount, address(this));
         _depositGmx(gmxAmount, address(this));
 
-        // Forward timestamp to produce rewards
         vm.warp(block.timestamp + secondsElapsed);
+
+        // Commented out due to "Stack too deep..." error
+        // uint256 expectedWethBalanceBeforeClaim = 0;
+        // uint256 expectedEsGmxBalanceBeforeClaim = 0;
+
+        assertEq(0, WETH.balanceOf(address(pirexGmx)));
+        assertEq(0, STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX));
 
         uint256 previousStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(
             address(pirexGmx)
@@ -1439,7 +1353,7 @@ contract PirexGmxTest is Test, Helper {
         );
 
         // Impersonate pirexRewards and claim WETH rewards
-        vm.prank(pirexRewardsAddr);
+        vm.prank(address(pirexRewards));
 
         (
             ERC20[] memory producerTokens,
@@ -1459,9 +1373,26 @@ contract PirexGmxTest is Test, Helper {
         assertEq(expectedWETHRewardsGlp, rewardAmounts[1]);
         assertEq(expectedEsGmxRewardsGmx, rewardAmounts[2]);
         assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
-        assertGt(expectedWETHRewards, 0);
-        assertGt(expectedEsGmxRewards, 0);
-        assertGt(expectedBnGmxRewards, 0);
+
+        // Commented out due to "Stack too deep..." error
+        // uint256 expectedWethBalanceAfterClaim = expectedWETHRewards;
+        // uint256 expectedEsGmxBalanceAfterClaim = expectedEsGmxRewards;
+
+        assertEq(
+            expectedWETHRewards,
+            WETH.balanceOf(address(pirexGmx))
+        );
+        assertEq(
+            expectedEsGmxRewards,
+            STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX)
+        );
+
+        // Claimable reward amounts should all be zero post-claim
+        assertEq(0, pirexGmx.calculateRewards(true, true));
+        assertEq(0, pirexGmx.calculateRewards(true, false));
+        assertEq(0, pirexGmx.calculateRewards(false, true));
+        assertEq(0, pirexGmx.calculateRewards(false, false));
+        assertEq(0, calculateBnGmxRewards(address(pirexGmx)));
 
         // Claimed esGMX rewards + MP should also be staked immediately
         assertEq(
@@ -1470,7 +1401,6 @@ contract PirexGmxTest is Test, Helper {
                 expectedEsGmxRewards +
                 expectedBnGmxRewards
         );
-        assertEq(calculateBnGmxRewards(address(pirexGmx)), 0);
     }
 
     /*//////////////////////////////////////////////////////////////
