@@ -1093,7 +1093,7 @@ contract PirexRewardsTest is Helper {
         // Attempt to add the same token
         vm.expectRevert(PirexRewards.TokenAlreadyAdded.selector);
 
-        pirexRewards.addRewardToken(producerToken, rewardToken);        
+        pirexRewards.addRewardToken(producerToken, rewardToken);
     }
 
     /**
@@ -1260,7 +1260,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: producerToken is zero address
+        @notice Test tx reversion: user is zero address
      */
     function testCannotClaimUserZeroAddress() external {
         ERC20 producerToken = pxGlp;
