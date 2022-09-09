@@ -183,7 +183,7 @@ contract PirexRewards is OwnableUpgradeable {
             rewardTokens[removalIndex] = rewardTokens[lastIndex];
         }
 
-        producerTokens[producerToken].rewardTokens.pop();
+        rewardTokens.pop();
 
         emit RemoveRewardToken(producerToken, removalIndex);
     }

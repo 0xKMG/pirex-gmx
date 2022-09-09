@@ -16,26 +16,28 @@ contract PxGmxTest is Helper {
         address _pirexRewards = address(this);
         address caller = testAccounts[0];
 
-        vm.startPrank(caller);
-        vm.expectRevert(
-            _encodeRoleError(caller, pxGmx.DEFAULT_ADMIN_ROLE())
-        );
+        vm.expectRevert(_encodeRoleError(caller, pxGmx.DEFAULT_ADMIN_ROLE()));
 
-        pxGlp.setPirexRewards(_pirexRewards);
+        vm.startPrank(caller);
+
+        pxGmx.setPirexRewards(_pirexRewards);
     }
 
+    /**
+        @notice Test tx success: set pirexRewards
+     */
     function testSetPirexRewards() external {
         address _pirexRewards = address(this);
 
-        assertTrue(_pirexRewards != address(pxGlp.pirexRewards()));
+        assertTrue(_pirexRewards != address(pxGmx.pirexRewards()));
 
-        vm.expectEmit(false, false, false, true, address(pxGlp));
+        vm.expectEmit(false, false, false, true, address(pxGmx));
 
         emit SetPirexRewards(_pirexRewards);
 
-        pxGlp.setPirexRewards(_pirexRewards);
+        pxGmx.setPirexRewards(_pirexRewards);
 
-        assertEq(_pirexRewards, address(pxGlp.pirexRewards()));
+        assertEq(_pirexRewards, address(pxGmx.pirexRewards()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -43,47 +45,47 @@ contract PxGmxTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to caller not having the minter role
+        @notice Test tx reversion: caller does not have the minter role
      */
     function testCannotMintNoMinterRole() external {
         address to = address(this);
         uint256 amount = 1;
 
-        vm.expectRevert(
-            _encodeRoleError(address(this), pxGmx.MINTER_ROLE())
-        );
+        vm.expectRevert(_encodeRoleError(address(this), pxGmx.MINTER_ROLE()));
 
         pxGmx.mint(to, amount);
     }
 
     /**
-        @notice Test tx reversion due to to being the zero address
+        @notice Test tx reversion: receiver is zero address
      */
     function testCannotMintToZeroAddress() external {
         address invalidTo = address(0);
         uint256 amount = 1;
 
-        vm.prank(address(pirexGmxGlp));
         vm.expectRevert(PxGmx.ZeroAddress.selector);
+
+        vm.prank(address(pirexGmxGlp));
 
         pxGmx.mint(invalidTo, amount);
     }
 
     /**
-        @notice Test tx reversion due to amount being zero
+        @notice Test tx reversion: amount is zero
      */
     function testCannotMintToZeroAmount() external {
         address to = address(this);
         uint256 invalidAmount = 0;
 
-        vm.prank(address(pirexGmxGlp));
         vm.expectRevert(PxGmx.ZeroAmount.selector);
+
+        vm.prank(address(pirexGmxGlp));
 
         pxGmx.mint(to, invalidAmount);
     }
 
     /**
-        @notice Test minting pxGMX
+        @notice Test tx success: mint pxGMX
         @param  amount  uint224  Amount to mint
      */
     function testMint(uint224 amount) external {
@@ -91,6 +93,8 @@ contract PxGmxTest is Helper {
 
         address to = address(this);
         uint256 premintBalance = pxGmx.balanceOf(address(this));
+
+        assertEq(premintBalance, 0);
 
         vm.prank(address(pirexGmxGlp));
 

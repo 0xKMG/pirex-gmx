@@ -82,6 +82,9 @@ contract Helper is Test {
 
     PirexGmxGlp.Fees[3] internal feeTypes;
 
+    bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
+    bytes internal constant NOT_OWNER_ERROR = "Ownable: caller is not the owner";
+
     event SetPirexRewards(address pirexRewards);
     event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);

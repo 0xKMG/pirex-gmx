@@ -134,18 +134,22 @@ contract PirexRewardsTest is Helper {
         @notice Test tx reversion: caller is not authorized
      */
     function testCannotSetProducerNotAuthorized() external {
+        assertEq(address(pirexGmxGlp), address(pirexRewards.producer()));
+
         address _producer = address(this);
 
         vm.prank(testAccounts[0]);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert(NOT_OWNER_ERROR);
 
         pirexRewards.setProducer(_producer);
     }
 
     /**
-        @notice Test tx reversion: _producer is the zero address
+        @notice Test tx reversion: _producer is zero address
      */
     function testCannotSetProducerZeroAddress() external {
+        assertEq(address(pirexGmxGlp), address(pirexRewards.producer()));
+
         address invalidProducer = address(0);
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
@@ -154,9 +158,11 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test setting producer
+        @notice Test tx success: set producer
      */
     function testSetProducer() external {
+        assertEq(address(pirexGmxGlp), address(pirexRewards.producer()));
+
         address producerBefore = address(pirexRewards.producer());
         address _producer = address(this);
 
@@ -176,7 +182,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotGlobalAccrueProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
@@ -187,7 +193,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test global rewards accrual for minting
+        @notice Test tx success: global rewards accrual for minting
         @param  secondsElapsed  uint32  Seconds to forward timestamp (affects rewards accrued)
         @param  mintAmount      uint96  Amount of pxGMX or pxGLP to mint
         @param  useGmx          bool    Whether to use pxGMX
@@ -259,7 +265,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test global rewards accrual for burning
+        @notice Test tx success: global rewards accrual for burning
         @param  secondsElapsed  uint32  Seconds to forward timestamp (affects rewards accrued)
         @param  mintAmount      uint96  Amount of pxGLP to mint
         @param  burnPercent     uint8   Percent of pxGLP balance to burn
@@ -332,7 +338,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotUserAccrueProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
@@ -344,7 +350,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion due to user being the zero address
+        @notice Test tx reversion: user is zero address
      */
     function testCannotUserAccrueUserZeroAddress() external {
         ERC20 producerToken = pxGlp;
@@ -356,7 +362,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test user rewards accrual
+        @notice Test tx success: user rewards accrual
         @param  secondsElapsed    uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
         @param  multiplier        uint8   Multiplied with fixed token amounts for randomness
         @param  useETH            bool    Whether or not to use ETH as the source asset for minting GLP
@@ -426,7 +432,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test minting px token and reward point accrual for multiple users
+        @notice Test tx success: minting px token and reward point accrual for multiple users
         @param  secondsElapsed  uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
         @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
         @param  useETH          bool    Whether or not to use ETH as the source asset for minting GLP
@@ -507,7 +513,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test minting px tokens and reward point accrual for multiple users with one who accrues asynchronously
+        @notice Test tx success: minting px tokens and reward point accrual for multiple users with one who accrues asynchronously
         @param  secondsElapsed       uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
         @param  rounds               uint8   Number of rounds to fast forward time and accrue rewards
         @param  multiplier           uint8   Multiplied with fixed token amounts for randomness
@@ -592,7 +598,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test correctness of reward accruals in the case of px token transfers
+        @notice Test tx success: assert correctness of reward accruals in the case of px token transfers
         @param  tokenAmount      uin80   Amount of tokens to mint the sender
         @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
         @param  transferPercent  uint8   Percent for testing partial balance transfers
@@ -697,7 +703,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test correctness of reward accruals in the case of pxGLP burns
+        @notice Test tx success: assert correctness of reward accruals in the case of pxGLP burns
         @param  tokenAmount      uin80   Amount of pxGLP to mint the user
         @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
         @param  burnPercent      uint8   Percent for testing partial balance burns
@@ -767,7 +773,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test harvesting both WETH and esGMX rewards produced by pxGMX and pxGLP
+        @notice Test tx success: harvest WETH and esGMX rewards produced by pxGMX and pxGLP
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  ethAmount       uint80  Amount of ETH to mint pxGLP
         @param  gmxAmount       uint80  Amount of GMX to deposit into pxGMX
@@ -866,7 +872,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotSetRewardRecipientProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
@@ -883,7 +889,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: rewardToken is the zero address
+        @notice Test tx reversion: rewardToken is zero address
      */
     function testCannotSetRewardRecipientRewardTokenZeroAddress() external {
         ERC20 producerToken = pxGlp;
@@ -900,7 +906,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: recipient is the zero address
+        @notice Test tx reversion: recipient is zero address
      */
     function testCannotSetRewardRecipientRecipientZeroAddress() external {
         ERC20 producerToken = pxGlp;
@@ -917,21 +923,20 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test setting a reward recipient
+        @notice Test tx success: set reward recipient
      */
     function testSetRewardRecipient() external {
         ERC20 producerToken = pxGlp;
         ERC20 rewardToken = WETH;
         address recipient = address(this);
-
-        assertTrue(
-            recipient !=
-                pirexRewards.getRewardRecipient(
-                    address(this),
-                    producerToken,
-                    rewardToken
-                )
+        address oldRecipient = pirexRewards.getRewardRecipient(
+            address(this),
+            producerToken,
+            rewardToken
         );
+
+        assertEq(address(0), oldRecipient);
+        assertTrue(recipient != oldRecipient);
 
         vm.expectEmit(true, true, true, true, address(pirexRewards));
 
@@ -959,7 +964,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotUnsetRewardRecipientProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
@@ -971,7 +976,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: rewardToken is the zero address
+        @notice Test tx reversion: rewardToken is zero address
      */
     function testCannotUnsetRewardRecipientRewardTokenZeroAddress() external {
         ERC20 producerToken = pxGlp;
@@ -983,12 +988,21 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test unsetting a reward recipient
+        @notice Test tx success: unset reward recipient
      */
     function testUnsetRewardRecipient() external {
         ERC20 producerToken = pxGlp;
         ERC20 rewardToken = WETH;
         address recipient = address(this);
+
+        assertEq(
+            address(0),
+            pirexRewards.getRewardRecipient(
+                address(this),
+                producerToken,
+                rewardToken
+            )
+        );
 
         // Set reward recipient in order to unset
         pirexRewards.setRewardRecipient(pxGlp, rewardToken, recipient);
@@ -1029,14 +1043,15 @@ contract PirexRewardsTest is Helper {
         ERC20 producerToken = pxGlp;
         ERC20 rewardToken = WETH;
 
+        vm.expectRevert(NOT_OWNER_ERROR);
+
         vm.prank(testAccounts[0]);
-        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.addRewardToken(producerToken, rewardToken);
     }
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotAddRewardTokenProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
@@ -1048,7 +1063,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: rewardToken is the zero address
+        @notice Test tx reversion: rewardToken is zero address
      */
     function testCannotAddRewardTokenRewardTokenZeroAddress() external {
         ERC20 producerToken = pxGlp;
@@ -1060,7 +1075,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test adding a reward token
+        @notice Test tx success: add reward token
      */
     function testAddRewardToken() external {
         ERC20 producerToken = pxGlp;
@@ -1096,14 +1111,15 @@ contract PirexRewardsTest is Helper {
         ERC20 producerToken = pxGlp;
         uint256 removalIndex = 0;
 
+        vm.expectRevert(NOT_OWNER_ERROR);
+
         vm.prank(testAccounts[0]);
-        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.removeRewardToken(producerToken, removalIndex);
     }
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotRemoveRewardTokenProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
@@ -1115,7 +1131,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test removing a reward token at a random index
+        @notice Test tx success: remove reward token at a random index
         @param  removalIndex  uint8  Index of the element to be removed
      */
     function testRemoveRewardToken(uint8 removalIndex) external {
@@ -1124,6 +1140,12 @@ contract PirexRewardsTest is Helper {
         ERC20 producerToken = pxGlp;
         address rewardToken1 = address(WETH);
         address rewardToken2 = address(WBTC);
+
+        ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+
+        assertEq(0, rewardTokensBeforePush.length);
 
         // Add rewardTokens to array to test proper removal
         pirexRewards.addRewardToken(producerToken, ERC20(rewardToken1));
@@ -1159,7 +1181,7 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotClaimProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
@@ -1171,7 +1193,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotClaimUserZeroAddress() external {
         ERC20 producerToken = pxGlp;
@@ -1183,7 +1205,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test claim
+        @notice Test tx success: claim
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  ethAmount       uint80  ETH amount used to mint pxGLP
         @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
@@ -1299,8 +1321,9 @@ contract PirexRewardsTest is Helper {
         ERC20 rewardToken = WETH;
         address recipient = address(this);
 
+        vm.expectRevert(NOT_OWNER_ERROR);
+
         vm.prank(testAccounts[0]);
-        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.setRewardRecipientPrivileged(
             lpContract,
@@ -1346,7 +1369,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotSetRewardRecipientPrivilegedProducerTokenZeroAddress()
         external
@@ -1367,7 +1390,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: rewardToken is the zero address
+        @notice Test tx reversion: rewardToken is zero address
      */
     function testCannotSetRewardRecipientPrivilegedRewardTokenZeroAddress()
         external
@@ -1388,7 +1411,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: recipient is the zero address
+        @notice Test tx reversion: recipient is zero address
      */
     function testCannotSetRewardRecipientPrivilegedRecipientZeroAddress()
         external
@@ -1409,7 +1432,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test setting the reward recipient as the contract owner
+        @notice Test tx success: set the reward recipient as the contract owner
      */
     function testSetRewardRecipientPrivileged() external {
         address lpContract = address(this);
@@ -1464,8 +1487,9 @@ contract PirexRewardsTest is Helper {
         ERC20 producerToken = pxGlp;
         ERC20 rewardToken = WETH;
 
+        vm.expectRevert(NOT_OWNER_ERROR);
+
         vm.prank(testAccounts[0]);
-        vm.expectRevert("Ownable: caller is not the owner");
 
         pirexRewards.unsetRewardRecipientPrivileged(
             lpContract,
@@ -1504,7 +1528,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: producerToken is the zero address
+        @notice Test tx reversion: producerToken is zero address
      */
     function testCannotUnsetRewardRecipientPrivilegedProducerTokenZeroAddress()
         external
@@ -1523,7 +1547,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: rewardToken is the zero address
+        @notice Test tx reversion: rewardToken is zero address
      */
     function testCannotUnsetRewardRecipientPrivilegedRewardTokenZeroAddress()
         external
@@ -1542,12 +1566,22 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test unsetting a reward recipient as the contract owner
+        @notice Test tx success: unset a reward recipient as the contract owner
      */
     function testUnsetRewardRecipientPrivileged() external {
         address lpContract = address(this);
         ERC20 producerToken = pxGlp;
         ERC20 rewardToken = WETH;
+
+        // Assert initial recipient
+        assertEq(
+            address(0),
+            pirexRewards.getRewardRecipient(
+                lpContract,
+                producerToken,
+                rewardToken
+            )
+        );
 
         // Set reward recipient in order to unset
         address recipient = address(this);
@@ -1597,24 +1631,32 @@ contract PirexRewardsTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test upgrading the PirexRewards contract
+        @notice Test tx success: upgrade the PirexRewards contract
      */
     function testUpgrade() external {
         // Setup a new set of contracts for testing upgradeability
         // as we can't use the existing one from the constructor (can't be upgraded)
         PirexRewards oldImplementation = new PirexRewards();
+        address admin = testAccounts[0];
 
         // Deploy and setup the proxy (with a test account as admin)
         // Note that admin won't be able to fallback to the proxy's implementation methods
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
             address(oldImplementation),
-            testAccounts[0],
+            admin,
             abi.encodeWithSelector(PirexRewards(address(0)).initialize.selector)
         );
         address proxyAddress = address(proxy);
         PirexRewards pirexRewardsProxy = PirexRewards(proxyAddress);
 
         pirexGmxGlp.setPirexRewards(proxyAddress);
+
+        assertEq(pirexGmxGlp.pirexRewards(), proxyAddress);
+
+        // Only admin can call the implementation getter
+        vm.prank(admin);
+
+        assertEq(proxy.implementation(), address(oldImplementation));
 
         // Simulate deposit to accrue rewards in which the reward data
         // will be used later to test upgraded implementation
@@ -1640,9 +1682,13 @@ contract PirexRewardsTest is Helper {
         // Deploy and set a new implementation to the proxy as the admin
         PirexRewardsMock newImplementation = new PirexRewardsMock();
 
-        vm.prank(testAccounts[0]);
+        vm.startPrank(admin);
 
         proxy.upgradeTo(address(newImplementation));
+
+        assertEq(proxy.implementation(), address(newImplementation));
+
+        vm.stopPrank();
 
         // Confirm that the proxy implementation has been updated
         // by attempting to call a new method only available in the new instance
@@ -1654,5 +1700,7 @@ contract PirexRewardsTest is Helper {
             ),
             oldMethodResult * 2
         );
+        // Confirm that the address of the proxy doesn't change, only the implementation
+        assertEq(pirexGmxGlp.pirexRewards(), proxyAddress);
     }
 }

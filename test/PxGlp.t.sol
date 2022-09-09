@@ -16,14 +16,16 @@ contract PxGlpTest is Helper {
         address _pirexRewards = address(this);
         address caller = testAccounts[0];
 
+        vm.expectRevert(_encodeRoleError(caller, pxGlp.DEFAULT_ADMIN_ROLE()));
+
         vm.startPrank(caller);
-        vm.expectRevert(
-            _encodeRoleError(caller, pxGlp.DEFAULT_ADMIN_ROLE())
-        );
 
         pxGlp.setPirexRewards(_pirexRewards);
     }
 
+    /**
+        @notice Test tx success: set pirexRewards
+     */
     function testSetPirexRewards() external {
         address _pirexRewards = address(this);
 
@@ -43,54 +45,56 @@ contract PxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to caller not having the minter role
+        @notice Test tx reversion: caller does not have the minter role
      */
     function testCannotMintNoMinterRole() external {
         address to = address(this);
         uint256 amount = 1;
 
-        vm.expectRevert(
-            _encodeRoleError(address(this), pxGlp.MINTER_ROLE())
-        );
+        vm.expectRevert(_encodeRoleError(address(this), pxGlp.MINTER_ROLE()));
 
         pxGlp.mint(to, amount);
     }
 
     /**
-        @notice Test tx reversion due to to being the zero address
+        @notice Test tx reversion: receiver is zero address
      */
     function testCannotMintToZeroAddress() external {
         address invalidTo = address(0);
         uint256 amount = 1;
 
-        vm.prank(address(pirexGmxGlp));
         vm.expectRevert(PxGlp.ZeroAddress.selector);
+
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.mint(invalidTo, amount);
     }
 
     /**
-        @notice Test tx reversion due to amount being zero
+        @notice Test tx reversion: amount is zero
      */
     function testCannotMintToZeroAmount() external {
         address to = address(this);
         uint256 invalidAmount = 0;
 
-        vm.prank(address(pirexGmxGlp));
         vm.expectRevert(PxGlp.ZeroAmount.selector);
+
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.mint(to, invalidAmount);
     }
 
     /**
-        @notice Test minting pxGLP
-        @param  amount  uint224  Amount to mint
+        @notice Test tx success: mint pxGLP
+        @param  amount  224  Amount to mint
      */
     function testMint(uint224 amount) external {
         vm.assume(amount != 0);
 
         address to = address(this);
         uint256 premintBalance = pxGlp.balanceOf(to);
+
+        assertEq(premintBalance, 0);
 
         vm.prank(address(pirexGmxGlp));
 
@@ -104,47 +108,47 @@ contract PxGlpTest is Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx reversion due to caller not having the minter role
+        @notice Test tx reversion: caller does not have the minter role
      */
     function testCannotBurnNoMinterRole() external {
         address from = address(this);
         uint256 amount = 1;
 
-        vm.expectRevert(
-            _encodeRoleError(address(this), pxGlp.MINTER_ROLE())
-        );
+        vm.expectRevert(_encodeRoleError(address(this), pxGlp.MINTER_ROLE()));
 
         pxGlp.burn(from, amount);
     }
 
     /**
-        @notice Test tx reversion due to to being the zero address
+        @notice Test tx reversion: from is zero address
      */
     function testCannotBurnFromZeroAddress() external {
         address invalidFrom = address(0);
         uint256 amount = 1;
 
-        vm.prank(address(pirexGmxGlp));
         vm.expectRevert(PxGlp.ZeroAddress.selector);
+
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.burn(invalidFrom, amount);
     }
 
     /**
-        @notice Test tx reversion due to amount being zero
+        @notice Test tx reversion: amount is zero
      */
     function testCannotBurnWithZeroAmount() external {
         address from = address(this);
         uint256 invalidAmount = 0;
 
-        vm.prank(address(pirexGmxGlp));
         vm.expectRevert(PxGlp.ZeroAmount.selector);
+
+        vm.prank(address(pirexGmxGlp));
 
         pxGlp.burn(from, invalidAmount);
     }
 
     /**
-        @notice Test burning pxGLP
+        @notice Test tx success: burn pxGLP
         @param  amount  uint224  Amount to burn
      */
     function testBurn(uint224 amount) external {
@@ -158,6 +162,8 @@ contract PxGlpTest is Helper {
         pxGlp.mint(account, amount);
 
         uint256 preburnBalance = pxGlp.balanceOf(account);
+
+        assertEq(preburnBalance, amount);
 
         pxGlp.burn(account, amount);
 
