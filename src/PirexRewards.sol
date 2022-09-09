@@ -3,8 +3,10 @@ pragma solidity 0.8.13;
 
 import {OwnableUpgradeable} from "openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IProducer} from "src/interfaces/IProducer.sol";
+import {Common} from "src/Common.sol";
 
 /**
     Originally inspired by Flywheel V2 (thank you Tribe team):
@@ -12,23 +14,12 @@ import {IProducer} from "src/interfaces/IProducer.sol";
 */
 contract PirexRewards is OwnableUpgradeable {
     using SafeTransferLib for ERC20;
-
-    struct GlobalState {
-        uint256 lastUpdate;
-        uint256 lastSupply;
-        uint256 rewards;
-    }
-
-    struct UserState {
-        uint256 lastUpdate;
-        uint256 lastBalance;
-        uint256 rewards;
-    }
+    using SafeCastLib for uint256;
 
     struct ProducerToken {
         ERC20[] rewardTokens;
-        GlobalState globalState;
-        mapping(address => UserState) userStates;
+        Common.GlobalState globalState;
+        mapping(address => Common.UserState) userStates;
         mapping(ERC20 => uint256) rewardStates;
         mapping(address => mapping(ERC20 => address)) rewardRecipients;
     }
@@ -214,7 +205,7 @@ contract PirexRewards is OwnableUpgradeable {
             uint256 rewards
         )
     {
-        UserState memory userState = producerTokens[producerToken].userStates[
+        Common.UserState memory userState = producerTokens[producerToken].userStates[
             user
         ];
 
@@ -271,7 +262,7 @@ contract PirexRewards is OwnableUpgradeable {
     function globalAccrue(ERC20 producerToken) public {
         if (address(producerToken) == address(0)) revert ZeroAddress();
 
-        GlobalState storage g = producerTokens[producerToken].globalState;
+        Common.GlobalState storage g = producerTokens[producerToken].globalState;
         uint256 totalSupply = producerToken.totalSupply();
 
         // Calculate rewards, the product of seconds elapsed and last supply
@@ -279,8 +270,8 @@ contract PirexRewards is OwnableUpgradeable {
             (block.timestamp - g.lastUpdate) *
             g.lastSupply;
 
-        g.lastUpdate = block.timestamp;
-        g.lastSupply = totalSupply;
+        g.lastUpdate = block.timestamp.safeCastTo32();
+        g.lastSupply = totalSupply.safeCastTo224();
         g.rewards = rewards;
 
         emit GlobalAccrue(producerToken, block.timestamp, totalSupply, rewards);
@@ -295,7 +286,7 @@ contract PirexRewards is OwnableUpgradeable {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (user == address(0)) revert ZeroAddress();
 
-        UserState storage u = producerTokens[producerToken].userStates[user];
+        Common.UserState storage u = producerTokens[producerToken].userStates[user];
         uint256 balance = producerToken.balanceOf(user);
 
         // Calculate the amount of rewards accrued by the user up to this call
@@ -303,8 +294,8 @@ contract PirexRewards is OwnableUpgradeable {
             u.lastBalance *
             (block.timestamp - u.lastUpdate);
 
-        u.lastUpdate = block.timestamp;
-        u.lastBalance = balance;
+        u.lastUpdate = block.timestamp.safeCastTo32();
+        u.lastBalance = balance.safeCastTo224();
         u.rewards = rewards;
 
         emit UserAccrue(producerToken, user, block.timestamp, balance, rewards);
@@ -376,30 +367,34 @@ contract PirexRewards is OwnableUpgradeable {
         ProducerToken storage p = producerTokens[producerToken];
         uint256 globalRewards = p.globalState.rewards;
         uint256 userRewards = p.userStates[user].rewards;
-        ERC20[] memory rewardTokens = p.rewardTokens;
-        uint256 rLen = rewardTokens.length;
 
-        // Update global and user reward states to reflect the claim
-        p.globalState.rewards -= userRewards;
-        p.userStates[user].rewards = 0;
+        // Claim should be skipped and not reverted on zero global/user reward
+        if (globalRewards != 0 && userRewards != 0) {
+            ERC20[] memory rewardTokens = p.rewardTokens;
+            uint256 rLen = rewardTokens.length;
 
-        emit Claim(producerToken, user);
+            // Update global and user reward states to reflect the claim
+            p.globalState.rewards -= userRewards;
+            p.userStates[user].rewards = 0;
 
-        // Transfer the proportionate reward token amounts to the recipient
-        for (uint256 i; i < rLen; ++i) {
-            ERC20 rewardToken = rewardTokens[i];
-            address rewardRecipient = p.rewardRecipients[user][rewardToken];
-            address recipient = rewardRecipient != address(0)
-                ? rewardRecipient
-                : user;
-            uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
-                globalRewards;
+            emit Claim(producerToken, user);
 
-            if (amount != 0) {
-                // Update reward state (i.e. amount) to reflect reward tokens transferred out
-                p.rewardStates[rewardToken] -= amount;
+            // Transfer the proportionate reward token amounts to the recipient
+            for (uint256 i; i < rLen; ++i) {
+                ERC20 rewardToken = rewardTokens[i];
+                address rewardRecipient = p.rewardRecipients[user][rewardToken];
+                address recipient = rewardRecipient != address(0)
+                    ? rewardRecipient
+                    : user;
+                uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
+                    globalRewards;
 
-                producer.claimUserReward(recipient, address(rewardToken), amount);
+                if (amount != 0) {
+                    // Update reward state (i.e. amount) to reflect reward tokens transferred out
+                    p.rewardStates[rewardToken] -= amount;
+
+                    producer.claimUserReward(recipient, address(rewardToken), amount);
+                }
             }
         }
     }

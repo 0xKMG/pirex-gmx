@@ -281,8 +281,6 @@ contract PirexFeesTest is Helper {
 
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, depositFee);
 
-        uint256 minShares = _calculateMinGlpAmount(address(0), ethAmount, 18);
-        address receiver = address(this);
         (
             uint256 feeNumerator,
             uint256 feeDenominator,
@@ -293,23 +291,22 @@ contract PirexFeesTest is Helper {
         ) = _getPirexFeeVariables(PirexGmxGlp.Fees.Deposit);
 
         assertEq(depositFee, feeNumerator);
-        assertEq(0, pxGlp.balanceOf(receiver));
+        assertEq(0, pxGlp.balanceOf(address(this)));
         assertEq(0, pxGlp.balanceOf(treasury));
         assertEq(0, pxGlp.balanceOf(contributors));
 
         vm.deal(address(this), ethAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpWithETH{value: ethAmount}(
-            minShares,
-            receiver
-        );
+        (uint256 fee, uint256 minted) = pirexGmxGlp.depositGlpWithETH{
+            value: ethAmount
+        }(_calculateMinGlpAmount(address(0), ethAmount, 18), address(this));
         (
             uint256 expectedFeeAmount,
             uint256 expectedFeeAmountTreasury,
             uint256 expectedFeeAmountContributors,
             uint256 expectedMintAmount
         ) = _calculateExpectedPirexFeeValues(
-                assets,
+                fee + minted,
                 feeNumerator,
                 feeDenominator,
                 feePercent,
@@ -321,10 +318,10 @@ contract PirexFeesTest is Helper {
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
         );
-        assertEq(expectedMintAmount, pxGlp.balanceOf(receiver));
+        assertEq(expectedMintAmount, pxGlp.balanceOf(address(this)));
         assertEq(expectedFeeAmountTreasury, pxGlp.balanceOf(treasury));
         assertEq(expectedFeeAmountContributors, pxGlp.balanceOf(contributors));
-        assertEq(expectedMintAmount + expectedFeeAmount, assets);
+        assertEq(expectedMintAmount + expectedFeeAmount, fee + minted);
     }
 
     /**
@@ -343,12 +340,6 @@ contract PirexFeesTest is Helper {
 
         pirexGmxGlp.setFee(PirexGmxGlp.Fees.Deposit, depositFee);
 
-        uint256 minShares = _calculateMinGlpAmount(
-            address(WBTC),
-            wbtcAmount,
-            8
-        );
-        address receiver = address(this);
         (
             uint256 feeNumerator,
             uint256 feeDenominator,
@@ -359,18 +350,18 @@ contract PirexFeesTest is Helper {
         ) = _getPirexFeeVariables(PirexGmxGlp.Fees.Deposit);
 
         assertEq(depositFee, feeNumerator);
-        assertEq(0, pxGlp.balanceOf(receiver));
+        assertEq(0, pxGlp.balanceOf(address(this)));
         assertEq(0, pxGlp.balanceOf(treasury));
         assertEq(0, pxGlp.balanceOf(contributors));
 
         _mintWbtc(wbtcAmount);
         WBTC.approve(address(pirexGmxGlp), wbtcAmount);
 
-        uint256 assets = pirexGmxGlp.depositGlpWithERC20(
+        (uint256 fee, uint256 minted) = pirexGmxGlp.depositGlpWithERC20(
             address(WBTC),
             wbtcAmount,
-            minShares,
-            receiver
+            _calculateMinGlpAmount(address(WBTC), wbtcAmount, 8),
+            address(this)
         );
         (
             uint256 expectedFeeAmount,
@@ -378,7 +369,7 @@ contract PirexFeesTest is Helper {
             uint256 expectedFeeAmountContributors,
             uint256 expectedMintAmount
         ) = _calculateExpectedPirexFeeValues(
-                assets,
+                fee + minted,
                 feeNumerator,
                 feeDenominator,
                 feePercent,
@@ -390,10 +381,10 @@ contract PirexFeesTest is Helper {
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
         );
-        assertEq(expectedMintAmount, pxGlp.balanceOf(receiver));
+        assertEq(expectedMintAmount, pxGlp.balanceOf(address(this)));
         assertEq(expectedFeeAmountTreasury, pxGlp.balanceOf(treasury));
         assertEq(expectedFeeAmountContributors, pxGlp.balanceOf(contributors));
-        assertEq(expectedMintAmount + expectedFeeAmount, assets);
+        assertEq(expectedMintAmount + expectedFeeAmount, fee + minted);
     }
 
     /**
