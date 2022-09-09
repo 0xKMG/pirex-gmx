@@ -1392,10 +1392,10 @@ contract PirexGmxTest is Test, Helper {
 
         // Claimed esGMX rewards + MP should also be staked immediately
         assertEq(
-            REWARD_TRACKER_GMX.balanceOf(address(pirexGmx)),
             previousStakedGmxBalance +
                 expectedEsGmxRewards +
-                expectedBnGmxRewards
+                expectedBnGmxRewards,
+            REWARD_TRACKER_GMX.balanceOf(address(pirexGmx))
         );
     }
 
@@ -1676,9 +1676,9 @@ contract PirexGmxTest is Test, Helper {
 
         pirexGmx.initiateMigration(newContract);
 
-        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), newContract);
+        assertEq(newContract, REWARD_ROUTER_V2.pendingReceivers(oldContract));
 
-        // Deploy a test contract but not being assigned as the migration target
+        // Deploy a test contract but not assign it as the migration target
         PirexGmx newPirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
@@ -1702,7 +1702,6 @@ contract PirexGmxTest is Test, Helper {
         address oldContract = address(pirexGmx);
 
         _mintGmx(assets);
-
         GMX.approve(oldContract, assets);
         pirexGmx.depositGmx(assets, receiver);
 
@@ -1755,20 +1754,20 @@ contract PirexGmxTest is Test, Helper {
         assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
 
         // Confirm that the token balances and claimables for old contract are correct
-        assertEq(REWARD_TRACKER_GMX.balanceOf(oldContract), 0);
-        assertEq(FEE_STAKED_GLP.balanceOf(oldContract), 0);
-        assertEq(STAKED_GMX.claimable(oldContract), 0);
-        assertEq(FEE_STAKED_GLP.claimable(oldContract), 0);
-        assertEq(REWARD_TRACKER_MP.claimable(oldContract), 0);
+        assertEq(0, REWARD_TRACKER_GMX.balanceOf(oldContract));
+        assertEq(0, FEE_STAKED_GLP.balanceOf(oldContract));
+        assertEq(0, STAKED_GMX.claimable(oldContract));
+        assertEq(0, FEE_STAKED_GLP.claimable(oldContract));
+        assertEq(0, REWARD_TRACKER_MP.claimable(oldContract));
 
         // Confirm that the staked token balances for new contract are correct
         // For Staked GMX balance, due to compounding in the migration,
         // all pending claimable esGMX and MP are automatically staked
         assertEq(
-            REWARD_TRACKER_GMX.balanceOf(newContract),
-            oldStakedGmxBalance + oldEsGmxClaimable + oldMpBalance
+            oldStakedGmxBalance + oldEsGmxClaimable + oldMpBalance,
+            REWARD_TRACKER_GMX.balanceOf(newContract)
         );
-        assertEq(FEE_STAKED_GLP.balanceOf(newContract), oldStakedGlpBalance);
+        assertEq(oldStakedGlpBalance, FEE_STAKED_GLP.balanceOf(newContract));
     }
 
     /*//////////////////////////////////////////////////////////////
