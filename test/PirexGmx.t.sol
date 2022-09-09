@@ -7,6 +7,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {IWETH} from "src/interfaces/IWETH.sol";
+import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 import {Helper} from "./Helper.sol";
 
 contract PirexGmxTest is Test, Helper {
@@ -1547,6 +1548,8 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetDelegationSpaceUnauthorized() external {
+        string memory space = "test.eth";
+        bool clear = false;
         address unauthorizedCaller = _getUnauthorizedCaller();
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
@@ -1559,8 +1562,6 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: space is empty string
      */
     function testCannotSetDelegationSpaceEmptyString() external {
-        assertEq(DEFAULT_DELEGATION_SPACE, pirexGmx.delegationSpace());
-
         string memory invalidSpace = "";
         bool clear = false;
 
@@ -1570,43 +1571,40 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test tx success: set delegation space without clearing
+        @notice Test tx success: set delegation space
+        @param  shouldClear  bool  Whether to clear the vote delegate
      */
-    function testSetDelegationSpaceWithoutClearing() external {
+    function testSetDelegationSpace(bool shouldClear) external {
+        DelegateRegistry d = DelegateRegistry(pirexGmx.delegateRegistry());
+        address voteDelegate = address(this);
+
+        // Set the vote delegate before clearing it when setting new delegation space
+        pirexGmx.setVoteDelegate(voteDelegate);
+
         assertEq(DEFAULT_DELEGATION_SPACE, pirexGmx.delegationSpace());
+        assertEq(
+            voteDelegate,
+            d.delegation(address(pirexGmx), DEFAULT_DELEGATION_SPACE)
+        );
 
-        string memory space = "test.eth";
-        bool clear = false;
+        string memory space = "new.eth";
+        bool clear = true;
+        bytes32 expectedDelegationSpace = bytes32(bytes(space));
+        address expectedVoteDelegate = shouldClear ? address(0) : voteDelegate;
 
-        vm.expectEmit(false, false, false, true);
+        assertFalse(expectedDelegationSpace == DEFAULT_DELEGATION_SPACE);
+
+        vm.expectEmit(false, false, false, true, address(pirexGmx));
 
         emit SetDelegationSpace(space, clear);
 
         pirexGmx.setDelegationSpace(space, clear);
 
-        assertEq(pirexGmx.delegationSpace(), bytes32(bytes(space)));
-    }
-
-    /**
-        @notice Test tx success: set delegation space with clearing
-     */
-    function testSetDelegationSpaceWithClearing() external {
-        assertEq(DEFAULT_DELEGATION_SPACE, pirexGmx.delegationSpace());
-
-        string memory oldSpace = "old.eth";
-        string memory newSpace = "new.eth";
-        bool clear = false;
-
-        pirexGmx.setDelegationSpace(oldSpace, clear);
-
-        // Set the vote delegate before clearing it when setting new delegation space
-        pirexGmx.setVoteDelegate(address(this));
-
-        assertEq(pirexGmx.delegationSpace(), bytes32(bytes(oldSpace)));
-
-        pirexGmx.setDelegationSpace(newSpace, !clear);
-
-        assertEq(pirexGmx.delegationSpace(), bytes32(bytes(newSpace)));
+        assertEq(expectedDelegationSpace, pirexGmx.delegationSpace());
+        assertEq(
+            expectedVoteDelegate,
+            d.delegation(address(pirexGmx), DEFAULT_DELEGATION_SPACE)
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
