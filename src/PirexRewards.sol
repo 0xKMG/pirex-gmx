@@ -385,7 +385,7 @@ contract PirexRewards is OwnableUpgradeable {
         uint256 rLen = rewardTokens.length;
 
         // Update global and user reward states to reflect the claim
-        p.globalState.rewards -= userRewards;
+        p.globalState.rewards = globalRewards - userRewards;
         p.userStates[user].rewards = 0;
 
         emit Claim(producerToken, user);
@@ -397,12 +397,13 @@ contract PirexRewards is OwnableUpgradeable {
             address recipient = rewardRecipient != address(0)
                 ? rewardRecipient
                 : user;
-            uint256 amount = (p.rewardStates[rewardToken] * userRewards) /
+            uint256 rewardState = p.rewardStates[rewardToken];
+            uint256 amount = (rewardState * userRewards) /
                 globalRewards;
 
             if (amount != 0) {
                 // Update reward state (i.e. amount) to reflect reward tokens transferred out
-                p.rewardStates[rewardToken] -= amount;
+                p.rewardStates[rewardToken] = rewardState - amount;
 
                 producer.claimUserReward(
                     recipient,
