@@ -58,6 +58,8 @@ contract Helper is Test, HelperEvents, HelperState {
 
     address internal constant BN_GMX =
         0x35247165119B69A40edD5304969560D0ef486921;
+    address internal constant ES_GMX =
+        0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA;
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
     uint256 internal constant FEE_BPS = 25;

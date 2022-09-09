@@ -1280,7 +1280,7 @@ contract PirexGmxTest is Test, Helper {
     //////////////////////////////////////////////////////////////*/
 
     /**
-        @notice Test tx success: calculate and return WETH and esGMX rewards produced by GMX and GLP
+        @notice Test tx success: calculate reward amounts for the different tokens
         @param  secondsElapsed  uint32  Seconds to forward timestamp
         @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
@@ -1297,12 +1297,22 @@ contract PirexGmxTest is Test, Helper {
         vm.assume(gmxAmount != 0);
         vm.assume(gmxAmount < 1000000e18);
 
-        address pirexRewardsAddr = address(pirexRewards);
-
         _depositGlp(wbtcAmount, address(this));
         _depositGmx(gmxAmount, address(this));
 
         vm.warp(block.timestamp + secondsElapsed);
+
+        uint256 expectedWethBalanceBeforeClaim = 0;
+        uint256 expectedEsGmxBalanceBeforeClaim = 0;
+
+        assertEq(
+            expectedWethBalanceBeforeClaim,
+            WETH.balanceOf(address(pirexGmx))
+        );
+        assertEq(
+            expectedEsGmxBalanceBeforeClaim,
+            STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX)
+        );
 
         uint256 expectedWETHRewardsGmx = pirexGmx.calculateRewards(true, true);
         uint256 expectedWETHRewardsGlp = pirexGmx.calculateRewards(true, false);
@@ -1318,8 +1328,12 @@ contract PirexGmxTest is Test, Helper {
             expectedWETHRewardsGlp;
         uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
             expectedEsGmxRewardsGlp;
+        uint256 expectedWethBalanceAfterClaim = expectedWethBalanceBeforeClaim +
+            expectedWETHRewards;
+        uint256 expectedEsGmxBalanceAfterClaim = expectedEsGmxBalanceBeforeClaim +
+                expectedEsGmxRewards;
 
-        vm.prank(pirexRewardsAddr);
+        vm.prank(address(pirexRewards));
 
         (
             ERC20[] memory producerTokens,
@@ -1342,8 +1356,14 @@ contract PirexGmxTest is Test, Helper {
         assertEq(expectedWETHRewardsGlp, rewardAmounts[1]);
         assertEq(expectedEsGmxRewardsGmx, rewardAmounts[2]);
         assertEq(expectedEsGmxRewardsGlp, rewardAmounts[3]);
-        assertGt(expectedWETHRewards, 0);
-        assertGt(expectedEsGmxRewards, 0);
+        assertEq(
+            expectedWethBalanceAfterClaim,
+            WETH.balanceOf(address(pirexGmx))
+        );
+        assertEq(
+            expectedEsGmxBalanceAfterClaim,
+            STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX)
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
