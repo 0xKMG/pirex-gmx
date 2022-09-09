@@ -1552,7 +1552,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: contract is not paused
      */
     function testCannotInitiateMigrationNotPaused() external {
-        assertEq(pirexGmx.paused(), false);
+        assertEq(false, pirexGmx.paused());
 
         address newContract = address(this);
 
@@ -1565,15 +1565,14 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotInitiateMigrationUnauthorized() external {
-        pirexGmx.setPauseState(true);
+        _pauseContract();
 
-        assertEq(pirexGmx.paused(), true);
-
+        address invalidCaller = testAccounts[0];
         address newContract = address(this);
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
 
-        vm.prank(testAccounts[0]);
+        vm.prank(invalidCaller);
 
         pirexGmx.initiateMigration(newContract);
     }
@@ -1581,10 +1580,8 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: newContract is zero address
      */
-    function testCannotInitiateMigrationZeroAddress() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(pirexGmx.paused(), true);
+    function testCannotInitiateMigrationNewContractZeroAddress() external {
+        _pauseContract();
 
         address invalidNewContract = address(0);
 
@@ -1597,14 +1594,16 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx success: initiate migration
      */
     function testInitiateMigration() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(pirexGmx.paused(), true);
+        _pauseContract();
 
         address oldContract = address(pirexGmx);
         address newContract = address(this);
+        address expectedPendingReceiverBeforeInitation = address(0);
 
-        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
+        assertEq(
+            expectedPendingReceiverBeforeInitation,
+            REWARD_ROUTER_V2.pendingReceivers(oldContract)
+        );
 
         vm.expectEmit(false, false, false, true, address(pirexGmx));
 
@@ -1612,8 +1611,13 @@ contract PirexGmxTest is Test, Helper {
 
         pirexGmx.initiateMigration(newContract);
 
+        address expectedPendingReceiverAfterInitation = newContract;
+
         // Should properly set the pendingReceivers state
-        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), newContract);
+        assertEq(
+            expectedPendingReceiverAfterInitation,
+            REWARD_ROUTER_V2.pendingReceivers(oldContract)
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
