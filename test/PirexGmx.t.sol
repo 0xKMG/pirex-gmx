@@ -709,7 +709,7 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: contract is paused
      */
-    function testCannotDepositGlpTokenPaused() external {
+    function testCannotDepositGlpPaused() external {
         _pauseContract();
 
         address token = address(WBTC);
@@ -1038,9 +1038,6 @@ contract PirexGmxTest is Test, Helper {
         vm.assume(etherAmount < 1e22);
         vm.assume(redemptionFee != 0);
         vm.assume(redemptionFee <= feeMax);
-        // function testRedeemPxGlpETH() external {
-        //     uint80 etherAmount = 1000000000000001;
-        //     uint24 redemptionFee = 0;
 
         _setFee(PirexGmx.Fees.Redemption, redemptionFee);
 
@@ -1052,6 +1049,9 @@ contract PirexGmxTest is Test, Helper {
         );
         uint256 minOut = _calculateMinOutAmount(address(WETH), postFeeAmount);
         address receiver = testAccounts[0];
+        uint256 pirexGmxGlpBalanceBeforeRedemption = FEE_STAKED_GLP.balanceOf(
+            address(pirexGmx)
+        );
 
         // Commented out due to "Stack too deep..." compiler error
         // uint256 expectedPreRedeemGlpBalancePirexGmx = assets;
@@ -1059,7 +1059,7 @@ contract PirexGmxTest is Test, Helper {
         // uint256 expectedPreRedeemWETHBalanceReceiver = 0;
 
         assertFalse(caller == receiver);
-        assertEq(assets, FEE_STAKED_GLP.balanceOf(address(pirexGmx)));
+        assertEq(assets, pirexGmxGlpBalanceBeforeRedemption);
         assertEq(assets, pxGlp.balanceOf(caller));
         assertEq(0, receiver.balance);
 
@@ -1071,7 +1071,7 @@ contract PirexGmxTest is Test, Helper {
             address(this),
             receiver,
             address(0),
-            etherAmount,
+            assets,
             minOut,
             0,
             postFeeAmount,
@@ -1079,7 +1079,8 @@ contract PirexGmxTest is Test, Helper {
         );
 
         uint256 redeemed = pirexGmx.redeemPxGlpETH(assets, minOut, receiver);
-        uint256 expectedPostRedeemGlpBalancePirexGmx = feeAmount;
+        uint256 expectedPostRedeemGlpBalancePirexGmx = pirexGmxGlpBalanceBeforeRedemption -
+                postFeeAmount;
         uint256 expectedPostRedeemPxGlpBalanceCaller = 0;
         uint256 expectedPostRedeemWETHBalanceReceiver = redeemed;
 
@@ -1098,12 +1099,12 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: contract is paused
      */
-    function testCannotRedeemPxGlpTokenPaused() external {
+    function testCannotRedeemPxGlpPaused() external {
         uint256 etherAmount = 1 ether;
-        address receiver = address(this);
         address token = address(WBTC);
-        uint256 assets = _depositGlpETH(etherAmount, receiver);
+        uint256 assets = _depositGlpETH(etherAmount, address(this));
         uint256 minOut = _calculateMinOutAmount(token, assets);
+        address receiver = testAccounts[0];
 
         // Pause after deposit
         _pauseContract();
@@ -1118,23 +1119,39 @@ contract PirexGmxTest is Test, Helper {
      */
     function testCannotRedeemPxGlpTokenZeroAddress() external {
         address invalidToken = address(0);
-        uint256 amount = 1;
+        uint256 assets = 1;
         uint256 minOut = 1;
-        address receiver = address(this);
+        address receiver = testAccounts[0];
 
         vm.expectRevert(PirexGmx.ZeroAddress.selector);
 
-        pirexGmx.redeemPxGlp(invalidToken, amount, minOut, receiver);
+        pirexGmx.redeemPxGlp(invalidToken, assets, minOut, receiver);
+    }
+
+    /**
+        @notice Test tx reversion: token is not whitelisted by GMX
+     */
+    function testCannotRedeemPxGlpInvalidToken() external {
+        address invalidToken = address(this);
+        uint256 assets = 1;
+        uint256 minOut = 1;
+        address receiver = testAccounts[0];
+
+        vm.expectRevert(
+            abi.encodeWithSelector(PirexGmx.InvalidToken.selector, invalidToken)
+        );
+
+        pirexGmx.redeemPxGlp(invalidToken, assets, minOut, receiver);
     }
 
     /**
         @notice Test tx reversion: assets is zero
      */
-    function testCannotRedeemPxGlpZeroAssets() external {
+    function testCannotRedeemPxGlpAssetsZeroAmount() external {
         address token = address(WBTC);
         uint256 invalidAssets = 0;
         uint256 minOut = 1;
-        address receiver = address(this);
+        address receiver = testAccounts[0];
 
         vm.expectRevert(PirexGmx.ZeroAmount.selector);
 
@@ -1144,11 +1161,11 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: minOut is zero
      */
-    function testCannotRedeemPxGlpZeroMinOut() external {
+    function testCannotRedeemPxGlpMinOutZeroAmount() external {
         address token = address(WBTC);
         uint256 assets = 1;
         uint256 invalidMinOut = 0;
-        address receiver = address(this);
+        address receiver = testAccounts[0];
 
         vm.expectRevert(PirexGmx.ZeroAmount.selector);
 
@@ -1158,7 +1175,7 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: receiver is zero address
      */
-    function testCannotRedeemPxGlpZeroReceiver() external {
+    function testCannotRedeemPxGlpReceiverZeroAddress() external {
         address token = address(WBTC);
         uint256 assets = 1;
         uint256 minOut = 1;
@@ -1170,30 +1187,13 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test tx reversion: token is not whitelisted by GMX
+        @notice Test tx reversion: minOut is greater than output amount
      */
-    function testCannotRedeemPxGlpInvalidToken() external {
-        address invalidToken = address(this);
-        uint256 assets = 1;
-        uint256 minOut = 1;
-        address receiver = address(this);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(PirexGmx.InvalidToken.selector, invalidToken)
-        );
-
-        pirexGmx.redeemPxGlp(invalidToken, assets, minOut, receiver);
-    }
-
-    /**
-        @notice Test tx reversion: minOut is greater than actual amount
-     */
-    function testCannotRedeemPxGlpExcessiveMinOut() external {
+    function testCannotRedeemPxGlpMinOutInsufficientOutput() external {
         address token = address(WBTC);
-        uint256 tokenAmount = 1e8;
-        address receiver = address(this);
-        uint256 assets = _depositGlp(tokenAmount, receiver);
+        uint256 assets = _depositGlp(1e8, address(this));
         uint256 invalidMinOut = _calculateMinOutAmount(token, assets) * 2;
+        address receiver = testAccounts[0];
 
         vm.expectRevert(INSUFFICIENT_OUTPUT_ERROR);
 
@@ -1202,40 +1202,55 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx success: redeem pxGLP for whitelisted ERC20 tokens
-        @param  tokenAmount  uint256  Token amount
+        @param  tokenAmount    uint40  Token amount
+        @param  redemptionFee  uint24  Redemption fee
      */
-    function testRedeemPxGlp(uint256 tokenAmount) external {
+    function testRedeemPxGlp(uint40 tokenAmount, uint24 redemptionFee)
+        external
+    {
         vm.assume(tokenAmount > 1e5);
         vm.assume(tokenAmount < 100e8);
+        vm.assume(redemptionFee != 0);
+        vm.assume(redemptionFee <= feeMax);
 
+        _setFee(PirexGmx.Fees.Redemption, redemptionFee);
+
+        address caller = address(this);
         address token = address(WBTC);
-        address receiver = address(this);
-
-        // Deposit using ERC20 to receive some pxGLP for redemption tests later
-        uint256 assets = _depositGlp(tokenAmount, receiver);
-
-        uint256 previousWBTCBalance = WBTC.balanceOf(receiver);
-        uint256 previousPxGlpUserBalance = pxGlp.balanceOf(receiver);
-        uint256 previousGlpPirexBalance = FEE_STAKED_GLP.balanceOf(
+        uint256 assets = _depositGlp(tokenAmount, caller);
+        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
+            PirexGmx.Fees.Redemption,
+            assets
+        );
+        uint256 minOut = _calculateMinOutAmount(address(WBTC), postFeeAmount);
+        address receiver = testAccounts[0];
+        uint256 pirexGmxGlpBalanceBeforeRedemption = FEE_STAKED_GLP.balanceOf(
             address(pirexGmx)
         );
 
-        assertEq(previousPxGlpUserBalance, previousGlpPirexBalance);
+        // Commented out due to "Stack too deep..." compiler error
+        // uint256 expectedPreRedeemGlpBalancePirexGmx = assets;
+        // uint256 expectedPreRedeemPxGlpBalanceCaller = assets;
+        // uint256 expectedPreRedeemWBTCBalanceReceiver = 0;
 
-        // Calculate the minimum redemption amount then perform the redemption
-        uint256 minOut = _calculateMinOutAmount(token, assets);
+        assertFalse(caller == receiver);
+        assertEq(assets, pirexGmxGlpBalanceBeforeRedemption);
+        assertEq(assets, pxGlp.balanceOf(caller));
+        assertEq(0, WBTC.balanceOf(receiver));
+
+        pxGlp.approve(address(pirexGmx), assets);
 
         vm.expectEmit(true, true, true, false, address(pirexGmx));
 
         emit RedeemGlp(
             address(this),
             receiver,
-            token,
-            tokenAmount,
+            address(WBTC),
+            assets,
             minOut,
             0,
-            0,
-            0
+            postFeeAmount,
+            feeAmount
         );
 
         uint256 redeemed = pirexGmx.redeemPxGlp(
@@ -1244,14 +1259,19 @@ contract PirexGmxTest is Test, Helper {
             minOut,
             receiver
         );
+        uint256 expectedPostRedeemGlpBalancePirexGmx = pirexGmxGlpBalanceBeforeRedemption -
+                postFeeAmount;
+        uint256 expectedPostRedeemPxGlpBalanceCaller = 0;
+        uint256 expectedPostRedeemWBTCBalanceReceiver = redeemed;
 
-        assertGt(redeemed, minOut);
-        assertEq(WBTC.balanceOf(receiver) - previousWBTCBalance, redeemed);
-        assertEq(previousPxGlpUserBalance - pxGlp.balanceOf(receiver), assets);
         assertEq(
-            previousGlpPirexBalance -
-                FEE_STAKED_GLP.balanceOf(address(pirexGmx)),
-            assets
+            expectedPostRedeemGlpBalancePirexGmx,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+        );
+        assertEq(expectedPostRedeemPxGlpBalanceCaller, pxGlp.balanceOf(caller));
+        assertEq(
+            expectedPostRedeemWBTCBalanceReceiver,
+            WBTC.balanceOf(receiver)
         );
     }
 
