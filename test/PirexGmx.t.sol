@@ -1488,289 +1488,6 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        setPauseState TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: caller is unauthorized
-     */
-    function testCannotSetPauseStateUnauthorized() external {
-        address unauthorizedCaller = _getUnauthorizedCaller();
-
-        vm.expectRevert(UNAUTHORIZED_ERROR);
-
-        vm.prank(unauthorizedCaller);
-
-        pirexGmx.setPauseState(true);
-    }
-
-    /**
-        @notice Test tx reversion: contract is not paused
-     */
-    function testCannotSetPauseStateNotPaused() external {
-        assertEq(false, pirexGmx.paused());
-
-        vm.expectRevert(NOT_PAUSED_ERROR);
-
-        pirexGmx.setPauseState(false);
-    }
-
-    /**
-        @notice Test tx reversion: contract is paused
-     */
-    function testCannotSetPauseStatePaused() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
-
-        vm.expectRevert(PAUSED_ERROR);
-
-        pirexGmx.setPauseState(true);
-    }
-
-    /**
-        @notice Test tx success: set pause state
-     */
-    function testSetPauseState() external {
-        assertEq(false, pirexGmx.paused());
-
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
-
-        pirexGmx.setPauseState(false);
-
-        assertEq(false, pirexGmx.paused());
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        initiateMigration TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: contract is not paused
-     */
-    function testCannotInitiateMigrationNotPaused() external {
-        assertEq(false, pirexGmx.paused());
-
-        address newContract = address(this);
-
-        vm.expectRevert(NOT_PAUSED_ERROR);
-
-        pirexGmx.initiateMigration(newContract);
-    }
-
-    /**
-        @notice Test tx reversion: caller is unauthorized
-     */
-    function testCannotInitiateMigrationUnauthorized() external {
-        _pauseContract();
-
-        address unauthorizedCaller = _getUnauthorizedCaller();
-        address newContract = address(this);
-
-        vm.expectRevert(UNAUTHORIZED_ERROR);
-
-        vm.prank(unauthorizedCaller);
-
-        pirexGmx.initiateMigration(newContract);
-    }
-
-    /**
-        @notice Test tx reversion: newContract is zero address
-     */
-    function testCannotInitiateMigrationNewContractZeroAddress() external {
-        _pauseContract();
-
-        address invalidNewContract = address(0);
-
-        vm.expectRevert(PirexGmx.ZeroAddress.selector);
-
-        pirexGmx.initiateMigration(invalidNewContract);
-    }
-
-    /**
-        @notice Test tx success: initiate migration
-     */
-    function testInitiateMigration() external {
-        _pauseContract();
-
-        address oldContract = address(pirexGmx);
-        address newContract = address(this);
-        address expectedPendingReceiverBeforeInitation = address(0);
-
-        assertEq(
-            expectedPendingReceiverBeforeInitation,
-            REWARD_ROUTER_V2.pendingReceivers(oldContract)
-        );
-
-        vm.expectEmit(false, false, false, true, address(pirexGmx));
-
-        emit InitiateMigration(newContract);
-
-        pirexGmx.initiateMigration(newContract);
-
-        address expectedPendingReceiverAfterInitation = newContract;
-
-        // Should properly set the pendingReceivers state
-        assertEq(
-            expectedPendingReceiverAfterInitation,
-            REWARD_ROUTER_V2.pendingReceivers(oldContract)
-        );
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        completeMigration TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: contract is not paused
-     */
-    function testCannotCompleteMigrationNotPaused() external {
-        assertEq(false, pirexGmx.paused());
-
-        address oldContract = address(this);
-
-        vm.expectRevert(NOT_PAUSED_ERROR);
-
-        pirexGmx.completeMigration(oldContract);
-    }
-
-    /**
-        @notice Test tx reversion: caller is unauthorized
-     */
-    function testCannotCompleteMigrationUnauthorized() external {
-        _pauseContract();
-
-        address unauthorizedCaller = _getUnauthorizedCaller();
-        address oldContract = address(pirexGmx);
-
-        vm.expectRevert(UNAUTHORIZED_ERROR);
-
-        vm.prank(unauthorizedCaller);
-
-        pirexGmx.completeMigration(oldContract);
-    }
-
-    /**
-        @notice Test tx reversion: oldContract is zero address
-     */
-    function testCannotCompleteMigrationZeroAddress() external {
-        _pauseContract();
-
-        address invalidOldContract = address(0);
-
-        vm.expectRevert(PirexGmx.ZeroAddress.selector);
-
-        pirexGmx.completeMigration(invalidOldContract);
-    }
-
-    /**
-        @notice Test tx reversion due to the caller not being the assigned new contract
-     */
-    function testCannotCompleteMigrationInvalidNewContract() external {
-        _pauseContract();
-
-        address oldContract = address(pirexGmx);
-        address newContract = address(this);
-
-        pirexGmx.initiateMigration(newContract);
-
-        assertEq(newContract, REWARD_ROUTER_V2.pendingReceivers(oldContract));
-
-        // Deploy a test contract but not assign it as the migration target
-        PirexGmx newPirexGmx = new PirexGmx(
-            address(pxGmx),
-            address(pxGlp),
-            address(pirexFees),
-            address(pirexRewards),
-            address(delegateRegistry)
-        );
-
-        vm.expectRevert("RewardRouter: transfer not signalled");
-
-        newPirexGmx.completeMigration(oldContract);
-    }
-
-    /**
-        @notice Test completing migration
-     */
-    function testCompleteMigration() external {
-        // Perform GMX deposit for balance tests after migration
-        uint256 assets = 1e18;
-        address receiver = address(this);
-        address oldContract = address(pirexGmx);
-
-        _mintGmx(assets);
-        GMX.approve(oldContract, assets);
-        pirexGmx.depositGmx(assets, receiver);
-
-        // Perform GLP deposit for balance tests after migration
-        uint256 etherAmount = 1 ether;
-
-        vm.deal(address(this), etherAmount);
-
-        pirexGmx.depositGlpETH{value: etherAmount}(1, 1, receiver);
-
-        // Time skip to bypass the cooldown duration
-        vm.warp(block.timestamp + 1 days);
-
-        // Store the staked balances for later validations
-        uint256 oldStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
-        uint256 oldStakedGlpBalance = FEE_STAKED_GLP.balanceOf(oldContract);
-        uint256 oldEsGmxClaimable = pirexGmx.calculateRewards(false, true) +
-            pirexGmx.calculateRewards(false, false);
-        uint256 oldMpBalance = REWARD_TRACKER_MP.claimable(oldContract);
-
-        // Pause the contract before proceeding
-        _pauseContract();
-
-        // Deploy the new contract for migration tests
-        PirexGmx newPirexGmx = new PirexGmx(
-            address(pxGmx),
-            address(pxGlp),
-            address(pirexFees),
-            address(pirexRewards),
-            address(delegateRegistry)
-        );
-
-        address newContract = address(newPirexGmx);
-
-        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
-
-        pirexGmx.initiateMigration(newContract);
-
-        // Should properly set the pendingReceivers state
-        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), newContract);
-
-        vm.expectEmit(false, false, false, true, address(newPirexGmx));
-
-        emit CompleteMigration(oldContract);
-
-        // Complete the migration using the new contract
-        newPirexGmx.completeMigration(oldContract);
-
-        // Should properly clear the pendingReceivers state
-        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
-
-        // Confirm that the token balances and claimables for old contract are correct
-        assertEq(0, REWARD_TRACKER_GMX.balanceOf(oldContract));
-        assertEq(0, FEE_STAKED_GLP.balanceOf(oldContract));
-        assertEq(0, STAKED_GMX.claimable(oldContract));
-        assertEq(0, FEE_STAKED_GLP.claimable(oldContract));
-        assertEq(0, REWARD_TRACKER_MP.claimable(oldContract));
-
-        // Confirm that the staked token balances for new contract are correct
-        // For Staked GMX balance, due to compounding in the migration,
-        // all pending claimable esGMX and MP are automatically staked
-        assertEq(
-            oldStakedGmxBalance + oldEsGmxClaimable + oldMpBalance,
-            REWARD_TRACKER_GMX.balanceOf(newContract)
-        );
-        assertEq(oldStakedGlpBalance, FEE_STAKED_GLP.balanceOf(newContract));
-    }
-
-    /*//////////////////////////////////////////////////////////////
                         setDelegateRegistry TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -1778,16 +1495,11 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetDelegateRegistryUnauthorized() external {
-        assertEq(
-            address(delegateRegistry),
-            address(pirexGmx.delegateRegistry())
-        );
-
+        address unauthorizedCaller = _getUnauthorizedCaller();
         address _delegateRegistry = address(this);
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
-
-        vm.prank(testAccounts[0]);
+        vm.prank(unauthorizedCaller);
 
         pirexGmx.setDelegateRegistry(_delegateRegistry);
     }
@@ -1795,12 +1507,9 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx reversion: _delegateRegistry is zero address
      */
-    function testCannotSetDelegateRegistryZeroAddress() external {
-        assertEq(
-            address(delegateRegistry),
-            address(pirexGmx.delegateRegistry())
-        );
-
+    function testCannotSetDelegateRegistryDelegateRegistryZeroAddress()
+        external
+    {
         address invalidDelegateRegistry = address(0);
 
         vm.expectRevert(PirexGmx.ZeroAddress.selector);
@@ -1812,10 +1521,13 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx success: set delegateRegistry
      */
     function testSetDelegateRegistry() external {
-        address delegateRegistryBefore = address(pirexGmx.delegateRegistry());
+        address delegateRegistryBefore = address(delegateRegistry);
         address _delegateRegistry = address(this);
 
-        assertEq(address(delegateRegistry), delegateRegistryBefore);
+        assertEq(
+            address(delegateRegistry),
+            address(pirexGmx.delegateRegistry())
+        );
         assertFalse(delegateRegistryBefore == _delegateRegistry);
 
         vm.expectEmit(false, false, false, true, address(pirexGmx));
@@ -1824,7 +1536,7 @@ contract PirexGmxTest is Test, Helper {
 
         pirexGmx.setDelegateRegistry(_delegateRegistry);
 
-        assertEq(address(pirexGmx.delegateRegistry()), _delegateRegistry);
+        assertEq(_delegateRegistry, address(pirexGmx.delegateRegistry()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1835,14 +1547,10 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is unauthorized
      */
     function testCannotSetDelegationSpaceUnauthorized() external {
-        assertEq(DEFAULT_DELEGATION_SPACE, pirexGmx.delegationSpace());
-
-        string memory space = "test.eth";
-        bool clear = false;
+        address unauthorizedCaller = _getUnauthorizedCaller();
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
-
-        vm.prank(testAccounts[0]);
+        vm.prank(unauthorizedCaller);
 
         pirexGmx.setDelegationSpace(space, clear);
     }
@@ -2017,5 +1725,285 @@ contract PirexGmxTest is Test, Helper {
             ),
             address(0)
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setPauseState TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotSetPauseStateUnauthorized() external {
+        address unauthorizedCaller = _getUnauthorizedCaller();
+
+        vm.expectRevert(UNAUTHORIZED_ERROR);
+        vm.prank(unauthorizedCaller);
+
+        pirexGmx.setPauseState(true);
+    }
+
+    /**
+        @notice Test tx reversion: contract is not paused
+     */
+    function testCannotSetPauseStateNotPaused() external {
+        assertEq(false, pirexGmx.paused());
+
+        vm.expectRevert(NOT_PAUSED_ERROR);
+
+        pirexGmx.setPauseState(false);
+    }
+
+    /**
+        @notice Test tx reversion: contract is paused
+     */
+    function testCannotSetPauseStatePaused() external {
+        pirexGmx.setPauseState(true);
+
+        assertEq(true, pirexGmx.paused());
+
+        vm.expectRevert(PAUSED_ERROR);
+
+        pirexGmx.setPauseState(true);
+    }
+
+    /**
+        @notice Test tx success: set pause state
+     */
+    function testSetPauseState() external {
+        assertEq(false, pirexGmx.paused());
+
+        pirexGmx.setPauseState(true);
+
+        assertEq(true, pirexGmx.paused());
+
+        pirexGmx.setPauseState(false);
+
+        assertEq(false, pirexGmx.paused());
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        initiateMigration TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: contract is not paused
+     */
+    function testCannotInitiateMigrationNotPaused() external {
+        assertEq(false, pirexGmx.paused());
+
+        address newContract = address(this);
+
+        vm.expectRevert(NOT_PAUSED_ERROR);
+
+        pirexGmx.initiateMigration(newContract);
+    }
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotInitiateMigrationUnauthorized() external {
+        _pauseContract();
+
+        address unauthorizedCaller = _getUnauthorizedCaller();
+        address newContract = address(this);
+
+        vm.expectRevert(UNAUTHORIZED_ERROR);
+        vm.prank(unauthorizedCaller);
+
+        pirexGmx.initiateMigration(newContract);
+    }
+
+    /**
+        @notice Test tx reversion: newContract is zero address
+     */
+    function testCannotInitiateMigrationNewContractZeroAddress() external {
+        _pauseContract();
+
+        address invalidNewContract = address(0);
+
+        vm.expectRevert(PirexGmx.ZeroAddress.selector);
+
+        pirexGmx.initiateMigration(invalidNewContract);
+    }
+
+    /**
+        @notice Test tx success: initiate migration
+     */
+    function testInitiateMigration() external {
+        _pauseContract();
+
+        address oldContract = address(pirexGmx);
+        address newContract = address(this);
+        address expectedPendingReceiverBeforeInitation = address(0);
+
+        assertEq(
+            expectedPendingReceiverBeforeInitation,
+            REWARD_ROUTER_V2.pendingReceivers(oldContract)
+        );
+
+        vm.expectEmit(false, false, false, true, address(pirexGmx));
+
+        emit InitiateMigration(newContract);
+
+        pirexGmx.initiateMigration(newContract);
+
+        address expectedPendingReceiverAfterInitation = newContract;
+
+        // Should properly set the pendingReceivers state
+        assertEq(
+            expectedPendingReceiverAfterInitation,
+            REWARD_ROUTER_V2.pendingReceivers(oldContract)
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        completeMigration TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: contract is not paused
+     */
+    function testCannotCompleteMigrationNotPaused() external {
+        assertEq(false, pirexGmx.paused());
+
+        address oldContract = address(this);
+
+        vm.expectRevert(NOT_PAUSED_ERROR);
+
+        pirexGmx.completeMigration(oldContract);
+    }
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotCompleteMigrationUnauthorized() external {
+        _pauseContract();
+
+        address unauthorizedCaller = _getUnauthorizedCaller();
+        address oldContract = address(pirexGmx);
+
+        vm.expectRevert(UNAUTHORIZED_ERROR);
+        vm.prank(unauthorizedCaller);
+
+        pirexGmx.completeMigration(oldContract);
+    }
+
+    /**
+        @notice Test tx reversion: oldContract is zero address
+     */
+    function testCannotCompleteMigrationZeroAddress() external {
+        _pauseContract();
+
+        address invalidOldContract = address(0);
+
+        vm.expectRevert(PirexGmx.ZeroAddress.selector);
+
+        pirexGmx.completeMigration(invalidOldContract);
+    }
+
+    /**
+        @notice Test tx reversion due to the caller not being the assigned new contract
+     */
+    function testCannotCompleteMigrationInvalidNewContract() external {
+        _pauseContract();
+
+        address oldContract = address(pirexGmx);
+        address newContract = address(this);
+
+        pirexGmx.initiateMigration(newContract);
+
+        assertEq(newContract, REWARD_ROUTER_V2.pendingReceivers(oldContract));
+
+        // Deploy a test contract but not assign it as the migration target
+        PirexGmx newPirexGmx = new PirexGmx(
+            address(pxGmx),
+            address(pxGlp),
+            address(pirexFees),
+            address(pirexRewards),
+            address(delegateRegistry)
+        );
+
+        vm.expectRevert("RewardRouter: transfer not signalled");
+
+        newPirexGmx.completeMigration(oldContract);
+    }
+
+    /**
+        @notice Test completing migration
+     */
+    function testCompleteMigration() external {
+        // Perform GMX deposit for balance tests after migration
+        uint256 assets = 1e18;
+        address receiver = address(this);
+        address oldContract = address(pirexGmx);
+
+        _mintGmx(assets);
+        GMX.approve(oldContract, assets);
+        pirexGmx.depositGmx(assets, receiver);
+
+        // Perform GLP deposit for balance tests after migration
+        uint256 etherAmount = 1 ether;
+
+        vm.deal(address(this), etherAmount);
+
+        pirexGmx.depositGlpETH{value: etherAmount}(1, 1, receiver);
+
+        // Time skip to bypass the cooldown duration
+        vm.warp(block.timestamp + 1 days);
+
+        // Store the staked balances for later validations
+        uint256 oldStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
+        uint256 oldStakedGlpBalance = FEE_STAKED_GLP.balanceOf(oldContract);
+        uint256 oldEsGmxClaimable = pirexGmx.calculateRewards(false, true) +
+            pirexGmx.calculateRewards(false, false);
+        uint256 oldMpBalance = REWARD_TRACKER_MP.claimable(oldContract);
+
+        // Pause the contract before proceeding
+        _pauseContract();
+
+        // Deploy the new contract for migration tests
+        PirexGmx newPirexGmx = new PirexGmx(
+            address(pxGmx),
+            address(pxGlp),
+            address(pirexFees),
+            address(pirexRewards),
+            address(delegateRegistry)
+        );
+
+        address newContract = address(newPirexGmx);
+
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
+
+        pirexGmx.initiateMigration(newContract);
+
+        // Should properly set the pendingReceivers state
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), newContract);
+
+        vm.expectEmit(false, false, false, true, address(newPirexGmx));
+
+        emit CompleteMigration(oldContract);
+
+        // Complete the migration using the new contract
+        newPirexGmx.completeMigration(oldContract);
+
+        // Should properly clear the pendingReceivers state
+        assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
+
+        // Confirm that the token balances and claimables for old contract are correct
+        assertEq(0, REWARD_TRACKER_GMX.balanceOf(oldContract));
+        assertEq(0, FEE_STAKED_GLP.balanceOf(oldContract));
+        assertEq(0, STAKED_GMX.claimable(oldContract));
+        assertEq(0, FEE_STAKED_GLP.claimable(oldContract));
+        assertEq(0, REWARD_TRACKER_MP.claimable(oldContract));
+
+        // Confirm that the staked token balances for new contract are correct
+        // For Staked GMX balance, due to compounding in the migration,
+        // all pending claimable esGMX and MP are automatically staked
+        assertEq(
+            oldStakedGmxBalance + oldEsGmxClaimable + oldMpBalance,
+            REWARD_TRACKER_GMX.balanceOf(newContract)
+        );
+        assertEq(oldStakedGlpBalance, FEE_STAKED_GLP.balanceOf(newContract));
     }
 }
