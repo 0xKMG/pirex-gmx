@@ -94,6 +94,7 @@ contract PirexRewards is OwnableUpgradeable {
     error EmptyArray();
     error NoRewardRecipient();
     error NotContract();
+    error TokenAlreadyAdded();
 
     function initialize() public initializer {
         __Ownable_init();
@@ -168,8 +169,18 @@ contract PirexRewards is OwnableUpgradeable {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (address(rewardToken) == address(0)) revert ZeroAddress();
 
-        // It is the responsibility of the caller to ensure rewardToken is not a dupe
-        producerTokens[producerToken].rewardTokens.push(rewardToken);
+        // Check if the token has been added previously for the specified producer
+        ProducerToken storage producer = producerTokens[producerToken];
+        ERC20[] memory rewardTokens = producer.rewardTokens;
+        uint256 len = rewardTokens.length;
+
+        for (uint256 i; i < len; ++i) {
+            if (address(rewardTokens[i]) == address(rewardToken)) {
+                revert TokenAlreadyAdded();
+            }
+        }
+
+        producer.rewardTokens.push(rewardToken);
 
         emit AddRewardToken(producerToken, rewardToken);
     }

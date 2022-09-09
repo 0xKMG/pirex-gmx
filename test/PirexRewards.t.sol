@@ -1074,6 +1074,29 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
+        @notice Test tx reversion: rewardToken is already added before
+     */
+    function testCannotAddRewardTokenAlreadyAdded() external {
+        ERC20 producerToken = pxGlp;
+        ERC20 rewardToken = WETH;
+
+        // Add a record before attempting to add the same token again
+        pirexRewards.addRewardToken(producerToken, rewardToken);
+
+        ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+        uint256 len = rewardTokensBeforePush.length;
+
+        assertEq(1, len);
+
+        // Attempt to add the same token
+        vm.expectRevert(PirexRewards.TokenAlreadyAdded.selector);
+
+        pirexRewards.addRewardToken(producerToken, rewardToken);        
+    }
+
+    /**
         @notice Test tx success: add reward token
      */
     function testAddRewardToken() external {
@@ -1154,11 +1177,11 @@ contract PirexRewardsTest is Helper {
      */
     function testCannotRemoveRewardTokenIndexOutOfBounds() external {
         ERC20 producerToken = pxGlp;
-        address rewardToken = address(WETH);
+        ERC20 rewardToken = WETH;
         uint256 invalidRemovalIndex = 2;
 
-        // Add 1 record then attempt to remove using larger index
-        pirexRewards.addRewardToken(producerToken, ERC20(rewardToken));
+        // Add a record then attempt to remove using larger index
+        pirexRewards.addRewardToken(producerToken, rewardToken);
 
         ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
             producerToken
@@ -1168,6 +1191,7 @@ contract PirexRewardsTest is Helper {
         assertEq(1, len);
         assertTrue(invalidRemovalIndex > len);
 
+        // Attemp to remove with invalid index (>= array size)
         vm.expectRevert(stdError.indexOOBError);
 
         pirexRewards.removeRewardToken(producerToken, invalidRemovalIndex);
