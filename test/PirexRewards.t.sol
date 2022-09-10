@@ -217,9 +217,9 @@ contract PirexRewardsTest is Helper {
             uint256 rewardsBeforeMint
         ) = _getGlobalState(producerToken);
 
-        assertEq(lastUpdateBeforeMint, 0);
-        assertEq(lastSupplyBeforeMint, 0);
-        assertEq(rewardsBeforeMint, 0);
+        assertEq(0, lastUpdateBeforeMint);
+        assertEq(0, lastSupplyBeforeMint);
+        assertEq(0, rewardsBeforeMint);
 
         // Kick off global rewards accrual by minting first tokens
         _mintPx(address(this), mintAmount, useGmx);
@@ -236,7 +236,7 @@ contract PirexRewardsTest is Helper {
         assertEq(lastSupplyAfterMint, totalSupplyAfterMint);
 
         // No rewards should have accrued since time has not elapsed
-        assertEq(rewardsAfterMint, 0);
+        assertEq(0, rewardsAfterMint);
 
         // Amount of rewards that should have accrued after warping
         uint256 expectedRewards = lastSupplyAfterMint * secondsElapsed;
@@ -327,8 +327,8 @@ contract PirexRewardsTest is Helper {
 
         assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
         assertEq(
-            noBurnRewards - expectedAndNoBurnRewardDelta,
-            expectedRewardsAfterBurn
+            expectedRewardsAfterBurn,
+            noBurnRewards - expectedAndNoBurnRewardDelta
         );
     }
 
@@ -403,7 +403,7 @@ contract PirexRewardsTest is Helper {
         assertEq(lastBalanceBefore, pxBalance);
 
         // User should not accrue rewards until time has passed
-        assertEq(rewardsBefore, 0);
+        assertEq(0, rewardsBefore);
 
         vm.warp(warpTimestamp);
 
@@ -420,9 +420,9 @@ contract PirexRewardsTest is Helper {
             uint256 rewardsAfter
         ) = pirexRewards.getUserState(producerToken, user);
 
-        assertEq(lastUpdateAfter, warpTimestamp);
-        assertEq(lastBalanceAfter, pxBalance);
-        assertEq(rewardsAfter, expectedUserRewards);
+        assertEq(warpTimestamp, lastUpdateAfter);
+        assertEq(pxBalance, lastBalanceAfter);
+        assertEq(expectedUserRewards, rewardsAfter);
         assertTrue(rewardsAfter != 0);
     }
 
@@ -589,10 +589,10 @@ contract PirexRewardsTest is Helper {
             delayedAccount
         );
 
-        assertEq(rewardsAfterAccrue, expectedDelayedRewards);
+        assertEq(expectedDelayedRewards, rewardsAfterAccrue);
         assertEq(
-            nonDelayedTotalRewards + rewardsAfterAccrue,
-            expectedGlobalRewards
+            expectedGlobalRewards,
+            nonDelayedTotalRewards + rewardsAfterAccrue
         );
     }
 
@@ -695,8 +695,8 @@ contract PirexRewardsTest is Helper {
             .getUserState(producerToken, sender);
 
         assertEq(
-            senderRewardsAfterTransferAndWarp,
-            expectedSenderRewardsAfterTransferAndWarp
+            expectedSenderRewardsAfterTransferAndWarp,
+            senderRewardsAfterTransferAndWarp
         );
         assertEq(expectedReceiverRewards, receiverRewards);
     }
@@ -1718,12 +1718,12 @@ contract PirexRewardsTest is Helper {
 
         pirexGmxGlp.setPirexRewards(proxyAddress);
 
-        assertEq(pirexGmxGlp.pirexRewards(), proxyAddress);
+        assertEq(proxyAddress, pirexGmxGlp.pirexRewards());
 
         // Only admin can call the implementation getter
         vm.prank(admin);
 
-        assertEq(proxy.implementation(), address(oldImplementation));
+        assertEq(address(oldImplementation), proxy.implementation());
 
         // Simulate deposit to accrue rewards in which the reward data
         // will be used later to test upgraded implementation
@@ -1753,7 +1753,7 @@ contract PirexRewardsTest is Helper {
 
         proxy.upgradeTo(address(newImplementation));
 
-        assertEq(proxy.implementation(), address(newImplementation));
+        assertEq(address(newImplementation), proxy.implementation());
 
         vm.stopPrank();
 
@@ -1761,13 +1761,13 @@ contract PirexRewardsTest is Helper {
         // by attempting to call a new method only available in the new instance
         // and also assert the returned value
         assertEq(
+            oldMethodResult * 2,
             PirexRewardsMock(proxyAddress).getRewardStateMock(
                 ERC20(address(pxGmx)),
                 WETH
-            ),
-            oldMethodResult * 2
+            )
         );
         // Confirm that the address of the proxy doesn't change, only the implementation
-        assertEq(pirexGmxGlp.pirexRewards(), proxyAddress);
+        assertEq(proxyAddress, pirexGmxGlp.pirexRewards());
     }
 }

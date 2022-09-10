@@ -167,8 +167,8 @@ contract PirexRewards is OwnableUpgradeable {
         if (address(rewardToken) == address(0)) revert ZeroAddress();
 
         // Check if the token has been added previously for the specified producer
-        ProducerToken storage producer = producerTokens[producerToken];
-        ERC20[] memory rewardTokens = producer.rewardTokens;
+        ProducerToken storage p = producerTokens[producerToken];
+        ERC20[] memory rewardTokens = p.rewardTokens;
         uint256 len = rewardTokens.length;
 
         for (uint256 i; i < len; ++i) {
@@ -177,7 +177,7 @@ contract PirexRewards is OwnableUpgradeable {
             }
         }
 
-        producer.rewardTokens.push(rewardToken);
+        p.rewardTokens.push(rewardToken);
 
         emit AddRewardToken(producerToken, rewardToken);
     }
