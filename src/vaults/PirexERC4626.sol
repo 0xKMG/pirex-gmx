@@ -11,6 +11,10 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
     @notice Pirex modifications
             - Add beforeDeposit method
             - Call beforeDeposit in deposit and mint methods
+            - Add afterWithdraw method
+            - Call afterWithdraw in redeem and withdraw methods
+            - Add afterTransfer method
+            - Call afterTransfer in transfer and transferFrom methods
  */
 abstract contract PirexERC4626 is ERC20 {
     using SafeTransferLib for ERC20;
@@ -58,7 +62,7 @@ abstract contract PirexERC4626 is ERC20 {
         virtual
         returns (uint256 shares)
     {
-        if (totalAssets() != 0) beforeDeposit(assets, shares);
+        if (totalAssets() != 0) beforeDeposit(receiver, assets, shares);
 
         // Check for rounding error since we round down in previewDeposit.
         require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
@@ -70,7 +74,7 @@ abstract contract PirexERC4626 is ERC20 {
 
         emit Deposit(msg.sender, receiver, assets, shares);
 
-        afterDeposit(assets, shares);
+        afterDeposit(receiver, assets, shares);
     }
 
     function mint(uint256 shares, address receiver)
@@ -78,7 +82,7 @@ abstract contract PirexERC4626 is ERC20 {
         virtual
         returns (uint256 assets)
     {
-        if (totalAssets() != 0) beforeDeposit(assets, shares);
+        if (totalAssets() != 0) beforeDeposit(receiver, assets, shares);
 
         assets = previewMint(shares); // No need to check for rounding error, previewMint rounds up.
 
@@ -89,7 +93,7 @@ abstract contract PirexERC4626 is ERC20 {
 
         emit Deposit(msg.sender, receiver, assets, shares);
 
-        afterDeposit(assets, shares);
+        afterDeposit(receiver, assets, shares);
     }
 
     function withdraw(
@@ -106,13 +110,15 @@ abstract contract PirexERC4626 is ERC20 {
                 allowance[owner][msg.sender] = allowed - shares;
         }
 
-        beforeWithdraw(assets, shares);
+        beforeWithdraw(owner, assets, shares);
 
         _burn(owner, shares);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
         asset.safeTransfer(receiver, assets);
+
+        afterWithdraw(owner, assets, shares);
     }
 
     function redeem(
@@ -130,13 +136,15 @@ abstract contract PirexERC4626 is ERC20 {
         // Check for rounding error since we round down in previewRedeem.
         require((assets = previewRedeem(shares)) != 0, "ZERO_ASSETS");
 
-        beforeWithdraw(assets, shares);
+        beforeWithdraw(owner, assets, shares);
 
         _burn(owner, shares);
 
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
         asset.safeTransfer(receiver, assets);
+
+        afterWithdraw(owner, assets, shares);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -222,13 +230,72 @@ abstract contract PirexERC4626 is ERC20 {
         return balanceOf[owner];
     }
 
+    /**
+        @notice Override transfer method to allow for pre-transfer internal hook
+        @param  to      address  Account receiving apxGLP
+        @param  amount  uint256  Amount of apxGLP
+    */
+    function transfer(address to, uint256 amount)
+        public
+        override
+        returns (bool)
+    {
+        bool status = ERC20.transfer(to, amount);
+
+        afterTransfer(msg.sender, to, amount);
+
+        return status;
+    }
+
+    /**
+        @notice Override transferFrom method to allow for pre-transfer internal hook
+        @param  from    address  Account sending apxGLP
+        @param  to      address  Account receiving apxGLP
+        @param  amount  uint256  Amount of apxGLP
+    */
+    function transferFrom(
+        address from,
+        address to,
+        uint256 amount
+    ) public override returns (bool) {
+        bool status = ERC20.transferFrom(from, to, amount);
+
+        afterTransfer(from, to, amount);
+
+        return status;
+    }
+
     /*//////////////////////////////////////////////////////////////
                           INTERNAL HOOKS LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function beforeWithdraw(uint256 assets, uint256 shares) internal virtual {}
+    function beforeWithdraw(
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual {}
 
-    function beforeDeposit(uint256 assets, uint256 shares) internal virtual {}
+    function beforeDeposit(
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual {}
 
-    function afterDeposit(uint256 assets, uint256 shares) internal virtual {}
+    function afterWithdraw(
+        address owner,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual {}
+
+    function afterDeposit(
+        address receiver,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual {}
+
+    function afterTransfer(
+        address owner,
+        address receiver,
+        uint256 amount
+    ) internal virtual {}
 }
