@@ -7,6 +7,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 import {TransparentUpgradeableProxy} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexRewardsMock} from "src/mocks/PirexRewardsMock.sol";
+import {PirexGmx} from "src/PirexGmx.sol";
 import {Helper} from "./Helper.sol";
 
 contract PirexRewardsTest is Helper {
@@ -1648,7 +1649,7 @@ contract PirexRewardsTest is Helper {
         address proxyAddress = address(proxy);
         PirexRewards pirexRewardsProxy = PirexRewards(proxyAddress);
 
-        pirexGmx.setPirexRewards(proxyAddress);
+        pirexGmx.setContract(PirexGmx.Contracts.PirexRewards, proxyAddress);
 
         assertEq(pirexGmx.pirexRewards(), proxyAddress);
 

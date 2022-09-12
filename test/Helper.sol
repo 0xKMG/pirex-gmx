@@ -116,7 +116,6 @@ contract Helper is Test, HelperEvents, HelperState {
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmx));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmx));
-        pirexGmx.setPirexRewards(address(pirexRewards));
         pirexRewards.setProducer(address(pirexGmx));
 
         // Unpause after completing the setup

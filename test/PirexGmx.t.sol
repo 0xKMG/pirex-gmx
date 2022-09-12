@@ -53,58 +53,6 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        setPirexRewards TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: caller is unauthorized
-     */
-    function testCannotSetPirexRewardsUnauthorized() external {
-        address unauthorizedCaller = _getUnauthorizedCaller();
-
-        assertEq(address(pirexRewards), pirexGmx.pirexRewards());
-
-        address _pirexRewards = address(this);
-
-        vm.expectRevert(UNAUTHORIZED_ERROR);
-        vm.prank(unauthorizedCaller);
-
-        pirexGmx.setPirexRewards(_pirexRewards);
-    }
-
-    /**
-        @notice Test tx reversion: _pirexRewards is zero address
-     */
-    function testCannotSetPirexRewardsZeroAddress() external {
-        assertEq(address(pirexRewards), pirexGmx.pirexRewards());
-
-        address invalidPirexRewards = address(0);
-
-        vm.expectRevert(PirexGmx.ZeroAddress.selector);
-
-        pirexGmx.setPirexRewards(invalidPirexRewards);
-    }
-
-    /**
-        @notice Test tx success: set pirexRewards
-     */
-    function testSetPirexRewards() external {
-        address currentPirexRewards = address(pirexRewards);
-        address _pirexRewards = address(this);
-
-        assertEq(currentPirexRewards, address(pirexGmx.pirexRewards()));
-        assertTrue(currentPirexRewards != _pirexRewards);
-
-        vm.expectEmit(false, false, false, true, address(pirexGmx));
-
-        emit SetPirexRewards(_pirexRewards);
-
-        pirexGmx.setPirexRewards(_pirexRewards);
-
-        assertEq(_pirexRewards, address(pirexGmx.pirexRewards()));
-    }
-
-    /*//////////////////////////////////////////////////////////////
                             setFee TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -371,6 +319,24 @@ contract PirexGmxTest is Test, Helper {
         pirexGmx.setContract(PirexGmx.Contracts.GlpManager, contractAddress);
 
         assertEq(contractAddress, address(pirexGmx.glpManager()));
+    }
+
+    /**
+        @notice Test tx success: set pirexRewards to a new contract address
+     */
+    function testSetContractPirexRewards() external {
+        address currentContractAddress = address(pirexGmx.pirexRewards());
+        address contractAddress = address(this);
+
+        assertFalse(currentContractAddress == contractAddress);
+
+        vm.expectEmit(true, false, false, true, address(pirexGmx));
+
+        emit SetContract(PirexGmx.Contracts.PirexRewards, contractAddress);
+
+        pirexGmx.setContract(PirexGmx.Contracts.PirexRewards, contractAddress);
+
+        assertEq(contractAddress, address(pirexGmx.pirexRewards()));
     }
 
     /*//////////////////////////////////////////////////////////////

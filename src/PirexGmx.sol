@@ -34,16 +34,22 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         FeeStakedGlp,
         StakedGmx,
         GmxVault,
-        GlpManager
+        GlpManager,
+        PirexRewards
     }
 
-    // External contracts which are extremely unlikely to change (e.g. protocol tokens)
+    // External contracts which are unlikely to change (e.g. protocol tokens)
     ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
     ERC20 public constant GMX =
         ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     ERC20 public constant ES_GMX =
         ERC20(0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA);
+
+    // Pirex token contract(s) which are unlikely to change
+    PxGmx public immutable pxGmx;
+    PxGlp public immutable pxGlp;
+    PirexFees public immutable pirexFees;
 
     // Dependency contracts which are modifiable by the contract owner
     IRewardRouterV2 public gmxRewardRouterV2 =
@@ -59,28 +65,22 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     IVault public gmxVault = IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public glpManager = 0x321F653eED006AD1C29D174e17d96351BDe22649;
 
+    // Pirex reward module contract which is subject to changing upon updates
+    address public pirexRewards;
+
     // Fee denominator
     uint256 public constant FEE_DENOMINATOR = 1_000_000;
 
     // Fee maximum
     uint256 public constant FEE_MAX = 100_000;
 
-    // Pirex token contract(s)
-    PxGmx public immutable pxGmx;
-    PxGlp public immutable pxGlp;
-    PirexFees public immutable pirexFees;
-
-    // Pirex reward module contract
-    address public pirexRewards;
-
-    // Snapshot delegation states
+    // Snapshot delegation-related variables
     DelegateRegistry public immutable delegateRegistry;
     bytes32 public delegationSpace = bytes32("gmx.eth");
 
     // Fees (e.g. 5000 / 1000000 = 0.5%)
     mapping(Fees => uint256) public fees;
 
-    event SetPirexRewards(address pirexRewards);
     event SetFee(Fees indexed f, uint256 fee);
     event SetContract(Contracts indexed c, address contractAddress);
     event DepositGmx(
@@ -185,33 +185,21 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
-        @param  f           Fees     Fee type
-        @param  amount      uint256  GMX/GLP/WETH amount
-        @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
-        @return feeAmount   uint256  Fee amount
+        @param  f              Fees     Fee type
+        @param  assets         uint256  GMX/GLP/WETH asset amount
+        @return postFeeAmount  uint256  Post-fee asset amount (for mint/burn/claim/etc.)
+        @return feeAmount      uint256  Fee amount
      */
-    function _deriveAssetAmounts(Fees f, uint256 amount)
+    function _deriveAssetAmounts(Fees f, uint256 assets)
         internal
         view
-        returns (uint256 userAmount, uint256 feeAmount)
+        returns (uint256 postFeeAmount, uint256 feeAmount)
     {
-        feeAmount = (amount * fees[f]) / FEE_DENOMINATOR;
-        userAmount = amount - feeAmount;
+        feeAmount = (assets * fees[f]) / FEE_DENOMINATOR;
+        postFeeAmount = assets - feeAmount;
 
-        // The sum of the fee and post-fee amounts should never exceed the total asset amount
-        assert(feeAmount + userAmount == amount);
-    }
-
-    /**
-        @notice Set pirexRewards
-        @param  _pirexRewards  address  PirexRewards contract address
-     */
-    function setPirexRewards(address _pirexRewards) external onlyOwner {
-        if (_pirexRewards == address(0)) revert ZeroAddress();
-
-        pirexRewards = _pirexRewards;
-
-        emit SetPirexRewards(_pirexRewards);
+        // The sum of the fee and post-fee asset amounts should never exceed assets
+        assert(feeAmount + postFeeAmount == assets);
     }
 
     /**
@@ -276,7 +264,12 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
             return;
         }
 
-        glpManager = contractAddress;
+        if (c == Contracts.GlpManager) {
+            glpManager = contractAddress;
+            return;
+        }
+
+        pirexRewards = contractAddress;
     }
 
     /**

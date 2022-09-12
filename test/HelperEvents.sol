@@ -6,7 +6,6 @@ import {PirexFees} from "src/PirexFees.sol";
 
 contract HelperEvents {
     // PirexGmx events
-    event SetPirexRewards(address pirexRewards);
     event SetFee(PirexGmx.Fees indexed f, uint256 fee);
     event SetContract(PirexGmx.Contracts indexed c, address contractAddress);
     event DepositGmx(
@@ -63,4 +62,7 @@ contract HelperEvents {
     event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
     event DistributeFees(address token, uint256 amount);
+
+    // PxGlp/PxGmx events
+    event SetPirexRewards(address pirexRewards);
 }
