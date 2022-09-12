@@ -74,7 +74,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     address public pirexRewards;
 
     // Snapshot delegation states
-    DelegateRegistry public delegateRegistry;
+    DelegateRegistry public immutable delegateRegistry;
     bytes32 public delegationSpace = bytes32("gmx.eth");
 
     // Fees (e.g. 5000 / 1000000 = 0.5%)
@@ -682,18 +682,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     /*//////////////////////////////////////////////////////////////
                         VOTE DELEGATION LOGIC
     //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Set delegateRegistry
-        @param  _delegateRegistry  address  DelegateRegistry contract address
-     */
-    function setDelegateRegistry(address _delegateRegistry) external onlyOwner {
-        if (_delegateRegistry == address(0)) revert ZeroAddress();
-
-        delegateRegistry = DelegateRegistry(_delegateRegistry);
-
-        emit SetDelegateRegistry(_delegateRegistry);
-    }
 
     /**
         @notice Set delegationSpace
