@@ -218,9 +218,9 @@ contract PirexRewardsTest is Helper {
             uint256 rewardsBeforeMint
         ) = _getGlobalState(producerToken);
 
-        assertEq(lastUpdateBeforeMint, 0);
-        assertEq(lastSupplyBeforeMint, 0);
-        assertEq(rewardsBeforeMint, 0);
+        assertEq(0, lastUpdateBeforeMint);
+        assertEq(0, lastSupplyBeforeMint);
+        assertEq(0, rewardsBeforeMint);
 
         // Kick off global rewards accrual by minting first tokens
         _mintPx(address(this), mintAmount, useGmx);
@@ -237,7 +237,7 @@ contract PirexRewardsTest is Helper {
         assertEq(lastSupplyAfterMint, totalSupplyAfterMint);
 
         // No rewards should have accrued since time has not elapsed
-        assertEq(rewardsAfterMint, 0);
+        assertEq(0, rewardsAfterMint);
 
         // Amount of rewards that should have accrued after warping
         uint256 expectedRewards = lastSupplyAfterMint * secondsElapsed;
@@ -328,8 +328,8 @@ contract PirexRewardsTest is Helper {
 
         assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
         assertEq(
-            noBurnRewards - expectedAndNoBurnRewardDelta,
-            expectedRewardsAfterBurn
+            expectedRewardsAfterBurn,
+            noBurnRewards - expectedAndNoBurnRewardDelta
         );
     }
 
@@ -404,7 +404,7 @@ contract PirexRewardsTest is Helper {
         assertEq(lastBalanceBefore, pxBalance);
 
         // User should not accrue rewards until time has passed
-        assertEq(rewardsBefore, 0);
+        assertEq(0, rewardsBefore);
 
         vm.warp(warpTimestamp);
 
@@ -421,9 +421,9 @@ contract PirexRewardsTest is Helper {
             uint256 rewardsAfter
         ) = pirexRewards.getUserState(producerToken, user);
 
-        assertEq(lastUpdateAfter, warpTimestamp);
-        assertEq(lastBalanceAfter, pxBalance);
-        assertEq(rewardsAfter, expectedUserRewards);
+        assertEq(warpTimestamp, lastUpdateAfter);
+        assertEq(pxBalance, lastBalanceAfter);
+        assertEq(expectedUserRewards, rewardsAfter);
         assertTrue(rewardsAfter != 0);
     }
 
@@ -590,10 +590,10 @@ contract PirexRewardsTest is Helper {
             delayedAccount
         );
 
-        assertEq(rewardsAfterAccrue, expectedDelayedRewards);
+        assertEq(expectedDelayedRewards, rewardsAfterAccrue);
         assertEq(
-            nonDelayedTotalRewards + rewardsAfterAccrue,
-            expectedGlobalRewards
+            expectedGlobalRewards,
+            nonDelayedTotalRewards + rewardsAfterAccrue
         );
     }
 
@@ -696,8 +696,8 @@ contract PirexRewardsTest is Helper {
             .getUserState(producerToken, sender);
 
         assertEq(
-            senderRewardsAfterTransferAndWarp,
-            expectedSenderRewardsAfterTransferAndWarp
+            expectedSenderRewardsAfterTransferAndWarp,
+            senderRewardsAfterTransferAndWarp
         );
         assertEq(expectedReceiverRewards, receiverRewards);
     }
@@ -1075,6 +1075,29 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
+        @notice Test tx reversion: rewardToken is already added before
+     */
+    function testCannotAddRewardTokenAlreadyAdded() external {
+        ERC20 producerToken = pxGlp;
+        ERC20 rewardToken = WETH;
+
+        // Add a record before attempting to add the same token again
+        pirexRewards.addRewardToken(producerToken, rewardToken);
+
+        ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+        uint256 len = rewardTokensBeforePush.length;
+
+        assertEq(1, len);
+
+        // Attempt to add the same token
+        vm.expectRevert(PirexRewards.TokenAlreadyAdded.selector);
+
+        pirexRewards.addRewardToken(producerToken, rewardToken);
+    }
+
+    /**
         @notice Test tx success: add reward token
      */
     function testAddRewardToken() external {
@@ -1128,6 +1151,51 @@ contract PirexRewardsTest is Helper {
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
         pirexRewards.removeRewardToken(invalidProducerToken, removalIndex);
+    }
+
+    /**
+        @notice Test tx reversion: invalid index (empty list)
+     */
+    function testCannotRemoveRewardTokenArithmeticError() external {
+        ERC20 producerToken = pxGlp;
+        uint256 invalidRemovalIndex = 1;
+
+        ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+        uint256 len = rewardTokensBeforePush.length;
+
+        assertEq(0, len);
+        assertTrue(invalidRemovalIndex > len);
+
+        vm.expectRevert(stdError.arithmeticError);
+
+        pirexRewards.removeRewardToken(producerToken, invalidRemovalIndex);
+    }
+
+    /**
+        @notice Test tx reversion: invalid index (index out of bounds on non empty list)
+     */
+    function testCannotRemoveRewardTokenIndexOutOfBounds() external {
+        ERC20 producerToken = pxGlp;
+        ERC20 rewardToken = WETH;
+        uint256 invalidRemovalIndex = 2;
+
+        // Add a record then attempt to remove using larger index
+        pirexRewards.addRewardToken(producerToken, rewardToken);
+
+        ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
+            producerToken
+        );
+        uint256 len = rewardTokensBeforePush.length;
+
+        assertEq(1, len);
+        assertTrue(invalidRemovalIndex > len);
+
+        // Attemp to remove with invalid index (>= array size)
+        vm.expectRevert(stdError.indexOOBError);
+
+        pirexRewards.removeRewardToken(producerToken, invalidRemovalIndex);
     }
 
     /**
@@ -1193,7 +1261,7 @@ contract PirexRewardsTest is Helper {
     }
 
     /**
-        @notice Test tx reversion: producerToken is zero address
+        @notice Test tx reversion: user is zero address
      */
     function testCannotClaimUserZeroAddress() external {
         ERC20 producerToken = pxGlp;
@@ -1651,12 +1719,12 @@ contract PirexRewardsTest is Helper {
 
         pirexGmxGlp.setPirexRewards(proxyAddress);
 
-        assertEq(pirexGmxGlp.pirexRewards(), proxyAddress);
+        assertEq(proxyAddress, pirexGmxGlp.pirexRewards());
 
         // Only admin can call the implementation getter
         vm.prank(admin);
 
-        assertEq(proxy.implementation(), address(oldImplementation));
+        assertEq(address(oldImplementation), proxy.implementation());
 
         // Simulate deposit to accrue rewards in which the reward data
         // will be used later to test upgraded implementation
@@ -1686,7 +1754,7 @@ contract PirexRewardsTest is Helper {
 
         proxy.upgradeTo(address(newImplementation));
 
-        assertEq(proxy.implementation(), address(newImplementation));
+        assertEq(address(newImplementation), proxy.implementation());
 
         vm.stopPrank();
 
@@ -1694,13 +1762,13 @@ contract PirexRewardsTest is Helper {
         // by attempting to call a new method only available in the new instance
         // and also assert the returned value
         assertEq(
+            oldMethodResult * 2,
             PirexRewardsMock(proxyAddress).getRewardStateMock(
                 ERC20(address(pxGmx)),
                 WETH
-            ),
-            oldMethodResult * 2
+            )
         );
         // Confirm that the address of the proxy doesn't change, only the implementation
-        assertEq(pirexGmxGlp.pirexRewards(), proxyAddress);
+        assertEq(proxyAddress, pirexGmxGlp.pirexRewards());
     }
 }

@@ -86,7 +86,7 @@ contract PxGlpTest is Helper {
 
     /**
         @notice Test tx success: mint pxGLP
-        @param  amount  224  Amount to mint
+        @param  amount  uint224  Amount to mint
      */
     function testMint(uint224 amount) external {
         vm.assume(amount != 0);
