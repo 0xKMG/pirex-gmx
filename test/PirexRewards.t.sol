@@ -9,6 +9,7 @@ import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexRewardsMock} from "src/mocks/PirexRewardsMock.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {Helper} from "./Helper.sol";
+import {Common} from "src/Common.sol";
 
 contract PirexRewardsTest is Helper {
     event SetProducer(address producer);
@@ -57,7 +58,7 @@ contract PirexRewardsTest is Helper {
             uint256 rewards
         )
     {
-        PirexRewards.GlobalState memory globalState = pirexRewards
+        Common.GlobalState memory globalState = pirexRewards
             .producerTokens(producerToken);
 
         return (

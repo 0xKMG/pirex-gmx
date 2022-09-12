@@ -1,30 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {Owned} from "solmate/auth/Owned.sol";
 import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
+import {PxGmxReward} from "src/vaults/PxGmxReward.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
-import {IV3SwapRouter} from "src/interfaces/IV3SwapRouter.sol";
 
-contract AutoPxGmx is Owned, PirexERC4626 {
+contract AutoPxGlp is PirexERC4626, PxGmxReward {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
     ERC20 public constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
-    ERC20 public constant GMX =
-        ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
-    IV3SwapRouter public constant SWAP_ROUTER =
-        IV3SwapRouter(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45);
 
     uint256 public constant MAX_WITHDRAWAL_PENALTY = 500;
     uint256 public constant MAX_PLATFORM_FEE = 2000;
     uint256 public constant FEE_DENOMINATOR = 10000;
     uint256 public constant MAX_COMPOUND_INCENTIVE = 5000;
+    uint256 public constant EXPANDED_DECIMALS = 1e30;
 
     uint256 public withdrawalPenalty = 300;
     uint256 public platformFee = 1000;
@@ -39,34 +35,34 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
         address indexed caller,
-        uint24 fee,
-        uint256 amountOutMinimum,
-        uint160 sqrtPriceLimitX96,
-        uint256 wethAmountIn,
-        uint256 gmxAmountOut,
-        uint256 pxGmxMintAmount,
-        uint256 totalFee,
-        uint256 incentive
+        uint256 minGlp,
+        uint256 wethAmount,
+        uint256 pxGmxAmountOut,
+        uint256 totalPxGlpFee,
+        uint256 totalPxGmxFee,
+        uint256 pxGlpIncentive,
+        uint256 pxGmxIncentive
     );
 
-    error ZeroAddress();
+    error ZeroAmount();
     error InvalidAssetParam();
     error ExceedsMax();
-    error AlreadySet();
     error InvalidParam();
 
     /**
-        @param  _asset         address  Asset address (e.g. pxGMX)
-        @param  _name          string   Asset name (e.g. Autocompounding pxGMX)
-        @param  _symbol        string   Asset symbol (e.g. apxGMX)
-        @param  _platform      address  Platform address (e.g. PirexGmx)
+        @param  _asset     address  Asset address (vault asset, e.g. pxGLP)
+        @param  _pxGmx     address  pxGMX address (as secondary reward)
+        @param  _name      string   Asset name (e.g. Autocompounding pxGLP)
+        @param  _symbol    string   Asset symbol (e.g. apxGLP)
+        @param  _platform  address  Platform address (e.g. PirexGmx)
      */
     constructor(
         address _asset,
+        address _pxGmx,
         string memory _name,
         string memory _symbol,
         address _platform
-    ) Owned(msg.sender) PirexERC4626(ERC20(_asset), _name, _symbol) {
+    ) PxGmxReward(_pxGmx) PirexERC4626(ERC20(_asset), _name, _symbol) {
         if (_asset == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
         if (bytes(_symbol).length == 0) revert InvalidAssetParam();
@@ -75,8 +71,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         platform = _platform;
 
         // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
-        WETH.safeApprove(address(SWAP_ROUTER), type(uint256).max);
-        GMX.safeApprove(_platform, type(uint256).max);
+        WETH.safeApprove(address(_platform), type(uint256).max);
     }
 
     /**
@@ -140,8 +135,8 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     }
 
     /**
-        @notice Get the pxGMX custodied by the AutoPxGmx contract
-        @return uint256  Amount of pxGMX custodied by the autocompounder
+        @notice Get the pxGLP custodied by the AutoPxGlp contract
+        @return uint256  Amount of pxGLP custodied by the autocompounder
      */
     function totalAssets() public view override returns (uint256) {
         return asset.balanceOf(address(this));
@@ -149,8 +144,8 @@ contract AutoPxGmx is Owned, PirexERC4626 {
 
     /**
         @notice Preview the amount of assets a user would receive from redeeming shares
-        @param  shares  uint256  Shares
-        @return uint256  Assets
+        @param  shares   uint256  Shares amount
+        @return          uint256  Assets amount
      */
     function previewRedeem(uint256 shares)
         public
@@ -175,8 +170,8 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     /**
         @notice Preview the amount of shares a user would need to redeem the specified asset amount
         @notice This modified version takes into consideration the withdrawal fee
-        @param  assets  uint256  Assets
-        @return uint256  Shares
+        @param  assets   uint256  Assets amount
+        @return          uint256  Shares amount
      */
     function previewWithdraw(uint256 assets)
         public
@@ -199,94 +194,159 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     }
 
     /**
-        @notice Compound pxGMX rewards before depositing
-     */
-    function beforeDeposit(address, uint256, uint256) internal override {
-        compound(3000, 1, 0, true);
-    }
-
-    /**
-        @notice Compound pxGMX rewards
-        @param  fee                uint24   Uniswap pool tier fee
-        @param  amountOutMinimum   uint256  Outbound token swap amount
-        @param  sqrtPriceLimitX96  uint160  Swap price impact limit (optional)
-        @param  optOutIncentive    bool     Whether to opt out of the incentive
-        @return wethAmountIn       uint256  WETH inbound swap amount
-        @return gmxAmountOut       uint256  GMX outbound swap amount
-        @return pxGmxMintAmount    uint256  pxGMX minted when depositing GMX
-        @return totalFee           uint256  Total platform fee
-        @return incentive          uint256  Compound incentive
+        @notice Compound pxGLP (and additionally pxGMX) rewards
+        @param  minUsdg          uint256  Minimum USDG amount used when minting GLP
+        @param  minGlp           uint256  Minimum GLP amount received from the WETH deposit
+        @param  optOutIncentive  bool     Whether to opt out of the incentive
+        @return wethAmountIn     uint256  WETH inbound amount
+        @return pxGmxAmountOut   uint256  pxGMX outbound amount
+        @return totalPxGlpFee    uint256  Total platform fee for pxGLP
+        @return totalPxGmxFee    uint256  Total platform fee for pxGMX
+        @return pxGlpIncentive   uint256  Compound incentive for pxGLP
+        @return pxGmxIncentive   uint256  Compound incentive for pxGMX
      */
     function compound(
-        uint24 fee,
-        uint256 amountOutMinimum,
-        uint160 sqrtPriceLimitX96,
+        uint256 minUsdg,
+        uint256 minGlp,
         bool optOutIncentive
     )
         public
         returns (
             uint256 wethAmountIn,
-            uint256 gmxAmountOut,
-            uint256 pxGmxMintAmount,
-            uint256 totalFee,
-            uint256 incentive
+            uint256 pxGmxAmountOut,
+            uint256 totalPxGlpFee,
+            uint256 totalPxGmxFee,
+            uint256 pxGlpIncentive,
+            uint256 pxGmxIncentive
         )
     {
-        if (fee == 0) revert InvalidParam();
-        if (amountOutMinimum == 0) revert InvalidParam();
+        if (minUsdg == 0) revert InvalidParam();
+        if (minGlp == 0) revert InvalidParam();
 
-        uint256 assetsBeforeClaim = asset.balanceOf(address(this));
+        uint256 preClaimTotalAssets = asset.balanceOf(address(this));
+        uint256 preClaimPxGmxAmount = pxGmx.balanceOf(address(this));
 
         PirexRewards(rewardsModule).claim(asset, address(this));
+        PirexRewards(rewardsModule).claim(pxGmx, address(this));
 
-        // Swap entire WETH balance for GMX
+        // Track the amount of WETH received
         wethAmountIn = WETH.balanceOf(address(this));
 
         if (wethAmountIn != 0) {
-            gmxAmountOut = SWAP_ROUTER.exactInputSingle(
-                IV3SwapRouter.ExactInputSingleParams({
-                    tokenIn: address(WETH),
-                    tokenOut: address(GMX),
-                    fee: fee,
-                    recipient: address(this),
-                    amountIn: wethAmountIn,
-                    amountOutMinimum: amountOutMinimum,
-                    sqrtPriceLimitX96: sqrtPriceLimitX96
-                })
-            );
-
-            // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
-            (pxGmxMintAmount, ) = PirexGmx(platform).depositGmx(
-                GMX.balanceOf(address(this)),
+            // Deposit received WETH for pxGLP
+            PirexGmx(platform).depositGlp(
+                address(WETH),
+                wethAmountIn,
+                minUsdg,
+                minGlp,
                 address(this)
             );
         }
 
-        // Only distribute fees if the amount of vault assets increased (i.e. WETH and/or pxGMX rewards were non-zero)
-        if ((totalAssets() - assetsBeforeClaim) != 0) {
-            totalFee =
-                ((asset.balanceOf(address(this)) - assetsBeforeClaim) *
-                    platformFee) /
-                FEE_DENOMINATOR;
-            incentive = optOutIncentive
+        // Distribute fees if the amount of vault assets increased
+        uint256 newAssets = totalAssets() - preClaimTotalAssets;
+        if (newAssets != 0) {
+            totalPxGlpFee = (newAssets * platformFee) / FEE_DENOMINATOR;
+            pxGlpIncentive = optOutIncentive
                 ? 0
-                : (totalFee * compoundIncentive) / FEE_DENOMINATOR;
+                : (totalPxGlpFee * compoundIncentive) / FEE_DENOMINATOR;
 
-            if (incentive != 0) asset.safeTransfer(msg.sender, incentive);
+            if (pxGlpIncentive != 0)
+                asset.safeTransfer(msg.sender, pxGlpIncentive);
 
-            asset.safeTransfer(owner, totalFee - incentive);
+            asset.safeTransfer(owner, totalPxGlpFee - pxGlpIncentive);
+        }
+
+        // Track the amount of pxGMX received
+        pxGmxAmountOut = pxGmx.balanceOf(address(this)) - preClaimPxGmxAmount;
+
+        if (pxGmxAmountOut != 0) {
+            // Calculate and distribute pxGMX fees if the amount of pxGMX increased
+            totalPxGmxFee = (pxGmxAmountOut * platformFee) / FEE_DENOMINATOR;
+            pxGmxIncentive = optOutIncentive
+                ? 0
+                : (totalPxGmxFee * compoundIncentive) / FEE_DENOMINATOR;
+
+            if (pxGmxIncentive != 0)
+                pxGmx.safeTransfer(msg.sender, pxGmxIncentive);
+
+            pxGmx.safeTransfer(owner, totalPxGmxFee - pxGmxIncentive);
+
+            // Update the pxGmx reward accrual
+            _harvest(pxGmxAmountOut - totalPxGmxFee);
         }
 
         emit Compounded(
             msg.sender,
-            fee,
-            amountOutMinimum,
-            sqrtPriceLimitX96,
+            minGlp,
             wethAmountIn,
-            gmxAmountOut,
-            pxGmxMintAmount,
-            totalFee,
-            incentive
+            pxGmxAmountOut,
+            totalPxGlpFee,
+            totalPxGmxFee,
+            pxGlpIncentive,
+            pxGmxIncentive
         );
+    }
+
+    /**
+        @notice Compound and internally update pxGMX reward accrual before deposit
+     */
+    function beforeDeposit(
+        address,
+        uint256,
+        uint256
+    ) internal override {
+        compound(1, 1, true);
+    }
+
+    /**
+        @notice Update pxGMX reward accrual after deposit
+        @param  receiver  address  Receiver of the vault shares
+     */
+    function afterDeposit(
+        address receiver,
+        uint256,
+        uint256
+    ) internal override {
+        _globalAccrue();
+        _userAccrue(receiver);
+    }
+
+    /**
+        @notice Compound and internally update pxGMX reward accrual before withdrawal
+     */
+    function beforeWithdraw(
+        address,
+        uint256,
+        uint256
+    ) internal override {
+        compound(1, 1, true);
+    }
+
+    /**
+        @notice Update pxGMX reward accrual after withdrawal
+        @param  owner  address  Owner of the vault shares
+     */
+    function afterWithdraw(
+        address owner,
+        uint256,
+        uint256
+    ) internal override {
+        _globalAccrue();
+        _userAccrue(owner);
+    }
+
+    /**
+        @notice Update pxGMX reward accrual for both sender and receiver after transfer
+        @param  owner     address  Owner of the vault shares
+        @param  receiver  address  Receiver of the vault shares
+     */
+    function afterTransfer(
+        address owner,
+        address receiver,
+        uint256
+    ) internal override {
+        _userAccrue(owner);
+        _userAccrue(receiver);
     }
 }

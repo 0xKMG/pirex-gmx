@@ -12,6 +12,7 @@ import {PxGlp} from "src/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexFees} from "src/PirexFees.sol";
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
+import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
@@ -76,6 +77,7 @@ contract Helper is Test, HelperEvents, HelperState {
     PirexGmx internal immutable pirexGmx;
     PxGmx internal immutable pxGmx;
     AutoPxGmx internal immutable autoPxGmx;
+    AutoPxGlp internal immutable autoPxGlp;
     PxGlp internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
     PirexFees internal immutable pirexFees;
@@ -111,6 +113,13 @@ contract Helper is Test, HelperEvents, HelperState {
             address(pxGmx),
             "Autocompounding pxGMX",
             "apxGMX",
+            address(pirexGmx)
+        );
+        autoPxGlp = new AutoPxGlp(
+            address(pxGlp),
+            address(pxGmx),
+            "Autocompounding pxGLP",
+            "apxGLP",
             address(pirexGmx)
         );
 

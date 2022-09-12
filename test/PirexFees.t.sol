@@ -295,7 +295,7 @@ contract PirexFeesTest is Helper {
         ) = _getPirexFeeVariables(PirexGmx.Fees.Deposit);
 
         assertEq(depositFee, feeNumerator);
-        assertEq(0, pxGlp.balanceOf(receiver));
+        assertEq(0, pxGlp.balanceOf(address(this)));
         assertEq(0, pxGlp.balanceOf(treasury));
         assertEq(0, pxGlp.balanceOf(contributors));
 
@@ -324,7 +324,7 @@ contract PirexFeesTest is Helper {
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
         );
-        assertEq(expectedMintAmount, pxGlp.balanceOf(receiver));
+        assertEq(expectedMintAmount, pxGlp.balanceOf(address(this)));
         assertEq(expectedFeeAmountTreasury, pxGlp.balanceOf(treasury));
         assertEq(expectedFeeAmountContributors, pxGlp.balanceOf(contributors));
         assertEq(expectedMintAmount + expectedFeeAmount, assets);
@@ -358,7 +358,7 @@ contract PirexFeesTest is Helper {
         ) = _getPirexFeeVariables(PirexGmx.Fees.Deposit);
 
         assertEq(depositFee, feeNumerator);
-        assertEq(0, pxGlp.balanceOf(receiver));
+        assertEq(0, pxGlp.balanceOf(address(this)));
         assertEq(0, pxGlp.balanceOf(treasury));
         assertEq(0, pxGlp.balanceOf(contributors));
 
@@ -390,7 +390,7 @@ contract PirexFeesTest is Helper {
             expectedFeeAmountTreasury + expectedFeeAmountContributors,
             expectedFeeAmount
         );
-        assertEq(expectedMintAmount, pxGlp.balanceOf(receiver));
+        assertEq(expectedMintAmount, pxGlp.balanceOf(address(this)));
         assertEq(expectedFeeAmountTreasury, pxGlp.balanceOf(treasury));
         assertEq(expectedFeeAmountContributors, pxGlp.balanceOf(contributors));
         assertEq(expectedMintAmount + expectedFeeAmount, assets);
