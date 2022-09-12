@@ -599,7 +599,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         uint256 glpEsGmxRewards = calculateRewards(false, false);
 
         // Claim and stake esGMX + MP, and claim WETH
-        IRewardRouterV2(gmxRewardRouterV2).handleRewards(
+        gmxRewardRouterV2.handleRewards(
             false,
             false,
             true,
@@ -768,7 +768,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
         // Notify the reward router that the current/old contract is going to perform
         // full account transfer to the specified new contract
-        IRewardRouterV2(gmxRewardRouterV2).signalTransfer(newContract);
+        gmxRewardRouterV2.signalTransfer(newContract);
 
         emit InitiateMigration(newContract);
     }
@@ -788,7 +788,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         PirexRewards(pirexRewards).harvest();
 
         // Complete the full account transfer process
-        IRewardRouterV2(gmxRewardRouterV2).acceptTransfer(oldContract);
+        gmxRewardRouterV2.acceptTransfer(oldContract);
 
         emit CompleteMigration(oldContract);
     }
