@@ -19,6 +19,7 @@ contract AutoPxGlpTest is Helper {
         uint256 minGlp,
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
+        uint256 pxGlpAmountOut,
         uint256 totalPxGlpFee,
         uint256 totalPxGmxFee,
         uint256 pxGlpIncentive,
@@ -157,6 +158,7 @@ contract AutoPxGlpTest is Helper {
         @notice Compound and perform assertions partially
         @return wethAmount      uint256  WETH amount
         @return pxGmxAmount     uint256  pxGMX amount
+        @return pxGlpAmount     uint256  pxGLP amount
         @return pxGlpFee        uint256  pxGLP fee
         @return pxGlpInc        uint256  pxGLP incentive
         @return pxGmxFee        uint256  pxGMX fee
@@ -166,6 +168,7 @@ contract AutoPxGlpTest is Helper {
         returns (
             uint256 wethAmount,
             uint256 pxGmxAmount,
+            uint256 pxGlpAmount,
             uint256 pxGlpFee,
             uint256 pxGlpInc,
             uint256 pxGmxFee
@@ -173,7 +176,7 @@ contract AutoPxGlpTest is Helper {
     {
         vm.expectEmit(true, false, false, false, address(autoPxGlp));
 
-        emit Compounded(testAccounts[0], 0, 0, 0, 0, 0, 0, 0);
+        emit Compounded(testAccounts[0], 0, 0, 0, 0, 0, 0, 0, 0);
 
         // Call as testAccounts[0] to test compound incentive transfer
         vm.prank(testAccounts[0]);
@@ -181,6 +184,7 @@ contract AutoPxGlpTest is Helper {
         (
             uint256 wethAmountIn,
             uint256 pxGmxAmountOut,
+            uint256 pxGlpAmountOut,
             uint256 totalPxGlpFee,
             uint256 totalPxGmxFee,
             uint256 pxGlpIncentive,
@@ -196,6 +200,7 @@ contract AutoPxGlpTest is Helper {
 
         wethAmount = wethAmountIn;
         pxGmxAmount = pxGmxAmountOut;
+        pxGlpAmount = pxGlpAmountOut;
         pxGlpFee = totalPxGlpFee;
         pxGlpInc = pxGlpIncentive;
         pxGmxFee = totalPxGmxFee;
@@ -203,44 +208,56 @@ contract AutoPxGlpTest is Helper {
 
     /**
         @notice Assert main vault states after performing compound
+        @param  pxGlpAmountOut             uint256  pxGLP rewards before fees
         @param  totalPxGlpFee              uint256  Total fees for pxGLP
         @param  pxGlpIncentive             uint256  Incentive for pxGLP
         @param  totalAssetsBeforeCompound  uint256  Total assets before compound
      */
     function _assertPostCompoundVaultStates(
+        uint256 pxGlpAmountOut,
         uint256 totalPxGlpFee,
         uint256 pxGlpIncentive,
         uint256 totalAssetsBeforeCompound
     ) internal {
         uint256 userShareBalance = autoPxGlp.balanceOf(address(this));
+        uint256 expectedTotalPxGlpFee = (pxGlpAmountOut *
+            autoPxGlp.platformFee()) / autoPxGlp.FEE_DENOMINATOR();
         uint256 expectedCompoundIncentive = (totalPxGlpFee *
             autoPxGlp.compoundIncentive()) / autoPxGlp.FEE_DENOMINATOR();
-        uint256 expectedTotalAssets = totalAssetsBeforeCompound - totalPxGlpFee;
+        uint256 expectedTotalAssets = totalAssetsBeforeCompound +
+            pxGlpAmountOut -
+            totalPxGlpFee;
 
         assertGt(expectedTotalAssets, totalAssetsBeforeCompound);
-        // assertEq(expectedTotalAssets, autoPxGlp.totalAssets());
-        // assertEq(expectedTotalAssets, pxGlp.balanceOf(address(autoPxGlp)));
-        // assertEq(expectedCompoundIncentive, pxGlpIncentive);
-        // assertEq(
-        //     expectedCompoundIncentive + expectedCompoundIncentive,
-        //     totalPxGlpFee
-        // );
+        assertEq(expectedTotalAssets, autoPxGlp.totalAssets());
+        assertEq(expectedTotalAssets, pxGlp.balanceOf(address(autoPxGlp)));
+        assertEq(expectedTotalPxGlpFee, totalPxGlpFee);
+        assertEq(expectedCompoundIncentive, pxGlpIncentive);
+        assertEq(
+            expectedTotalPxGlpFee -
+                expectedCompoundIncentive +
+                expectedCompoundIncentive,
+            totalPxGlpFee
+        );
 
-        // // Check for vault asset balances of the fee receivers
-        // assertEq(expectedCompoundIncentive, pxGlp.balanceOf(autoPxGlp.owner()));
-        // assertEq(expectedCompoundIncentive, pxGlp.balanceOf(testAccounts[0]));
+        // Check for vault asset balances of the fee receivers
+        assertEq(
+            expectedTotalPxGlpFee - expectedCompoundIncentive,
+            pxGlp.balanceOf(autoPxGlp.owner())
+        );
+        assertEq(expectedCompoundIncentive, pxGlp.balanceOf(testAccounts[0]));
 
-        // assertEq(userShareBalance, autoPxGlp.balanceOf(address(this)));
-        // assertEq(
-        //     ((userShareBalance * expectedTotalAssets) /
-        //         autoPxGlp.totalSupply()) - totalAssetsBeforeCompound,
-        //     autoPxGlp.convertToAssets(userShareBalance) -
-        //         totalAssetsBeforeCompound
-        // );
-        // assertLt(
-        //     totalAssetsBeforeCompound,
-        //     autoPxGlp.convertToAssets(userShareBalance)
-        // );
+        assertEq(userShareBalance, autoPxGlp.balanceOf(address(this)));
+        assertEq(
+            ((userShareBalance * expectedTotalAssets) /
+                autoPxGlp.totalSupply()) - totalAssetsBeforeCompound,
+            autoPxGlp.convertToAssets(userShareBalance) -
+                totalAssetsBeforeCompound
+        );
+        assertLt(
+            totalAssetsBeforeCompound,
+            autoPxGlp.convertToAssets(userShareBalance)
+        );
     }
 
     /**
@@ -556,17 +573,12 @@ contract AutoPxGlpTest is Helper {
         autoPxGlp.compound(minUsdg, invalidMinGlpAmount, optOutIncentive);
     }
 
-    // /**
-    //     @notice Test tx success: compound pxGLP rewards into more pxGLP and track pxGMX reward states
-    //     @param  etherAmount     uint96  Amount of ETH to deposit
-    //     @param  secondsElapsed  uint32  Seconds to forward timestamp
-    //  */
-    // function testCompound(uint96 etherAmount, uint32 secondsElapsed) external {
-
-    function testCompound() external {
-        uint96 etherAmount = 1000000000000001;
-        uint32 secondsElapsed = 11;
-
+    /**
+        @notice Test tx success: compound pxGLP rewards into more pxGLP and track pxGMX reward states
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testCompound(uint96 etherAmount, uint32 secondsElapsed) external {
         _validateTestArgs(etherAmount, secondsElapsed);
 
         (
@@ -581,7 +593,7 @@ contract AutoPxGlpTest is Helper {
         uint256 expectedGlobalLastSupply = autoPxGlp.totalSupply();
         uint256 expectedGlobalRewards = _calculateGlobalRewards();
 
-        // // Confirm current state prior to primary state mutating action
+        // Confirm current state prior to primary state mutating action
         assertEq(totalAssetsBeforeCompound, autoPxGlp.balanceOf(address(this)));
         assertGt(wethRewardState, 0);
         assertGt(pxGmxRewardState, 0);
@@ -590,6 +602,7 @@ contract AutoPxGlpTest is Helper {
         (
             uint256 wethAmountIn,
             uint256 pxGmxAmountOut,
+            uint256 pxGlpAmountOut,
             uint256 totalPxGlpFee,
             uint256 pxGlpIncentive,
             uint256 totalPxGmxFee
@@ -604,17 +617,17 @@ contract AutoPxGlpTest is Helper {
             expectedGlobalLastSupply,
             expectedGlobalRewards
         );
+        _assertPostCompoundVaultStates(
+            pxGlpAmountOut,
+            totalPxGlpFee,
+            pxGlpIncentive,
+            totalAssetsBeforeCompound
+        );
 
-        // _assertPostCompoundVaultStates(
-        //     totalPxGlpFee,
-        //     pxGlpIncentive,
-        //     totalAssetsBeforeCompound
-        // );
-
-        // assertEq(
-        //     (pxGmxAmountOut - totalPxGmxFee),
-        //     pxGmx.balanceOf(address(autoPxGlp)) - pxGmxBalanceBeforeCompound
-        // );
+        assertEq(
+            (pxGmxAmountOut - totalPxGmxFee),
+            pxGmx.balanceOf(address(autoPxGlp)) - pxGmxBalanceBeforeCompound
+        );
     }
 
     /*//////////////////////////////////////////////////////////////

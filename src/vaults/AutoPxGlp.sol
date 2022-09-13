@@ -38,6 +38,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         uint256 minGlp,
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
+        uint256 pxGlpAmountOut,
         uint256 totalPxGlpFee,
         uint256 totalPxGmxFee,
         uint256 pxGlpIncentive,
@@ -200,6 +201,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         @param  optOutIncentive  bool     Whether to opt out of the incentive
         @return wethAmountIn     uint256  WETH inbound amount
         @return pxGmxAmountOut   uint256  pxGMX outbound amount
+        @return pxGlpAmountOut   uint256  pxGLP outbound amount
         @return totalPxGlpFee    uint256  Total platform fee for pxGLP
         @return totalPxGmxFee    uint256  Total platform fee for pxGMX
         @return pxGlpIncentive   uint256  Compound incentive for pxGLP
@@ -214,6 +216,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         returns (
             uint256 wethAmountIn,
             uint256 pxGmxAmountOut,
+            uint256 pxGlpAmountOut,
             uint256 totalPxGlpFee,
             uint256 totalPxGmxFee,
             uint256 pxGlpIncentive,
@@ -234,7 +237,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
 
         if (wethAmountIn != 0) {
             // Deposit received WETH for pxGLP
-            PirexGmx(platform).depositGlp(
+            (pxGlpAmountOut, ) = PirexGmx(platform).depositGlp(
                 address(WETH),
                 wethAmountIn,
                 minUsdg,
@@ -281,6 +284,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
             minGlp,
             wethAmountIn,
             pxGmxAmountOut,
+            pxGlpAmountOut,
             totalPxGlpFee,
             totalPxGmxFee,
             pxGlpIncentive,

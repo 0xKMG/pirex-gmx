@@ -301,11 +301,12 @@ contract PirexFeesTest is Helper {
 
         vm.deal(address(this), ethAmount);
 
-        uint256 assets = pirexGmx.depositGlpETH{value: ethAmount}(
+        (uint256 postFeeAmount, uint256 feeAmount) = pirexGmx.depositGlpETH{value: ethAmount}(
             minUsdg,
             minGlp,
             receiver
         );
+        uint256 assets = postFeeAmount + feeAmount;
         (
             uint256 expectedFeeAmount,
             uint256 expectedFeeAmountTreasury,
@@ -365,13 +366,14 @@ contract PirexFeesTest is Helper {
         _mintWbtc(wbtcAmount);
         WBTC.approve(address(pirexGmx), wbtcAmount);
 
-        uint256 assets = pirexGmx.depositGlp(
+        (uint256 postFeeAmount, uint256 feeAmount) = pirexGmx.depositGlp(
             address(WBTC),
             wbtcAmount,
             minUsdg,
             minGlp,
             receiver
         );
+        uint256 assets = postFeeAmount + feeAmount;
         (
             uint256 expectedFeeAmount,
             uint256 expectedFeeAmountTreasury,
