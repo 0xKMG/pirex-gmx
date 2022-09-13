@@ -6,7 +6,7 @@ import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
+import {PirexGmx} from "src/PirexGmx.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {IV3SwapRouter} from "src/interfaces/IV3SwapRouter.sol";
 
@@ -59,7 +59,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         @param  _asset         address  Asset address (e.g. pxGMX)
         @param  _name          string   Asset name (e.g. Autocompounding pxGMX)
         @param  _symbol        string   Asset symbol (e.g. apxGMX)
-        @param  _platform      address  Platform address (e.g. PirexGmxGlp)
+        @param  _platform      address  Platform address (e.g. PirexGmx)
      */
     constructor(
         address _asset,
@@ -256,7 +256,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
             );
 
             // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
-            (, pxGmxMintAmount) = PirexGmxGlp(platform).depositGmx(
+            (pxGmxMintAmount, ) = PirexGmx(platform).depositGmx(
                 GMX.balanceOf(address(this)),
                 address(this)
             );

@@ -1,5 +1,4 @@
-default = { libs = ["node_modules", "lib"] }
-[profile.default]
+[default]
 src = 'src'
 out = 'out'
 libs = ['lib']

@@ -2,7 +2,7 @@
 pragma solidity 0.8.13;
 
 import {PxGlp} from "src/PxGlp.sol";
-import {Helper} from "./Helper.t.sol";
+import {Helper} from "./Helper.sol";
 
 contract PxGlpTest is Helper {
     /*//////////////////////////////////////////////////////////////
@@ -65,7 +65,7 @@ contract PxGlpTest is Helper {
 
         vm.expectRevert(PxGlp.ZeroAddress.selector);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGlp.mint(invalidTo, amount);
     }
@@ -79,7 +79,7 @@ contract PxGlpTest is Helper {
 
         vm.expectRevert(PxGlp.ZeroAmount.selector);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGlp.mint(to, invalidAmount);
     }
@@ -96,7 +96,7 @@ contract PxGlpTest is Helper {
 
         assertEq(premintBalance, 0);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGlp.mint(to, amount);
 
@@ -128,7 +128,7 @@ contract PxGlpTest is Helper {
 
         vm.expectRevert(PxGlp.ZeroAddress.selector);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGlp.burn(invalidFrom, amount);
     }
@@ -142,7 +142,7 @@ contract PxGlpTest is Helper {
 
         vm.expectRevert(PxGlp.ZeroAmount.selector);
 
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGlp.burn(from, invalidAmount);
     }
@@ -156,7 +156,7 @@ contract PxGlpTest is Helper {
 
         address account = address(this);
 
-        vm.startPrank(address(pirexGmxGlp));
+        vm.startPrank(address(pirexGmx));
 
         // Mint first before attempting to burn
         pxGlp.mint(account, amount);

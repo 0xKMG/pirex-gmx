@@ -2,7 +2,11 @@
 pragma solidity 0.8.13;
 
 interface IAutoPxGlp {
-    function compound(uint256 minGlpAmount, bool optOutIncentive)
+    function compound(
+        uint256 minUsdgAmount,
+        uint256 minGlpAmount,
+        bool optOutIncentive
+    )
         external
         returns (
             uint256 wethAmountIn,

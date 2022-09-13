@@ -105,7 +105,7 @@ contract PxGmxReward is Owned {
     function claim(address receiver) external {
         if (receiver == address(0)) revert ZeroAddress();
 
-        IAutoPxGlp(address(this)).compound(1, true);
+        IAutoPxGlp(address(this)).compound(1, 1, true);
         _userAccrue(msg.sender);
 
         uint256 globalRewards = globalState.rewards;

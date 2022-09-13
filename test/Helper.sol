@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
-import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
+import {PirexGmx} from "src/PirexGmx.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxGlp} from "src/PxGlp.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
@@ -20,11 +20,14 @@ import {IReader} from "src/interfaces/IReader.sol";
 import {IGMX} from "src/interfaces/IGMX.sol";
 import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
-import {Vault} from "src/external/Vault.sol";
+import {IVault} from "src/interfaces/IVault.sol";
+import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
+import {HelperEvents} from "./HelperEvents.sol";
+import {HelperState} from "./HelperState.sol";
 
-contract Helper is Test {
+contract Helper is Test, HelperEvents, HelperState {
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     RewardTracker public constant REWARD_TRACKER_GMX =
@@ -43,8 +46,8 @@ contract Helper is Test {
         IGlpManager(0x321F653eED006AD1C29D174e17d96351BDe22649);
     IReader internal constant READER =
         IReader(0x22199a49A999c351eF7927602CFB187ec3cae489);
-    Vault internal constant VAULT =
-        Vault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
+    IVault internal constant VAULT =
+        IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     IGMX internal constant GMX =
         IGMX(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     IERC20 internal constant USDG =
@@ -54,6 +57,10 @@ contract Helper is Test {
     ERC20 internal constant WETH =
         ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
+    address internal constant BN_GMX =
+        0x35247165119B69A40edD5304969560D0ef486921;
+    address internal constant ES_GMX =
+        0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA;
     address internal constant POSITION_ROUTER =
         0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
     uint256 internal constant FEE_BPS = 25;
@@ -63,8 +70,11 @@ contract Helper is Test {
     uint256 internal constant PRECISION = 1e30;
     uint256 internal constant EXPANDED_GLP_DECIMALS = 18;
     uint256 internal constant INFO_USDG_AMOUNT = 1e18;
+    bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
+    bytes internal constant NOT_OWNER_ERROR =
+        "Ownable: caller is not the owner";
 
-    PirexGmxGlp internal immutable pirexGmxGlp;
+    PirexGmx internal immutable pirexGmx;
     PxGmx internal immutable pxGmx;
     AutoPxGmx internal immutable autoPxGmx;
     AutoPxGlp internal immutable autoPxGlp;
@@ -72,50 +82,12 @@ contract Helper is Test {
     PirexRewards internal immutable pirexRewards;
     PirexFees internal immutable pirexFees;
     DelegateRegistry internal immutable delegateRegistry;
-    uint256 internal immutable feeMax;
 
     address[3] internal testAccounts = [
         0x6Ecbe1DB9EF729CBe972C83Fb886247691Fb6beb,
         0xE36Ea790bc9d7AB70C55260C66D52b1eca985f84,
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
-
-    PirexGmxGlp.Fees[3] internal feeTypes;
-
-    bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
-    bytes internal constant NOT_OWNER_ERROR = "Ownable: caller is not the owner";
-
-    event SetPirexRewards(address pirexRewards);
-    event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
-    event SetTreasuryPercent(uint8 _treasuryPercent);
-    event DistributeFees(address token, uint256 amount);
-    event DepositGmx(
-        address indexed caller,
-        address indexed receiver,
-        uint256 gmxAmount,
-        uint256 mintAmount,
-        uint256 feeAmount
-    );
-    event DepositGlp(
-        address indexed caller,
-        address indexed receiver,
-        address indexed token,
-        uint256 minShares,
-        uint256 amount,
-        uint256 assets,
-        uint256 mintAmount,
-        uint256 feeAmount
-    );
-    event RedeemGlp(
-        address indexed caller,
-        address indexed receiver,
-        address indexed token,
-        uint256 minRedemption,
-        uint256 amount,
-        uint256 redemption,
-        uint256 burnAmount,
-        uint256 feeAmount
-    );
 
     // For testing ETH transfers
     receive() external payable {}
@@ -129,8 +101,8 @@ contract Helper is Test {
         pirexRewards.initialize();
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxGlp(address(pirexRewards));
-        pirexFees = new PirexFees(testAccounts[0], testAccounts[1]);
-        pirexGmxGlp = new PirexGmxGlp(
+        pirexFees = new PirexFees(testAccounts[1], testAccounts[2]);
+        pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
@@ -141,28 +113,27 @@ contract Helper is Test {
             address(pxGmx),
             "Autocompounding pxGMX",
             "apxGMX",
-            address(pirexGmxGlp)
+            address(pirexGmx)
         );
         autoPxGlp = new AutoPxGlp(
             address(pxGlp),
             address(pxGmx),
             "Autocompounding pxGLP",
             "apxGLP",
-            address(pirexGmxGlp)
+            address(pirexGmx)
         );
 
-        pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmxGlp));
-        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmxGlp));
-        pirexGmxGlp.setPirexRewards(address(pirexRewards));
-        pirexRewards.setProducer(address(pirexGmxGlp));
+        pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmx));
+        pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmx));
+        pirexRewards.setProducer(address(pirexGmx));
 
         // Unpause after completing the setup
-        pirexGmxGlp.setPauseState(false);
+        pirexGmx.setPauseState(false);
 
-        feeMax = pirexGmxGlp.FEE_MAX();
-        feeTypes[0] = PirexGmxGlp.Fees.Deposit;
-        feeTypes[1] = PirexGmxGlp.Fees.Redemption;
-        feeTypes[2] = PirexGmxGlp.Fees.Reward;
+        feeMax = pirexGmx.FEE_MAX();
+        feeTypes[0] = PirexGmx.Fees.Deposit;
+        feeTypes[1] = PirexGmx.Fees.Redemption;
+        feeTypes[2] = PirexGmx.Fees.Reward;
     }
 
     /**
@@ -191,7 +162,7 @@ contract Helper is Test {
         uint256 amount,
         bool useGmx
     ) internal {
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         if (useGmx) {
             pxGmx.mint(to, amount);
@@ -206,7 +177,7 @@ contract Helper is Test {
         @param  amount  uint256  Amount of pxGLP
      */
     function _burnPxGlp(address from, uint256 amount) internal {
-        vm.prank(address(pirexGmxGlp));
+        vm.prank(address(pirexGmx));
 
         pxGlp.burn(from, amount);
     }
@@ -243,14 +214,14 @@ contract Helper is Test {
         uint256 total = tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2];
 
         _mintGmx(total);
-        GMX.approve(address(pirexGmxGlp), total);
+        GMX.approve(address(pirexGmx), total);
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
         for (uint256 i; i < tLen; ++i) {
             uint256 tokenAmount = tokenAmounts[i];
             address testAccount = testAccounts[i];
 
-            pirexGmxGlp.depositGmx(tokenAmount, testAccount);
+            pirexGmx.depositGmx(tokenAmount, testAccount);
         }
     }
 
@@ -284,7 +255,7 @@ contract Helper is Test {
                 tokenAmounts[2];
 
             _mintWbtc(wBtcTotalAmount);
-            WBTC.approve(address(pirexGmxGlp), wBtcTotalAmount);
+            WBTC.approve(address(pirexGmx), wBtcTotalAmount);
         }
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
@@ -294,14 +265,12 @@ contract Helper is Test {
 
             // Call the appropriate method based on the type of currency
             if (useETH) {
-                pirexGmxGlp.depositGlpWithETH{value: tokenAmount}(
-                    1,
-                    testAccount
-                );
+                pirexGmx.depositGlpETH{value: tokenAmount}(1, 1, testAccount);
             } else {
-                pirexGmxGlp.depositGlpWithERC20(
+                pirexGmx.depositGlp(
                     address(WBTC),
                     tokenAmount,
+                    1,
                     1,
                     testAccount
                 );
@@ -468,12 +437,12 @@ contract Helper is Test {
     }
 
     /**
-        @notice Calculate the minimum amount of token to be redeemed from selling GLP
-        @param  token     address  Token address
-        @param  amount    uint256  Amount of tokens
-        @return           uint256  Minimum GLP amount with slippage and decimal expansion
+        @notice Calculate the minimum token output amount from redeeming GLP
+        @param  token   address  Token address
+        @param  amount  uint256  Amount of tokens
+        @return         uint256  Minimum GLP amount with slippage and decimal expansion
      */
-    function _calculateMinRedemptionAmount(address token, uint256 amount)
+    function _calculateMinOutAmount(address token, uint256 amount)
         internal
         view
         returns (uint256)
@@ -492,52 +461,52 @@ contract Helper is Test {
 
     /**
         @notice Deposit ETH for pxGLP for testing purposes
-        @param  etherAmount  uint256  Amount of ETH
-        @param  receiver     address  Receiver of pxGLP
-        @return              uint256  Amount of pxGLP minted
+        @param  etherAmount    uint256  Amount of ETH
+        @param  receiver       address  Receiver of pxGLP
+        @return postFeeAmount  uint256  pxGLP minted for the receiver
+        @return feeAmount      uint256  pxGLP distributed as fees
      */
-    function _depositGlpWithETH(uint256 etherAmount, address receiver)
+    function _depositGlpETH(uint256 etherAmount, address receiver)
         internal
-        returns (uint256)
+        returns (uint256 postFeeAmount, uint256 feeAmount)
     {
         vm.deal(address(this), etherAmount);
 
-        (, uint256 assets) = pirexGmxGlp.depositGlpWithETH{value: etherAmount}(
+        (postFeeAmount, feeAmount) = pirexGmx.depositGlpETH{value: etherAmount}(
+            1,
             1,
             receiver
         );
 
         // Time skip to bypass the cooldown duration
         vm.warp(block.timestamp + 1 hours);
-
-        return assets;
     }
 
     /**
         @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
-        @param  tokenAmount  uint256  Amount of token
-        @param  receiver     address  Receiver of pxGLP
-        @return              uint256  Amount of pxGLP minted
+        @param  tokenAmount    uint256  Amount of token
+        @param  receiver       address  Receiver of pxGLP
+        @return postFeeAmount  uint256  pxGLP minted for the receiver
+        @return feeAmount      uint256  pxGLP distributed as fees
      */
-    function _depositGlpWithERC20(uint256 tokenAmount, address receiver)
+    function _depositGlp(uint256 tokenAmount, address receiver)
         internal
-        returns (uint256)
+        returns (uint256 postFeeAmount, uint256 feeAmount)
     {
         _mintWbtc(tokenAmount);
 
-        WBTC.approve(address(pirexGmxGlp), tokenAmount);
+        WBTC.approve(address(pirexGmx), tokenAmount);
 
-        (, uint256 assets) = pirexGmxGlp.depositGlpWithERC20(
+        (postFeeAmount, feeAmount) = pirexGmx.depositGlp(
             address(WBTC),
             tokenAmount,
+            1,
             1,
             receiver
         );
 
         // Time skip to bypass the cooldown duration
         vm.warp(block.timestamp + 1 hours);
-
-        return assets;
     }
 
     /**
@@ -547,7 +516,56 @@ contract Helper is Test {
      */
     function _depositGmx(uint256 tokenAmount, address receiver) internal {
         _mintGmx(tokenAmount);
-        GMX.approve(address(pirexGmxGlp), tokenAmount);
-        pirexGmxGlp.depositGmx(tokenAmount, receiver);
+        GMX.approve(address(pirexGmx), tokenAmount);
+        pirexGmx.depositGmx(tokenAmount, receiver);
+    }
+
+    /**
+        @notice Precise calculations for bnGMX rewards (i.e. multiplier points)
+        @param  account  address  Account with bnGMX rewards
+        @return          uint256  bnGMX amount
+     */
+    function calculateBnGmxRewards(address account)
+        public
+        view
+        returns (uint256)
+    {
+        address distributor = REWARD_TRACKER_MP.distributor();
+        uint256 pendingRewards = IRewardDistributor(distributor)
+            .pendingRewards();
+        uint256 distributorBalance = ERC20(BN_GMX).balanceOf(distributor);
+        uint256 blockReward = pendingRewards > distributorBalance
+            ? distributorBalance
+            : pendingRewards;
+        uint256 precision = REWARD_TRACKER_MP.PRECISION();
+        uint256 cumulativeRewardPerToken = REWARD_TRACKER_MP
+            .cumulativeRewardPerToken() +
+            ((blockReward * precision) / REWARD_TRACKER_MP.totalSupply());
+
+        if (cumulativeRewardPerToken == 0) return 0;
+
+        return
+            REWARD_TRACKER_MP.claimableReward(account) +
+            ((REWARD_TRACKER_MP.stakedAmounts(account) *
+                (cumulativeRewardPerToken -
+                    REWARD_TRACKER_MP.previousCumulatedRewardPerToken(
+                        account
+                    ))) / precision);
+    }
+
+    /**
+        @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
+        @param  f           Fees     Fee type
+        @param  amount      uint256  GMX/GLP/WETH amount
+        @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
+        @return feeAmount   uint256  Fee amount
+     */
+    function _deriveAssetAmounts(PirexGmx.Fees f, uint256 amount)
+        internal
+        view
+        returns (uint256 userAmount, uint256 feeAmount)
+    {
+        feeAmount = (amount * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
+        userAmount = amount - feeAmount;
     }
 }

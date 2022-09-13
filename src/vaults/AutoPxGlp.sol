@@ -6,7 +6,7 @@ import {PxGmxReward} from "src/vaults/PxGmxReward.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {PirexGmxGlp} from "src/PirexGmxGlp.sol";
+import {PirexGmx} from "src/PirexGmx.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
 contract AutoPxGlp is PirexERC4626, PxGmxReward {
@@ -35,7 +35,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
         address indexed caller,
-        uint256 minGlpAmount,
+        uint256 minGlp,
         uint256 wethAmount,
         uint256 pxGmxAmountOut,
         uint256 pxGlpAmountOut,
@@ -55,7 +55,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         @param  _pxGmx     address  pxGMX address (as secondary reward)
         @param  _name      string   Asset name (e.g. Autocompounding pxGLP)
         @param  _symbol    string   Asset symbol (e.g. apxGLP)
-        @param  _platform  address  Platform address (e.g. PirexGmxGlp)
+        @param  _platform  address  Platform address (e.g. PirexGmx)
      */
     constructor(
         address _asset,
@@ -196,7 +196,8 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
 
     /**
         @notice Compound pxGLP (and additionally pxGMX) rewards
-        @param  minGlpAmount     uint256  Minimum GLP amount received from the WETH deposit
+        @param  minUsdg          uint256  Minimum USDG amount used when minting GLP
+        @param  minGlp           uint256  Minimum GLP amount received from the WETH deposit
         @param  optOutIncentive  bool     Whether to opt out of the incentive
         @return wethAmountIn     uint256  WETH inbound amount
         @return pxGmxAmountOut   uint256  pxGMX outbound amount
@@ -206,7 +207,11 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         @return pxGlpIncentive   uint256  Compound incentive for pxGLP
         @return pxGmxIncentive   uint256  Compound incentive for pxGMX
      */
-    function compound(uint256 minGlpAmount, bool optOutIncentive)
+    function compound(
+        uint256 minUsdg,
+        uint256 minGlp,
+        bool optOutIncentive
+    )
         public
         returns (
             uint256 wethAmountIn,
@@ -218,7 +223,8 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
             uint256 pxGmxIncentive
         )
     {
-        if (minGlpAmount == 0) revert InvalidParam();
+        if (minUsdg == 0) revert InvalidParam();
+        if (minGlp == 0) revert InvalidParam();
 
         uint256 preClaimTotalAssets = asset.balanceOf(address(this));
         uint256 preClaimPxGmxAmount = pxGmx.balanceOf(address(this));
@@ -231,10 +237,11 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
 
         if (wethAmountIn != 0) {
             // Deposit received WETH for pxGLP
-            (, pxGlpAmountOut) = PirexGmxGlp(platform).depositGlpWithERC20(
+            (pxGlpAmountOut, ) = PirexGmx(platform).depositGlp(
                 address(WETH),
                 wethAmountIn,
-                minGlpAmount,
+                minUsdg,
+                minGlp,
                 address(this)
             );
         }
@@ -274,7 +281,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
 
         emit Compounded(
             msg.sender,
-            minGlpAmount,
+            minGlp,
             wethAmountIn,
             pxGmxAmountOut,
             pxGlpAmountOut,
@@ -293,7 +300,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         uint256,
         uint256
     ) internal override {
-        compound(1, true);
+        compound(1, 1, true);
     }
 
     /**
@@ -317,7 +324,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         uint256,
         uint256
     ) internal override {
-        compound(1, true);
+        compound(1, 1, true);
     }
 
     /**
