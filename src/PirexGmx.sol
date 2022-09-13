@@ -479,13 +479,13 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         @param  assets    uint256  pxGLP amount
         @param  minOut    uint256  Minimum ETH output from GLP redemption
         @param  receiver  address  ETH recipient
-        @return redeemed  uint256  ETH redeemed from GLP
+        @return           uint256  ETH redeemed from GLP
      */
     function redeemPxGlpETH(
         uint256 assets,
         uint256 minOut,
         address receiver
-    ) external whenNotPaused nonReentrant returns (uint256 redeemed) {
+    ) external whenNotPaused nonReentrant returns (uint256) {
         return _redeemPxGlp(address(0), assets, minOut, receiver);
     }
 
@@ -495,14 +495,14 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         @param  assets    uint256  pxGLP amount
         @param  minOut    uint256  Minimum ERC20 output from GLP redemption
         @param  receiver  address  ERC20 token recipient
-        @return redeemed  uint256  ERC20 tokens from redeeming GLP
+        @return           uint256  ERC20 tokens from redeeming GLP
      */
     function redeemPxGlp(
         address token,
         uint256 assets,
         uint256 minOut,
         address receiver
-    ) external whenNotPaused nonReentrant returns (uint256 redeemed) {
+    ) external whenNotPaused nonReentrant returns (uint256) {
         if (token == address(0)) revert ZeroAddress();
         if (!gmxVault.whitelistedTokens(token)) revert InvalidToken(token);
 
