@@ -128,7 +128,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     );
     event InitiateMigration(address newContract);
     event CompleteMigration(address oldContract);
-    event SetDelegateRegistry(address delegateRegistry);
     event SetDelegationSpace(string delegationSpace, bool shouldClear);
     event SetVoteDelegate(address voteDelegate);
     event ClearVoteDelegate();
