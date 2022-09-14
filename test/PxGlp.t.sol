@@ -158,6 +158,8 @@ contract PxGlpTest is Helper {
         // Mint tokens which will be burned
         pxGlp.mint(from, mintAmount);
 
+        assertLt(pxGlp.balanceOf(from), transferAmount);
+
         vm.expectRevert(stdError.arithmeticError);
 
         pxGlp.transfer(to, transferAmount);
@@ -185,6 +187,7 @@ contract PxGlpTest is Helper {
 
         assertEq(expectedPreTransferBalanceFrom, pxGlp.balanceOf(from));
         assertEq(expectedPreTransferBalanceTo, pxGlp.balanceOf(to));
+        assertGt(expectedPreTransferBalanceFrom, transferAmount);
 
         vm.expectEmit(true, true, false, true, address(pxGlp));
 
@@ -199,5 +202,148 @@ contract PxGlpTest is Helper {
 
         assertEq(expectedPostTransferBalanceFrom, pxGlp.balanceOf(from));
         assertEq(expectedPostTransferBalanceTo, pxGlp.balanceOf(to));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            transferFrom TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: transferFrom exceeds balance
+        @param  mintAmount       uint224  Mint amount
+        @param  transferAmount   uint224  Transfer amount
+        @param  allowanceAmount  uint224  Allowance amount
+     */
+    function testCannotTransferFromInsufficientBalance(
+        uint224 mintAmount,
+        uint224 transferAmount,
+        uint224 allowanceAmount
+    ) external {
+        vm.assume(mintAmount != 0);
+        vm.assume(mintAmount < transferAmount);
+        vm.assume(transferAmount <= allowanceAmount);
+
+        address caller = address(this);
+        address from = testAccounts[0];
+        address to = testAccounts[1];
+
+        vm.prank(address(pirexGmx));
+
+        // Mint tokens which will be burned
+        pxGlp.mint(from, mintAmount);
+
+        vm.prank(from);
+
+        pxGlp.approve(caller, allowanceAmount);
+
+        assertGt(transferAmount, pxGlp.balanceOf(from));
+        assertLe(transferAmount, pxGlp.allowance(from, caller));
+
+        vm.expectRevert(stdError.arithmeticError);
+        vm.prank(caller);
+
+        pxGlp.transferFrom(from, to, transferAmount);
+    }
+
+    /**
+        @notice Test tx reversion: transferFrom exceeds allowance
+        @param  mintAmount       uint224  Mint amount
+        @param  transferAmount   uint224  Transfer amount
+        @param  allowanceAmount  uint224  Allowance amount
+     */
+    function testCannotTransferFromInsufficientAllowance(
+        uint224 mintAmount,
+        uint224 transferAmount,
+        uint224 allowanceAmount
+    ) external {
+        vm.assume(transferAmount != 0);
+        vm.assume(transferAmount <= mintAmount);
+        vm.assume(allowanceAmount < transferAmount);
+
+        address caller = address(this);
+        address from = testAccounts[0];
+        address to = testAccounts[1];
+
+        vm.prank(address(pirexGmx));
+
+        // Mint tokens which will be burned
+        pxGlp.mint(from, mintAmount);
+
+        vm.prank(from);
+
+        pxGlp.approve(caller, allowanceAmount);
+
+        assertLe(transferAmount, pxGlp.balanceOf(from));
+        assertGt(transferAmount, pxGlp.allowance(from, caller));
+
+        vm.expectRevert(stdError.arithmeticError);
+        vm.prank(caller);
+
+        pxGlp.transferFrom(from, to, transferAmount);
+    }
+
+    /**
+        @notice Test tx success: transferFrom
+        @param  mintAmount       uint224  Mint amount
+        @param  transferAmount   uint224  Transfer amount
+        @param  allowanceAmount  uint224  Allowance amount
+     */
+    function testTransferFrom(
+        uint224 mintAmount,
+        uint224 transferAmount,
+        uint224 allowanceAmount
+    ) external {
+        vm.assume(transferAmount != 0);
+        vm.assume(transferAmount <= mintAmount);
+        vm.assume(transferAmount <= allowanceAmount);
+
+        address caller = address(this);
+        address from = testAccounts[0];
+        address to = testAccounts[1];
+
+        vm.prank(address(pirexGmx));
+
+        // Mint tokens which will be burned
+        pxGlp.mint(from, mintAmount);
+
+        vm.prank(from);
+        vm.expectEmit(true, true, false, true, address(pxGlp));
+
+        emit Approval(from, caller, allowanceAmount);
+
+        pxGlp.approve(caller, allowanceAmount);
+
+        uint256 expectedPreTransferBalanceFrom = mintAmount;
+        uint256 expectedPreTransferBalanceTo = 0;
+        uint256 expectedPreTransferAllowanceCaller = allowanceAmount;
+
+        assertEq(expectedPreTransferBalanceFrom, pxGlp.balanceOf(from));
+        assertEq(expectedPreTransferBalanceTo, pxGlp.balanceOf(to));
+        assertEq(
+            expectedPreTransferAllowanceCaller,
+            pxGlp.allowance(from, caller)
+        );
+
+        vm.expectEmit(true, true, false, true, address(pxGlp));
+
+        emit Transfer(from, to, transferAmount);
+
+        vm.prank(caller);
+
+        pxGlp.transferFrom(from, to, transferAmount);
+
+        uint256 expectedPostTransferBalanceFrom = expectedPreTransferBalanceFrom -
+                transferAmount;
+        uint256 expectedPostTransferBalanceTo = expectedPreTransferBalanceTo +
+            transferAmount;
+        uint256 expectedPostTransferAllowanceCaller = expectedPreTransferAllowanceCaller -
+                transferAmount;
+
+        assertEq(expectedPostTransferBalanceFrom, pxGlp.balanceOf(from));
+        assertEq(expectedPostTransferBalanceTo, pxGlp.balanceOf(to));
+        assertEq(
+            expectedPostTransferAllowanceCaller,
+            pxGlp.allowance(from, caller)
+        );
     }
 }
