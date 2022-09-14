@@ -297,10 +297,9 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         // Mint pxGMX for the receiver (excludes fees)
         pxGmx.mint(receiver, postFeeAmount);
 
-        // Mint and distribute pxGMX for the protocol
+        // Mint pxGMX for fee distribution contract
         if (feeAmount != 0) {
-            pxGmx.mint(address(this), feeAmount);
-            pirexFees.distributeFees(address(this), address(pxGmx), feeAmount);
+            pxGmx.mint(address(pirexFees), feeAmount);
         }
 
         emit DepositGmx(msg.sender, receiver, assets, postFeeAmount, feeAmount);
@@ -358,10 +357,9 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         // Mint pxGLP for the receiver
         pxGlp.mint(receiver, postFeeAmount);
 
-        // Mint and distribute pxGLP for the protocol (fees)
+        // Mint pxGMX for fee distribution contract
         if (feeAmount != 0) {
-            pxGlp.mint(address(this), feeAmount);
-            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+            pxGlp.mint(address(pirexFees), feeAmount);
         }
 
         emit DepositGlp(
@@ -443,9 +441,13 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         // Burn pxGLP before redeeming the underlying GLP
         pxGlp.burn(msg.sender, postFeeAmount);
 
+        // Transfer pxGLP from caller to the fee distribution contract
         if (feeAmount != 0) {
-            ERC20(pxGlp).safeTransferFrom(msg.sender, address(this), feeAmount);
-            pirexFees.distributeFees(address(this), address(pxGlp), feeAmount);
+            ERC20(pxGlp).safeTransferFrom(
+                msg.sender,
+                address(pirexFees),
+                feeAmount
+            );
         }
 
         // Unstake and redeem the underlying GLP for ERC20 tokens
@@ -659,15 +661,13 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (token == pxGmxAddress) {
             // Mint pxGMX for the user - the analog for esGMX rewards
             pxGmx.mint(receiver, postFeeAmount);
+
+            if (feeAmount != 0) pxGmx.mint(address(pirexFees), feeAmount);
         } else if (token == address(WETH)) {
             WETH.safeTransfer(receiver, postFeeAmount);
-        }
 
-        if (feeAmount != 0) {
-            // Mint the fees portion of the esGMX rewards
-            if (token == pxGmxAddress) pxGmx.mint(address(this), feeAmount);
-
-            pirexFees.distributeFees(address(this), token, feeAmount);
+            if (feeAmount != 0)
+                WETH.safeTransfer(address(pirexFees), feeAmount);
         }
 
         emit ClaimUserReward(receiver, token, amount, postFeeAmount, feeAmount);

@@ -25,7 +25,12 @@ contract PirexFees is Ownable {
 
     event SetFeeRecipient(FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
-    event DistributeFees(address token, uint256 amount);
+    event DistributeFees(
+        ERC20 indexed token,
+        uint256 distribution,
+        uint256 treasuryDistribution,
+        uint256 contributorsDistribution
+    );
 
     error ZeroAddress();
     error InvalidFeePercent();
@@ -78,23 +83,23 @@ contract PirexFees is Ownable {
 
     /**
         @notice Distribute fees
-        @param  from    address  Fee source
-        @param  token   address  Fee token
-        @param  amount  uint256  Fee token amount
+        @param  token  address  Fee token
      */
-    function distributeFees(
-        address from,
-        address token,
-        uint256 amount
-    ) external {
-        emit DistributeFees(token, amount);
-
-        ERC20 t = ERC20(token);
-        uint256 treasuryDistribution = (amount * treasuryPercent) /
+    function distributeFees(ERC20 token) external {
+        uint256 distribution = token.balanceOf(address(this));
+        uint256 treasuryDistribution = (distribution * treasuryPercent) /
             PERCENT_DENOMINATOR;
+        uint256 contributorsDistribution = distribution - treasuryDistribution;
+
+        emit DistributeFees(
+            token,
+            distribution,
+            treasuryDistribution,
+            contributorsDistribution
+        );
 
         // Favoring push over pull to reduce accounting complexity for different tokens
-        t.safeTransferFrom(from, treasury, treasuryDistribution);
-        t.safeTransferFrom(from, contributors, amount - treasuryDistribution);
+        token.safeTransfer(treasury, treasuryDistribution);
+        token.safeTransfer(contributors, contributorsDistribution);
     }
 }
