@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import "forge-std/Test.sol";
+
 import {PxERC20} from "src/PxERC20.sol";
 import {Helper} from "./Helper.sol";
 
@@ -81,5 +83,72 @@ contract PxGmxTest is Helper {
         uint256 expectedPostMintBalance = expectedPreMintBalance + amount;
 
         assertEq(expectedPostMintBalance, pxGmx.balanceOf(to));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            transfer TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: transfer exceeds balance
+        @param  mintAmount      uint224  Mint amount
+        @param  transferAmount  uint224  Transfer amount
+     */
+    function testCannotTransferInsufficientBalance(
+        uint224 mintAmount,
+        uint224 transferAmount
+    ) external {
+        vm.assume(mintAmount != 0);
+        vm.assume(mintAmount < transferAmount);
+
+        address from = address(this);
+        address to = testAccounts[0];
+
+        vm.prank(address(pirexGmx));
+
+        // Mint tokens which will be burned
+        pxGmx.mint(from, mintAmount);
+
+        vm.expectRevert(stdError.arithmeticError);
+
+        pxGmx.transfer(to, transferAmount);
+    }
+
+    /**
+        @notice Test tx success: transfer
+        @param  mintAmount      uint224  Mint amount
+        @param  transferAmount  uint224  Transfer amount
+     */
+    function testTransfer(uint224 mintAmount, uint224 transferAmount) external {
+        vm.assume(transferAmount != 0);
+        vm.assume(transferAmount < mintAmount);
+
+        address from = address(this);
+        address to = testAccounts[0];
+
+        vm.prank(address(pirexGmx));
+
+        // Mint tokens to ensure balance is sufficient for transfer
+        pxGmx.mint(from, mintAmount);
+
+        uint256 expectedPreTransferBalanceFrom = mintAmount;
+        uint256 expectedPreTransferBalanceTo = 0;
+
+        assertEq(expectedPreTransferBalanceFrom, pxGmx.balanceOf(from));
+        assertEq(expectedPreTransferBalanceTo, pxGmx.balanceOf(to));
+
+        vm.expectEmit(true, true, false, true, address(pxGmx));
+
+        emit Transfer(from, to, transferAmount);
+
+        pxGmx.transfer(to, transferAmount);
+
+        uint256 expectedPostTransferBalanceFrom = expectedPreTransferBalanceFrom -
+                transferAmount;
+        uint256 expectedPostTransferBalanceTo = expectedPreTransferBalanceTo +
+            transferAmount;
+
+        assertEq(expectedPostTransferBalanceFrom, pxGmx.balanceOf(from));
+        assertEq(expectedPostTransferBalanceTo, pxGmx.balanceOf(to));
     }
 }
