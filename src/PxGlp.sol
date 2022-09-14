@@ -1,134 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {ERC20} from "solmate/tokens/ERC20.sol";
-import {AccessControl} from "openzeppelin-contracts/contracts/access/AccessControl.sol";
-import {PirexRewards} from "src/PirexRewards.sol";
+import {PxERC20} from "src/PxERC20.sol";
 
-contract PxGlp is ERC20("Pirex GLP", "pxGLP", 18), AccessControl {
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-
-    PirexRewards public pirexRewards;
-
-    event SetPirexRewards(address pirexRewards);
-
-    error ZeroAddress();
-    error ZeroAmount();
-
+contract PxGlp is PxERC20 {
     /**
         @param  _pirexRewards  address  PirexRewards contract address
+        @param  _name          address  Token name (e.g. Pirex GLP)
+        @param  _symbol        address  Token symbol (e.g. pxGLP)
+        @param  _decimals      address  Token decimals (e.g. 18)
     */
-    constructor(address _pirexRewards) {
-        if (_pirexRewards == address(0)) revert ZeroAddress();
-
-        pirexRewards = PirexRewards(_pirexRewards);
-
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    /**
-        @notice Set PirexRewards contract
-        @param  _pirexRewards  address  PirexRewards contract address
-     */
-    function setPirexRewards(address _pirexRewards)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (_pirexRewards == address(0)) revert ZeroAddress();
-
-        pirexRewards = PirexRewards(_pirexRewards);
-
-        emit SetPirexRewards(_pirexRewards);
-    }
-
-    /**
-        @notice Mint pxGLP
-        @param  to      address  Account receiving pxGLP
-        @param  amount  uint256  Amount of pxGLP
-    */
-    function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) {
-        if (to == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
-
-        _mint(to, amount);
-
-        // Accrue global and user rewards and store post-mint supply for future accrual
-        pirexRewards.globalAccrue(this);
-        pirexRewards.userAccrue(this, to);
-    }
-
-    /**
-        @notice Burn pxGLP
-        @param  from    address  Account owning the pxGLP to be burned
-        @param  amount  uint256  Amount of pxGLP
-    */
-    function burn(address from, uint256 amount) external onlyRole(MINTER_ROLE) {
-        if (from == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
-
-        _burn(from, amount);
-
-        // Accrue global and user rewards and store post-burn supply for future accrual
-        pirexRewards.globalAccrue(this);
-        pirexRewards.userAccrue(this, from);
-    }
-
-    /**
-        @notice Called by the balancer holder to transfer to another account
-        @param  to      address  Account receiving pxGLP
-        @param  amount  uint256  Amount of pxGLP
-    */
-    function transfer(address to, uint256 amount)
-        public
-        override
-        returns (bool)
-    {
-        balanceOf[msg.sender] -= amount;
-
-        // Cannot overflow because the sum of all user
-        // balances can't exceed the max uint256 value.
-        unchecked {
-            balanceOf[to] += amount;
-        }
-
-        emit Transfer(msg.sender, to, amount);
-
-        // Accrue rewards for sender, up to their current balance and kick off accrual for receiver
-        pirexRewards.userAccrue(this, msg.sender);
-        pirexRewards.userAccrue(this, to);
-
-        return true;
-    }
-
-    /**
-        @notice Called by an account with a spending allowance to transfer to another account
-        @param  from    address  Account sending pxGLP
-        @param  to      address  Account receiving pxGLP
-        @param  amount  uint256  Amount of pxGLP
-    */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public override returns (bool) {
-        uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
-
-        if (allowed != type(uint256).max)
-            allowance[from][msg.sender] = allowed - amount;
-
-        balanceOf[from] -= amount;
-
-        // Cannot overflow because the sum of all user
-        // balances can't exceed the max uint256 value.
-        unchecked {
-            balanceOf[to] += amount;
-        }
-
-        emit Transfer(from, to, amount);
-
-        pirexRewards.userAccrue(this, from);
-        pirexRewards.userAccrue(this, to);
-
-        return true;
-    }
+    constructor(
+        address _pirexRewards,
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals
+    ) PxERC20(_pirexRewards, _name, _symbol, _decimals) {}
 }

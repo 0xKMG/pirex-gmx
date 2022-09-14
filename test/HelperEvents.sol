@@ -62,6 +62,7 @@ contract HelperEvents {
     event SetTreasuryPercent(uint8 _treasuryPercent);
     event DistributeFees(address token, uint256 amount);
 
-    // PxGlp/PxGmx events
+    // PxERC20 events
     event SetPirexRewards(address pirexRewards);
+    event Transfer(address indexed from, address indexed to, uint256 amount);
 }
