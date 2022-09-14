@@ -19,9 +19,9 @@ contract PxERC20 is ERC20, AccessControl {
 
     /**
         @param  _pirexRewards  address  PirexRewards contract address
-        @param  _name          address  Token name (e.g. Pirex GLP)
-        @param  _symbol        address  Token symbol (e.g. pxGLP)
-        @param  _decimals      address  Token decimals (e.g. 18)
+        @param  _name          string   Token name (e.g. Pirex GLP)
+        @param  _symbol        string   Token symbol (e.g. pxGLP)
+        @param  _decimals      uint8    Token decimals (e.g. 18)
     */
     constructor(
         address _pirexRewards,
