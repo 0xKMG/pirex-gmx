@@ -99,7 +99,7 @@ contract Helper is Test, HelperEvents, HelperState {
         // Use normal (non-upgradeable) instance for most tests (outside the upgrade test)
         pirexRewards = new PirexRewards();
         pirexRewards.initialize();
-        pxGmx = new PxGmx(address(pirexRewards), "Pirex GMX", "pxGMX", 18);
+        pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxERC20(address(pirexRewards), "Pirex GLP", "pxGLP", 18);
         pirexFees = new PirexFees(testAccounts[1], testAccounts[2]);
         pirexGmx = new PirexGmx(

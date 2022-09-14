@@ -6,16 +6,10 @@ import {PxERC20} from "src/PxERC20.sol";
 contract PxGmx is PxERC20 {
     /**
         @param  _pirexRewards  address  PirexRewards contract address
-        @param  _name          address  Token name (e.g. Pirex GLP)
-        @param  _symbol        address  Token symbol (e.g. pxGLP)
-        @param  _decimals      address  Token decimals (e.g. 18)
     */
-    constructor(
-        address _pirexRewards,
-        string memory _name,
-        string memory _symbol,
-        uint8 _decimals
-    ) PxERC20(_pirexRewards, _name, _symbol, _decimals) {}
+    constructor(address _pirexRewards)
+        PxERC20(_pirexRewards, "Pirex GMX", "pxGMX", 18)
+    {}
 
     /**
         @notice Burn tokens
