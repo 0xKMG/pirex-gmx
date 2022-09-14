@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {PxGmx} from "src/PxGmx.sol";
+import {PxERC20} from "src/PxERC20.sol";
 import {Helper} from "./Helper.sol";
 
 contract PxGmxTest is Helper {
@@ -13,12 +13,13 @@ contract PxGmxTest is Helper {
         @notice Test tx reversion: caller does not have the admin role
      */
     function testCannotSetPirexRewardsNoAdminRole() external {
+        address invalidCaller = testAccounts[0];
         address _pirexRewards = address(this);
-        address caller = testAccounts[0];
 
-        vm.expectRevert(_encodeRoleError(caller, pxGmx.DEFAULT_ADMIN_ROLE()));
-
-        vm.startPrank(caller);
+        vm.expectRevert(
+            _encodeRoleError(invalidCaller, pxGmx.DEFAULT_ADMIN_ROLE())
+        );
+        vm.prank(invalidCaller);
 
         pxGmx.setPirexRewards(_pirexRewards);
     }
@@ -41,47 +42,21 @@ contract PxGmxTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        mint TESTS
+                            mint TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: caller does not have the minter role
      */
     function testCannotMintNoMinterRole() external {
+        address invalidCaller = testAccounts[0];
         address to = address(this);
         uint256 amount = 1;
 
-        vm.expectRevert(_encodeRoleError(address(this), pxGmx.MINTER_ROLE()));
+        vm.expectRevert(_encodeRoleError(invalidCaller, pxGmx.MINTER_ROLE()));
+        vm.prank(invalidCaller);
 
         pxGmx.mint(to, amount);
-    }
-
-    /**
-        @notice Test tx reversion: receiver is zero address
-     */
-    function testCannotMintToZeroAddress() external {
-        address invalidTo = address(0);
-        uint256 amount = 1;
-
-        vm.expectRevert(PxGmx.ZeroAddress.selector);
-
-        vm.prank(address(pirexGmx));
-
-        pxGmx.mint(invalidTo, amount);
-    }
-
-    /**
-        @notice Test tx reversion: amount is zero
-     */
-    function testCannotMintToZeroAmount() external {
-        address to = address(this);
-        uint256 invalidAmount = 0;
-
-        vm.expectRevert(PxGmx.ZeroAmount.selector);
-
-        vm.prank(address(pirexGmx));
-
-        pxGmx.mint(to, invalidAmount);
     }
 
     /**
@@ -92,14 +67,19 @@ contract PxGmxTest is Helper {
         vm.assume(amount != 0);
 
         address to = address(this);
-        uint256 premintBalance = pxGmx.balanceOf(address(this));
+        uint256 expectedPreMintBalance = 0;
 
-        assertEq(premintBalance, 0);
+        assertEq(expectedPreMintBalance, pxGmx.balanceOf(to));
 
         vm.prank(address(pirexGmx));
+        vm.expectEmit(true, true, false, true, address(pxGmx));
+
+        emit Transfer(address(0), to, amount);
 
         pxGmx.mint(to, amount);
 
-        assertEq(pxGmx.balanceOf(address(this)) - premintBalance, amount);
+        uint256 expectedPostMintBalance = expectedPreMintBalance + amount;
+
+        assertEq(expectedPostMintBalance, pxGmx.balanceOf(to));
     }
 }

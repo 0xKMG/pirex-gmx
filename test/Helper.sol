@@ -99,8 +99,8 @@ contract Helper is Test, HelperEvents, HelperState {
         // Use normal (non-upgradeable) instance for most tests (outside the upgrade test)
         pirexRewards = new PirexRewards();
         pirexRewards.initialize();
-        pxGmx = new PxGmx(address(pirexRewards));
-        pxGlp = new PxGlp(address(pirexRewards));
+        pxGmx = new PxGmx(address(pirexRewards), "Pirex GMX", "pxGMX", 18);
+        pxGlp = new PxGlp(address(pirexRewards), "Pirex GLP", "pxGLP", 18);
         pirexFees = new PirexFees(testAccounts[1], testAccounts[2]);
         pirexGmx = new PirexGmx(
             address(pxGmx),
@@ -125,6 +125,7 @@ contract Helper is Test, HelperEvents, HelperState {
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmx));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmx));
+        pxGlp.grantRole(pxGlp.BURNER_ROLE(), address(pirexGmx));
         pirexRewards.setProducer(address(pirexGmx));
 
         // Unpause after completing the setup
