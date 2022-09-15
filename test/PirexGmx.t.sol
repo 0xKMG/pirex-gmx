@@ -414,11 +414,11 @@ contract PirexGmxTest is Test, Helper {
         uint24 depositFee
     ) external {
         vm.assume(assets != 0);
-        vm.assume(mintAmount >= assets);
+        vm.assume(assets <= mintAmount);
         vm.assume(depositFee <= feeMax);
 
-        _mintGmx(mintAmount);
         _setFee(PirexGmx.Fees.Deposit, depositFee);
+        _mintGmx(mintAmount);
         GMX.approve(address(pirexGmx), assets);
 
         address caller = address(this);
@@ -427,12 +427,9 @@ contract PirexGmxTest is Test, Helper {
             PirexGmx.Fees.Deposit,
             assets
         );
-        uint256 expectedPreDepositGmxBalancePirexGmx = REWARD_TRACKER_GMX
-            .balanceOf(address(pirexGmx));
+        uint256 expectedPreDepositGmxBalancePirexGmx = 0;
         uint256 expectedPreDepositGmxBalanceCaller = mintAmount;
-        uint256 expectedPreDepositPxGmxBalanceReceiver = pxGmx.balanceOf(
-            receiver
-        );
+        uint256 expectedPreDepositPxGmxBalanceReceiver = 0;
 
         assertFalse(caller == receiver);
         assertEq(
@@ -445,20 +442,16 @@ contract PirexGmxTest is Test, Helper {
             pxGmx.balanceOf(receiver)
         );
 
-        uint256 expectedPostDepositGmxBalancePirexGmx = assets;
+        uint256 expectedPostDepositGmxBalancePirexGmx = expectedPreDepositGmxBalancePirexGmx +
+                assets;
         uint256 expectedPostDepositGmxBalanceCaller = expectedPreDepositGmxBalanceCaller -
                 assets;
-        uint256 expectedPostDepositPxGmxBalanceReceiver = postFeeAmount;
+        uint256 expectedPostDepositPxGmxBalanceReceiver = expectedPreDepositPxGmxBalanceReceiver +
+                postFeeAmount;
 
         vm.expectEmit(true, true, false, true, address(pirexGmx));
 
-        emit DepositGmx(
-            address(this),
-            receiver,
-            assets,
-            postFeeAmount,
-            feeAmount
-        );
+        emit DepositGmx(caller, receiver, assets, postFeeAmount, feeAmount);
 
         pirexGmx.depositGmx(assets, receiver);
 
@@ -649,9 +642,9 @@ contract PirexGmxTest is Test, Helper {
             value: etherAmount
         }(minUsdg, minGlp, receiver);
         uint256 assets = postFeeAmount + feeAmount;
-        uint256 expectedPostDepositGlpBalancePirexGmx = assets;
-        uint256 expectedPostDepositETHBalanceCaller = dealAmount - etherAmount;
-        uint256 expectedPostDepositPxGlpBalanceReceiver = postFeeAmount;
+        uint256 expectedPostDepositGlpBalancePirexGmx = expectedPreDepositGlpBalancePirexGmx + assets;
+        uint256 expectedPostDepositETHBalanceCaller = expectedPreDepositETHBalanceCaller - etherAmount;
+        uint256 expectedPostDepositPxGlpBalanceReceiver = expectedPreDepositPxGlpBalanceReceiver + postFeeAmount;
 
         assertEq(
             expectedPostDepositGlpBalancePirexGmx,
@@ -1061,7 +1054,10 @@ contract PirexGmxTest is Test, Helper {
             expectedPostRedeemGlpBalancePirexGmx,
             FEE_STAKED_GLP.balanceOf(address(pirexGmx))
         );
-        assertEq(expectedPostRedeemPxGlpBalanceCaller, pxGlp.balanceOf(address(this)));
+        assertEq(
+            expectedPostRedeemPxGlpBalanceCaller,
+            pxGlp.balanceOf(address(this))
+        );
         assertEq(expectedPostRedeemWETHBalanceReceiver, receiver.balance);
     }
 
@@ -1255,7 +1251,10 @@ contract PirexGmxTest is Test, Helper {
             expectedPostRedeemGlpBalancePirexGmx,
             FEE_STAKED_GLP.balanceOf(address(pirexGmx))
         );
-        assertEq(expectedPostRedeemPxGlpBalanceCaller, pxGlp.balanceOf(address(this)));
+        assertEq(
+            expectedPostRedeemPxGlpBalanceCaller,
+            pxGlp.balanceOf(address(this))
+        );
         assertEq(
             expectedPostRedeemWBTCBalanceReceiver,
             WBTC.balanceOf(receiver)
