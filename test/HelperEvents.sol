@@ -68,6 +68,8 @@ contract HelperEvents {
         uint256 contributorsDistribution
     );
 
-    // PxGlp/PxGmx events
+    // PxERC20 events
     event SetPirexRewards(address pirexRewards);
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
 }

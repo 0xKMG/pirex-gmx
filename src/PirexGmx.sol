@@ -11,8 +11,7 @@ import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {IVault} from "src/interfaces/IVault.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
-import {PxGmx} from "src/PxGmx.sol";
-import {PxGlp} from "src/PxGlp.sol";
+import {PxERC20} from "src/PxERC20.sol";
 import {PirexFees} from "src/PirexFees.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
@@ -47,8 +46,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         ERC20(0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA);
 
     // Pirex token contract(s) which are unlikely to change
-    PxGmx public immutable pxGmx;
-    PxGlp public immutable pxGlp;
+    PxERC20 public immutable pxGmx;
+    PxERC20 public immutable pxGlp;
     PirexFees public immutable pirexFees;
 
     // Dependency contracts which are modifiable by the contract owner
@@ -167,8 +166,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (_pirexRewards == address(0)) revert ZeroAddress();
         if (_delegateRegistry == address(0)) revert ZeroAddress();
 
-        pxGmx = PxGmx(_pxGmx);
-        pxGlp = PxGlp(_pxGlp);
+        pxGmx = PxERC20(_pxGmx);
+        pxGlp = PxERC20(_pxGlp);
         pirexFees = PirexFees(_pirexFees);
         pirexRewards = _pirexRewards;
         delegateRegistry = DelegateRegistry(_delegateRegistry);
