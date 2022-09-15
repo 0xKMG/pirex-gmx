@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {Owned} from "solmate/auth/Owned.sol";
 import {Pausable} from "openzeppelin-contracts/contracts/security/Pausable.sol";
-import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
-import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
-import {IVault} from "src/interfaces/IVault.sol";
-import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
-import {RewardTracker} from "src/external/RewardTracker.sol";
 import {PxERC20} from "src/PxERC20.sol";
 import {PirexFees} from "src/PirexFees.sol";
-import {PirexRewards} from "src/PirexRewards.sol";
+import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
+import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
+import {RewardTracker} from "src/external/RewardTracker.sol";
+import {IVault} from "src/interfaces/IVault.sol";
+import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
+import {IPirexRewards} from "src/interfaces/IPirexRewards.sol";
 
 contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
@@ -770,7 +770,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (oldContract == address(0)) revert ZeroAddress();
 
         // Trigger harvest to claim remaining rewards before the account transfer
-        PirexRewards(pirexRewards).harvest();
+        IPirexRewards(pirexRewards).harvest();
 
         // Complete the full account transfer process
         gmxRewardRouterV2.acceptTransfer(oldContract);
