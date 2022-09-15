@@ -8,7 +8,7 @@ import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {PxGmx} from "src/PxGmx.sol";
-import {PxGlp} from "src/PxGlp.sol";
+import {PxERC20} from "src/PxERC20.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexFees} from "src/PirexFees.sol";
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
@@ -78,7 +78,7 @@ contract Helper is Test, HelperEvents, HelperState {
     PxGmx internal immutable pxGmx;
     AutoPxGmx internal immutable autoPxGmx;
     AutoPxGlp internal immutable autoPxGlp;
-    PxGlp internal immutable pxGlp;
+    PxERC20 internal immutable pxGlp;
     PirexRewards internal immutable pirexRewards;
     PirexFees internal immutable pirexFees;
     DelegateRegistry internal immutable delegateRegistry;
@@ -100,7 +100,7 @@ contract Helper is Test, HelperEvents, HelperState {
         pirexRewards = new PirexRewards();
         pirexRewards.initialize();
         pxGmx = new PxGmx(address(pirexRewards));
-        pxGlp = new PxGlp(address(pirexRewards));
+        pxGlp = new PxERC20(address(pirexRewards), "Pirex GLP", "pxGLP", 18);
         pirexFees = new PirexFees(testAccounts[1], testAccounts[2]);
         pirexGmx = new PirexGmx(
             address(pxGmx),
@@ -125,6 +125,7 @@ contract Helper is Test, HelperEvents, HelperState {
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmx));
         pxGlp.grantRole(pxGlp.MINTER_ROLE(), address(pirexGmx));
+        pxGlp.grantRole(pxGlp.BURNER_ROLE(), address(pirexGmx));
         pirexRewards.setProducer(address(pirexGmx));
 
         // Unpause after completing the setup
