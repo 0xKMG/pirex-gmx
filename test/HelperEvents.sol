@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {PirexFees} from "src/PirexFees.sol";
 
@@ -60,7 +61,12 @@ contract HelperEvents {
     // PirexFees events
     event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
-    event DistributeFees(address token, uint256 amount);
+    event DistributeFees(
+        ERC20 indexed token,
+        uint256 distribution,
+        uint256 treasuryDistribution,
+        uint256 contributorsDistribution
+    );
 
     // PxERC20 events
     event SetPirexRewards(address pirexRewards);

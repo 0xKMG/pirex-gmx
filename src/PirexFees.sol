@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {Owned} from "solmate/auth/Owned.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-contract PirexFees is Ownable {
+contract PirexFees is Owned {
     using SafeTransferLib for ERC20;
 
     // Types of fee recipients
@@ -25,7 +25,12 @@ contract PirexFees is Ownable {
 
     event SetFeeRecipient(FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
-    event DistributeFees(address token, uint256 amount);
+    event DistributeFees(
+        ERC20 indexed token,
+        uint256 distribution,
+        uint256 treasuryDistribution,
+        uint256 contributorsDistribution
+    );
 
     error ZeroAddress();
     error InvalidFeePercent();
@@ -34,7 +39,7 @@ contract PirexFees is Ownable {
         @param  _treasury      address  Redacted treasury
         @param  _contributors  address  Pirex contributor multisig
      */
-    constructor(address _treasury, address _contributors) {
+    constructor(address _treasury, address _contributors) Owned(msg.sender) {
         if (_treasury == address(0)) revert ZeroAddress();
         if (_contributors == address(0)) revert ZeroAddress();
 
@@ -78,23 +83,23 @@ contract PirexFees is Ownable {
 
     /**
         @notice Distribute fees
-        @param  from    address  Fee source
-        @param  token   address  Fee token
-        @param  amount  uint256  Fee token amount
+        @param  token  address  Fee token
      */
-    function distributeFees(
-        address from,
-        address token,
-        uint256 amount
-    ) external {
-        emit DistributeFees(token, amount);
-
-        ERC20 t = ERC20(token);
-        uint256 treasuryDistribution = (amount * treasuryPercent) /
+    function distributeFees(ERC20 token) external {
+        uint256 distribution = token.balanceOf(address(this));
+        uint256 treasuryDistribution = (distribution * treasuryPercent) /
             PERCENT_DENOMINATOR;
+        uint256 contributorsDistribution = distribution - treasuryDistribution;
+
+        emit DistributeFees(
+            token,
+            distribution,
+            treasuryDistribution,
+            contributorsDistribution
+        );
 
         // Favoring push over pull to reduce accounting complexity for different tokens
-        t.safeTransferFrom(from, treasury, treasuryDistribution);
-        t.safeTransferFrom(from, contributors, amount - treasuryDistribution);
+        token.safeTransfer(treasury, treasuryDistribution);
+        token.safeTransfer(contributors, contributorsDistribution);
     }
 }
