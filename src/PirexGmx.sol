@@ -45,10 +45,21 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     ERC20 public constant ES_GMX =
         ERC20(0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA);
 
+    // Fee denominator
+    uint256 public constant FEE_DENOMINATOR = 1_000_000;
+
+    // Fee maximum (i.e. 20%)
+    uint256 public constant FEE_MAX = 200_000;
+
     // Pirex token contract(s) which are unlikely to change
     PxERC20 public immutable pxGmx;
     PxERC20 public immutable pxGlp;
+
+    // Pirex fee repository and distribution contract
     PirexFees public immutable pirexFees;
+
+    // Snapshot vote delegation contract
+    DelegateRegistry public immutable delegateRegistry;
 
     // Dependency contracts which are modifiable by the contract owner
     IRewardRouterV2 public gmxRewardRouterV2 =
@@ -64,17 +75,10 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     IVault public gmxVault = IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public glpManager = 0x321F653eED006AD1C29D174e17d96351BDe22649;
 
-    // Pirex reward module contract which is subject to changing upon updates
+    // Pirex reward module contract
     address public pirexRewards;
 
-    // Fee denominator
-    uint256 public constant FEE_DENOMINATOR = 1_000_000;
-
-    // Fee maximum
-    uint256 public constant FEE_MAX = 100_000;
-
-    // Snapshot delegation-related variables
-    DelegateRegistry public immutable delegateRegistry;
+    // Snapshot space
     bytes32 public delegationSpace = bytes32("gmx.eth");
 
     // Fees (e.g. 5000 / 1000000 = 0.5%)
