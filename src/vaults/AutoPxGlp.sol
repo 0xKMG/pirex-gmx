@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.17;
 
 import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
 import {PxGmxReward} from "src/vaults/PxGmxReward.sol";

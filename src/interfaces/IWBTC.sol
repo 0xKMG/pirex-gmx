@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.17;
 
 // https://arbiscan.io/address/0x3f770ac673856f105b586bb393d122721265ad46#code
 interface IWBTC {

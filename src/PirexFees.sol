@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.17;
 
 import {Owned} from "solmate/auth/Owned.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";

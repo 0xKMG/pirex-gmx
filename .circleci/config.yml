@@ -62,7 +62,7 @@ jobs:
               $FOUNDRY_BIN_DIR/forge test --fork-url $FORK_URL --fork-block-number $FORK_BLOCK_NUMBER
       - run:
           name: setup-solc-select
-          command: pip install solc-select && solc-select install 0.8.13 && solc-select use 0.8.13
+          command: pip install solc-select && solc-select install 0.8.17 && solc-select use 0.8.17
       - run:
           name: setup-slither
           command: git clone https://github.com/redacted-cartel/slither.git && cd slither && python setup.py install
