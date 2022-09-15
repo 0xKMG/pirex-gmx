@@ -357,7 +357,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         // Mint pxGLP for the receiver
         pxGlp.mint(receiver, postFeeAmount);
 
-        // Mint pxGMX for fee distribution contract
+        // Mint pxGLP for fee distribution contract
         if (feeAmount != 0) {
             pxGlp.mint(address(pirexFees), feeAmount);
         }
