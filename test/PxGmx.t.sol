@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.17;
 
 import {PxGmx} from "src/PxGmx.sol";
 import {Helper} from "./Helper.sol";
