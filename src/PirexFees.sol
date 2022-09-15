@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.13;
 
-import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {Owned} from "solmate/auth/Owned.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-contract PirexFees is Ownable {
+contract PirexFees is Owned {
     using SafeTransferLib for ERC20;
 
     // Types of fee recipients
@@ -39,7 +39,7 @@ contract PirexFees is Ownable {
         @param  _treasury      address  Redacted treasury
         @param  _contributors  address  Pirex contributor multisig
      */
-    constructor(address _treasury, address _contributors) {
+    constructor(address _treasury, address _contributors) Owned(msg.sender) {
         if (_treasury == address(0)) revert ZeroAddress();
         if (_contributors == address(0)) revert ZeroAddress();
 

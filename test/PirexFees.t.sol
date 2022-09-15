@@ -96,8 +96,7 @@ contract PirexFeesTest is Helper {
         assertEq(DEFAULT_TREASURY, pirexFees.treasury());
         assertEq(DEFAULT_CONTRIBUTORS, pirexFees.contributors());
 
-        vm.expectRevert(NOT_OWNER_ERROR);
-
+        vm.expectRevert(UNAUTHORIZED_ERROR);
         vm.prank(testAccounts[0]);
 
         pirexFees.setFeeRecipient(
@@ -160,8 +159,7 @@ contract PirexFeesTest is Helper {
     function testCannotSetTreasuryPercentNotAuthorized() external {
         assertEq(DEFAULT_TREASURY_PERCENT, pirexFees.treasuryPercent());
 
-        vm.expectRevert(NOT_OWNER_ERROR);
-
+        vm.expectRevert(UNAUTHORIZED_ERROR);
         vm.prank(testAccounts[0]);
 
         pirexFees.setTreasuryPercent(MAX_TREASURY_PERCENT);
@@ -189,6 +187,7 @@ contract PirexFeesTest is Helper {
         assertEq(DEFAULT_TREASURY_PERCENT, pirexFees.treasuryPercent());
 
         vm.expectEmit(false, false, false, true);
+
         emit SetTreasuryPercent(percent);
 
         pirexFees.setTreasuryPercent(percent);
