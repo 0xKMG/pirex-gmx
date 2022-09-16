@@ -201,7 +201,11 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     /**
         @notice Compound pxGMX rewards before depositing
      */
-    function beforeDeposit(address, uint256, uint256) internal override {
+    function beforeDeposit(
+        address,
+        uint256,
+        uint256
+    ) internal override {
         compound(3000, 1, 0, true);
     }
 
@@ -256,7 +260,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
             );
 
             // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
-            (pxGmxMintAmount, ) = PirexGmx(platform).depositGmx(
+            (, pxGmxMintAmount, ) = PirexGmx(platform).depositGmx(
                 GMX.balanceOf(address(this)),
                 address(this)
             );
