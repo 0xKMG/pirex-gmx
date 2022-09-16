@@ -47,6 +47,10 @@ contract PirexGmxTest is Test, Helper {
         @param  fee  uint256  Fee
      */
     function _setFee(PirexGmx.Fees f, uint256 fee) internal {
+        vm.expectEmit(true, false, false, true, address(pirexGmx));
+
+        emit SetFee(f, fee);
+
         pirexGmx.setFee(f, fee);
 
         assertEq(fee, pirexGmx.fees(f));
@@ -108,27 +112,10 @@ contract PirexGmxTest is Test, Helper {
         assertEq(0, pirexGmx.fees(redemptionFeeType));
         assertEq(0, pirexGmx.fees(rewardFeeType));
 
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetFee(depositFeeType, depositFee);
-
-        pirexGmx.setFee(depositFeeType, depositFee);
-
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetFee(redemptionFeeType, redemptionFee);
-
-        pirexGmx.setFee(redemptionFeeType, redemptionFee);
-
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetFee(rewardFeeType, rewardFee);
-
-        pirexGmx.setFee(rewardFeeType, rewardFee);
-
-        assertEq(depositFee, pirexGmx.fees(depositFeeType));
-        assertEq(redemptionFee, pirexGmx.fees(redemptionFeeType));
-        assertEq(rewardFee, pirexGmx.fees(rewardFeeType));
+        // Set and validate the different fee types
+        _setFee(depositFeeType, depositFee);
+        _setFee(redemptionFeeType, redemptionFee);
+        _setFee(rewardFeeType, rewardFee);
     }
 
     /*//////////////////////////////////////////////////////////////
