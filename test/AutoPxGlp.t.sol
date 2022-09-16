@@ -541,12 +541,7 @@ contract AutoPxGlpTest is Helper {
             address(autoPxGlp)
         );
         uint256 expectedGlobalLastSupply = autoPxGlp.totalSupply();
-
-        // In the case where no esGMX yields coming for GLP holders, harvest is not called
-        // thus the globalState's rewards will not be updated
-        uint256 expectedGlobalRewards = (
-            pxGmxRewardState != 0 ? _calculateGlobalRewards() : 0
-        );
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
 
         // Confirm current state prior to primary state mutating action
         assertEq(totalAssetsBeforeCompound, autoPxGlp.balanceOf(address(this)));
@@ -567,7 +562,7 @@ contract AutoPxGlpTest is Helper {
         assertEq(pxGmxRewardState, pxGmxAmountOut);
 
         _assertGlobalState(
-            block.timestamp - (pxGmxRewardState != 0 ? 0 : secondsElapsed), // Same case as the expectedGlobalRewards
+            block.timestamp,
             expectedGlobalLastSupply,
             expectedGlobalRewards
         );
@@ -866,26 +861,17 @@ contract AutoPxGlpTest is Helper {
             (pxGmxRewardState * autoPxGlp.platformFee()) /
             autoPxGlp.FEE_DENOMINATOR();
         uint256 expectedLastBalance = autoPxGlp.balanceOf(account);
-
-        // In the case where there is no esGMX yields for GLP, lastUpdate and rewards for globalState are not updated
-        uint256 expectedGlobalLastUpdate = block.timestamp -
-            (pxGmxRewardState != 0 ? 0 : secondsElapsed);
-        uint256 expectedGlobalRewards = (
-            pxGmxRewardState != 0 ? _calculateGlobalRewards() : 0
-        );
+        uint256 expectedGlobalLastUpdate = block.timestamp;
+        uint256 expectedGlobalRewards = _calculateGlobalRewards();
 
         uint256 expectedUserRewardState = _calculateUserRewards(account);
-        uint256 expectedClaimableReward = (
-            expectedGlobalRewards != 0
-                ? (pxGmxRewardAfterFees * expectedUserRewardState) /
-                    expectedGlobalRewards
-                : 0
-        );
+        uint256 expectedClaimableReward = (pxGmxRewardAfterFees *
+            expectedUserRewardState) / expectedGlobalRewards;
 
         assertEq(autoPxGlp.rewardState(), 0);
 
         // Event is only logged when rewards exists (ie. non-zero esGMX yields)
-        if (expectedGlobalRewards != 0) {
+        if (expectedClaimableReward != 0) {
             vm.expectEmit(true, false, false, false, address(autoPxGlp));
 
             emit PxGmxClaimed(account, receiver, 0);
@@ -902,17 +888,13 @@ contract AutoPxGlpTest is Helper {
         _assertGlobalState(
             expectedGlobalLastUpdate,
             autoPxGlp.totalSupply(),
-            (
-                expectedGlobalRewards != 0
-                    ? expectedGlobalRewards - expectedUserRewardState
-                    : 0
-            )
+            expectedGlobalRewards - expectedUserRewardState
         );
         _assertUserRewardState(
             account,
             block.timestamp,
             expectedLastBalance,
-            (expectedGlobalRewards != 0 ? 0 : expectedUserRewardState)
+            0
         );
     }
 
