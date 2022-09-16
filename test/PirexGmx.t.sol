@@ -321,24 +321,6 @@ contract PirexGmxTest is Test, Helper {
         assertEq(contractAddress, address(pirexGmx.glpManager()));
     }
 
-    /**
-        @notice Test tx success: set pirexRewards to a new contract address
-     */
-    function testSetContractPirexRewards() external {
-        address currentContractAddress = address(pirexGmx.pirexRewards());
-        address contractAddress = address(this);
-
-        assertFalse(currentContractAddress == contractAddress);
-
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetContract(PirexGmx.Contracts.PirexRewards, contractAddress);
-
-        pirexGmx.setContract(PirexGmx.Contracts.PirexRewards, contractAddress);
-
-        assertEq(contractAddress, address(pirexGmx.pirexRewards()));
-    }
-
     /*//////////////////////////////////////////////////////////////
                         depositGmx TESTS
     //////////////////////////////////////////////////////////////*/

@@ -13,7 +13,6 @@ contract AutoPxGlpTest is Helper {
     event PlatformFeeUpdated(uint256 fee);
     event CompoundIncentiveUpdated(uint256 incentive);
     event PlatformUpdated(address _platform);
-    event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
         address indexed caller,
         uint256 minGlp,
@@ -125,9 +124,6 @@ contract AutoPxGlpTest is Helper {
         address receiver,
         uint256 secondsElapsed
     ) internal returns (uint256 wethRewardState, uint256 pxGmxRewardState) {
-        // Setup pirexRewards for the vault
-        autoPxGlp.setRewardsModule(address(pirexRewards));
-
         pirexRewards.addRewardToken(pxGmx, WETH);
         pirexRewards.addRewardToken(pxGmx, pxGmx);
         pirexRewards.addRewardToken(pxGlp, WETH);
@@ -474,52 +470,6 @@ contract AutoPxGlpTest is Helper {
 
         assertEq(expectedPlatform, autoPxGlp.platform());
         assertTrue(expectedPlatform != initialPlatform);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        setRewardsModule TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: caller is unauthorized
-     */
-    function testCannotSetRewardsModuleUnauthorized() external {
-        address rewardsModule = address(this);
-
-        vm.expectRevert("UNAUTHORIZED");
-
-        vm.prank(testAccounts[0]);
-
-        autoPxGlp.setRewardsModule(rewardsModule);
-    }
-
-    /**
-        @notice Test tx reversion: rewardsModule is zero address
-     */
-    function testCannotSetRewardsModuleZeroAddress() external {
-        address invalidRewardsModule = address(0);
-
-        vm.expectRevert(PxGmxReward.ZeroAddress.selector);
-
-        autoPxGlp.setRewardsModule(invalidRewardsModule);
-    }
-
-    /**
-        @notice Test tx success: set rewardsModule
-     */
-    function testSetRewardsModule() external {
-        address initialRewardsModule = autoPxGlp.rewardsModule();
-        address rewardsModule = address(this);
-        address expectedRewardsModule = rewardsModule;
-
-        vm.expectEmit(false, false, false, true, address(autoPxGlp));
-
-        emit RewardsModuleUpdated(expectedRewardsModule);
-
-        autoPxGlp.setRewardsModule(rewardsModule);
-
-        assertEq(expectedRewardsModule, autoPxGlp.rewardsModule());
-        assertTrue(expectedRewardsModule != initialRewardsModule);
     }
 
     /*//////////////////////////////////////////////////////////////
