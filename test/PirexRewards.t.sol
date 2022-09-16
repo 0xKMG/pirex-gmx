@@ -578,173 +578,187 @@ contract PirexRewardsTest is Helper {
 
     /**
         @notice Test tx success: assert correctness of reward accruals in the case of px token transfers
-        @param  tokenAmount      uin80   Amount of tokens to mint the sender
         @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  multiplier       uint8   Multiplied with fixed token amounts for randomness
         @param  transferPercent  uint8   Percent for testing partial balance transfers
         @param  useTransfer      bool    Whether or not to use the transfer method
+        @param  useETH           bool    Whether or not to use ETH as the source asset for minting GLP
         @param  useGmx           bool    Whether to use pxGMX
      */
     function testAccrueTransfer(
-        uint80 tokenAmount,
         uint32 secondsElapsed,
+        uint8 multiplier,
         uint8 transferPercent,
         bool useTransfer,
+        bool useETH,
         bool useGmx
     ) external {
-        vm.assume(tokenAmount > 1e10);
-        vm.assume(tokenAmount < 10000e18);
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
         vm.assume(transferPercent != 0);
         vm.assume(transferPercent <= 100);
 
         ERC20 producerToken = useGmx
             ? ERC20(address(pxGmx))
             : ERC20(address(pxGlp));
-        address sender = testAccounts[0];
-        address receiver = testAccounts[1];
 
-        if (useGmx) {
-            _mintGmx(tokenAmount);
-            GMX.approve(address(pirexGmx), tokenAmount);
-            pirexGmx.depositGmx(tokenAmount, sender);
-        } else {
-            vm.deal(address(this), tokenAmount);
+        _depositForTestAccounts(useGmx, multiplier, useETH);
 
-            pirexGmx.depositGlpETH{value: tokenAmount}(1, 1, sender);
-        }
+        // Perform consecutive transfers in-between test accounts
+        for (uint256 i; i < testAccounts.length; ++i) {
+            address sender = testAccounts[i];
+            // Transfer to next account, while last account would transfer to first account
+            address receiver = testAccounts[(i + 1) % testAccounts.length];
 
-        // Forward time in order to accrue rewards for sender
-        vm.warp(block.timestamp + secondsElapsed);
+            // Forward time in order to accrue rewards for sender
+            vm.warp(block.timestamp + secondsElapsed);
 
-        // Test sender reward accrual before transfer
-        uint256 transferAmount = (producerToken.balanceOf(sender) *
-            transferPercent) / 100;
-        uint256 expectedSenderRewardsAfterTransfer = _calculateUserRewards(
-            producerToken,
-            sender
-        );
-
-        // Test both of the ERC20 transfer methods for correctness of reward accrual
-        if (useTransfer) {
-            vm.prank(sender);
-
-            producerToken.transfer(receiver, transferAmount);
-        } else {
-            vm.prank(sender);
-
-            // Need to increase allowance of the caller if using transferFrom
-            producerToken.approve(address(this), transferAmount);
-
-            producerToken.transferFrom(sender, receiver, transferAmount);
-        }
-
-        (, , uint256 senderRewardsAfterTransfer) = pirexRewards.getUserState(
-            producerToken,
-            sender
-        );
-
-        assertEq(
-            expectedSenderRewardsAfterTransfer,
-            senderRewardsAfterTransfer
-        );
-
-        // Forward time in order to accrue rewards for receiver
-        vm.warp(block.timestamp + secondsElapsed);
-
-        // Get expected sender and receiver reward accrual states
-        uint256 expectedReceiverRewards = _calculateUserRewards(
-            producerToken,
-            receiver
-        );
-        uint256 expectedSenderRewardsAfterTransferAndWarp = _calculateUserRewards(
+            // Test sender reward accrual before transfer
+            uint256 transferAmount = (producerToken.balanceOf(sender) *
+                transferPercent) / 100;
+            uint256 expectedSenderRewardsAfterTransfer = _calculateUserRewards(
                 producerToken,
                 sender
             );
 
-        // Accrue rewards for both sender and receiver
-        pirexRewards.userAccrue(producerToken, sender);
-        pirexRewards.userAccrue(producerToken, receiver);
+            // Test both of the ERC20 transfer methods for correctness of reward accrual
+            if (useTransfer) {
+                vm.prank(sender);
 
-        // Retrieve actual user reward accrual states
-        (, , uint256 receiverRewards) = pirexRewards.getUserState(
-            producerToken,
-            receiver
-        );
-        (, , uint256 senderRewardsAfterTransferAndWarp) = pirexRewards
-            .getUserState(producerToken, sender);
+                producerToken.transfer(receiver, transferAmount);
+            } else {
+                vm.prank(sender);
 
-        assertEq(
-            expectedSenderRewardsAfterTransferAndWarp,
-            senderRewardsAfterTransferAndWarp
-        );
-        assertEq(expectedReceiverRewards, receiverRewards);
+                // Need to increase allowance of the caller if using transferFrom
+                producerToken.approve(address(this), transferAmount);
+
+                producerToken.transferFrom(sender, receiver, transferAmount);
+            }
+
+            (, , uint256 senderRewardsAfterTransfer) = pirexRewards
+                .getUserState(producerToken, sender);
+
+            assertEq(
+                expectedSenderRewardsAfterTransfer,
+                senderRewardsAfterTransfer
+            );
+
+            // Forward time in order to accrue rewards for receiver
+            vm.warp(block.timestamp + secondsElapsed);
+
+            // Get expected sender and receiver reward accrual states
+            uint256 expectedReceiverRewards = _calculateUserRewards(
+                producerToken,
+                receiver
+            );
+            uint256 expectedSenderRewardsAfterTransferAndWarp = _calculateUserRewards(
+                    producerToken,
+                    sender
+                );
+
+            // Accrue rewards for both sender and receiver
+            pirexRewards.userAccrue(producerToken, sender);
+            pirexRewards.userAccrue(producerToken, receiver);
+
+            // Retrieve actual user reward accrual states
+            (, , uint256 receiverRewards) = pirexRewards.getUserState(
+                producerToken,
+                receiver
+            );
+            (, , uint256 senderRewardsAfterTransferAndWarp) = pirexRewards
+                .getUserState(producerToken, sender);
+
+            assertEq(
+                expectedSenderRewardsAfterTransferAndWarp,
+                senderRewardsAfterTransferAndWarp
+            );
+            assertEq(expectedReceiverRewards, receiverRewards);
+        }
     }
 
     /**
         @notice Test tx success: assert correctness of reward accruals in the case of pxGLP burns
-        @param  tokenAmount      uin80   Amount of pxGLP to mint the user
         @param  secondsElapsed   uint32  Seconds to forward timestamp (equivalent to total rewards accrued)
+        @param  multiplier       uint8   Multiplied with fixed token amounts for randomness
         @param  burnPercent      uint8   Percent for testing partial balance burns
+        @param  useETH           bool    Whether or not to use ETH as the source asset for minting GLP
      */
     function testAccrueBurn(
-        uint80 tokenAmount,
         uint32 secondsElapsed,
-        uint8 burnPercent
+        uint8 multiplier,
+        uint8 burnPercent,
+        bool useETH
     ) external {
-        vm.assume(tokenAmount > 0.001 ether);
-        vm.assume(tokenAmount < 10000 ether);
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
         vm.assume(burnPercent != 0);
         vm.assume(burnPercent <= 100);
 
-        address user = address(this);
+        // Always deposit for pxGLP for burn tests
+        _depositForTestAccounts(false, multiplier, useETH);
 
-        vm.deal(user, tokenAmount);
+        // Perform consecutive transfers in-between test accounts
+        for (uint256 i; i < testAccounts.length; ++i) {
+            address testAccount = testAccounts[i];
 
-        pirexGmx.depositGlpETH{value: tokenAmount}(1, 1, user);
+            // Forward time in order to accrue rewards for user
+            vm.warp(block.timestamp + secondsElapsed);
 
-        // Forward time in order to accrue rewards for user
-        vm.warp(block.timestamp + secondsElapsed);
+            uint256 preBurnBalance = pxGlp.balanceOf(testAccount);
+            uint256 burnAmount = (preBurnBalance * burnPercent) / 100;
+            uint256 expectedRewardsAfterBurn = _calculateUserRewards(
+                pxGlp,
+                testAccount
+            );
 
-        uint256 preBurnBalance = pxGlp.balanceOf(user);
-        uint256 burnAmount = (preBurnBalance * burnPercent) / 100;
-        uint256 expectedRewardsAfterBurn = _calculateUserRewards(pxGlp, user);
+            vm.prank(address(pirexGmx));
 
-        vm.prank(address(pirexGmx));
+            pxGlp.burn(testAccount, burnAmount);
 
-        pxGlp.burn(user, burnAmount);
+            (
+                uint256 updateAfterBurn,
+                uint256 balanceAfterBurn,
+                uint256 rewardsAfterBurn
+            ) = pirexRewards.getUserState(pxGlp, testAccount);
+            uint256 postBurnBalance = pxGlp.balanceOf(testAccount);
 
-        (, , uint256 rewardsAfterBurn) = pirexRewards.getUserState(pxGlp, user);
-        uint256 postBurnBalance = pxGlp.balanceOf(user);
+            // Verify conditions for "less reward accrual" post-burn
+            assertTrue(postBurnBalance < preBurnBalance);
 
-        // Verify conditions for "less reward accrual" post-burn
-        assertTrue(postBurnBalance < preBurnBalance);
+            // User should have accrued rewards based on their balance up to the burn
+            // while still have the lastBalance state properly updated
+            assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
+            assertEq(postBurnBalance, balanceAfterBurn);
+            assertEq(block.timestamp, updateAfterBurn);
 
-        // User should have accrued rewards based on their balance up to the burn
-        assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
+            // Forward timestamp to check that user is accruing less rewards
+            vm.warp(block.timestamp + secondsElapsed);
 
-        // Forward timestamp to check that user is accruing less rewards
-        vm.warp(block.timestamp + secondsElapsed);
+            uint256 expectedRewards = _calculateUserRewards(pxGlp, testAccount);
 
-        uint256 expectedRewards = _calculateUserRewards(pxGlp, user);
+            // Rewards accrued if user were to not burn tokens
+            uint256 noBurnRewards = rewardsAfterBurn +
+                preBurnBalance *
+                secondsElapsed;
 
-        // Rewards accrued if user were to not burn tokens
-        uint256 noBurnRewards = rewardsAfterBurn +
-            preBurnBalance *
-            secondsElapsed;
+            // Delta of expected/actual rewards accrued and no-burn rewards accrued
+            uint256 expectedAndNoBurnRewardDelta = (preBurnBalance -
+                postBurnBalance) * secondsElapsed;
 
-        // Delta of expected/actual rewards accrued and no-burn rewards accrued
-        uint256 expectedAndNoBurnRewardDelta = (preBurnBalance -
-            postBurnBalance) * secondsElapsed;
+            pirexRewards.userAccrue(pxGlp, testAccount);
 
-        pirexRewards.userAccrue(pxGlp, user);
+            (, , uint256 rewards) = pirexRewards.getUserState(
+                pxGlp,
+                testAccount
+            );
 
-        (, , uint256 rewards) = pirexRewards.getUserState(pxGlp, user);
-
-        assertEq(expectedRewards, rewards);
-        assertEq(noBurnRewards - expectedAndNoBurnRewardDelta, rewards);
+            assertEq(expectedRewards, rewards);
+            assertEq(noBurnRewards - expectedAndNoBurnRewardDelta, rewards);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -753,45 +767,35 @@ contract PirexRewardsTest is Helper {
 
     /**
         @notice Test tx success: harvest WETH and esGMX rewards produced by pxGMX and pxGLP
-        @param  secondsElapsed  uint32  Seconds to forward timestamp
-        @param  ethAmount       uint80  Amount of ETH to mint pxGLP
-        @param  gmxAmount       uint80  Amount of GMX to deposit into pxGMX
+        @param  secondsElapsed     uint32  Seconds to forward timestamp
+        @param  rounds             uint8   Number of rounds to fast forward time and accrue rewards
+        @param  multiplier         uint8   Multiplied with fixed token amounts for randomness
+        @param  useETH             bool    Whether or not to use ETH as the source asset for minting GLP
+        @param  additionalDeposit  uint8   Round index when another wave of deposit should be performed
      */
     function testHarvest(
         uint32 secondsElapsed,
-        uint80 ethAmount,
-        uint80 gmxAmount
+        uint8 rounds,
+        uint8 multiplier,
+        bool useETH,
+        uint8 additionalDeposit
     ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
-        vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
-        vm.assume(gmxAmount != 0);
-        vm.assume(gmxAmount < 1000000e18);
+        vm.assume(rounds != 0);
+        vm.assume(rounds < 10);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+        vm.assume(additionalDeposit < rounds);
 
-        address user = address(this);
+        // Perform initial pxGMX+pxGLP deposits for all test accounts before calling harvest
+        _depositForTestAccountsPxGmx(multiplier);
+        _depositForTestAccountsPxGlp(multiplier, useETH);
 
-        vm.deal(user, ethAmount);
-
-        // Deposit GLP and GMX before proceeding
-        pirexGmx.depositGlpETH{value: ethAmount}(1, 1, user);
-
-        _mintGmx(gmxAmount);
-        GMX.approve(address(pirexGmx), gmxAmount);
-        pirexGmx.depositGmx(gmxAmount, user);
-
-        // Time skip to accrue rewards
-        vm.warp(block.timestamp + secondsElapsed);
-
-        uint256 expectedLastUpdate = block.timestamp;
-        uint256 expectedGlpGlobalLastSupply = pxGlp.totalSupply();
-        uint256 expectedGlpGlobalRewards = _calculateGlobalRewards(pxGlp);
-        uint256 expectedGmxGlobalLastSupply = pxGmx.totalSupply();
-        uint256 expectedGmxGlobalRewards = _calculateGlobalRewards(pxGmx);
         ERC20[] memory expectedProducerTokens = new ERC20[](4);
         ERC20[] memory expectedRewardTokens = new ERC20[](4);
         uint256[] memory expectedRewardAmounts = new uint256[](4);
-
+        uint256[] memory totalExpectedRewardAmounts = new uint256[](4);
         expectedProducerTokens[0] = pxGmx;
         expectedProducerTokens[1] = pxGlp;
         expectedProducerTokens[2] = pxGmx;
@@ -800,49 +804,68 @@ contract PirexRewardsTest is Helper {
         expectedRewardTokens[1] = WETH;
         expectedRewardTokens[2] = ERC20(pxGmx); // esGMX rewards are distributed as pxGMX
         expectedRewardTokens[3] = ERC20(pxGmx);
-        expectedRewardAmounts[0] = pirexGmx.calculateRewards(true, true);
-        expectedRewardAmounts[1] = pirexGmx.calculateRewards(true, false);
-        expectedRewardAmounts[2] = pirexGmx.calculateRewards(false, true);
-        expectedRewardAmounts[3] = pirexGmx.calculateRewards(false, false);
 
-        vm.expectEmit(true, true, true, true, address(pirexRewards));
+        // Perform harvest for the specified amount of rounds (with delay) then asserts
+        for (uint256 i; i < rounds; ++i) {
+            // Perform additional deposits before the next harvest at randomly chosen index
+            if (i == additionalDeposit) {
+                _depositForTestAccountsPxGmx(multiplier);
+                _depositForTestAccountsPxGlp(multiplier, useETH);
+            }
 
-        emit Harvest(
-            expectedProducerTokens,
-            expectedRewardTokens,
-            expectedRewardAmounts
-        );
+            // Time skip to accrue rewards for each round
+            vm.warp(block.timestamp + secondsElapsed);
 
-        (
-            ERC20[] memory producerTokens,
-            ERC20[] memory rewardTokens,
-            uint256[] memory rewardAmounts
-        ) = pirexRewards.harvest();
+            uint256 expectedLastUpdate = block.timestamp;
+            uint256 expectedGlpGlobalLastSupply = pxGlp.totalSupply();
+            uint256 expectedGlpGlobalRewards = _calculateGlobalRewards(pxGlp);
+            uint256 expectedGmxGlobalLastSupply = pxGmx.totalSupply();
+            uint256 expectedGmxGlobalRewards = _calculateGlobalRewards(pxGmx);
 
-        // Asserts separately to avoid stack issues
-        _assertGlobalState(
-            pxGlp,
-            expectedLastUpdate,
-            expectedGlpGlobalLastSupply,
-            expectedGlpGlobalRewards
-        );
-        _assertGlobalState(
-            pxGmx,
-            expectedLastUpdate,
-            expectedGmxGlobalLastSupply,
-            expectedGmxGlobalRewards
-        );
+            expectedRewardAmounts[0] = pirexGmx.calculateRewards(true, true);
+            expectedRewardAmounts[1] = pirexGmx.calculateRewards(true, false);
+            expectedRewardAmounts[2] = pirexGmx.calculateRewards(false, true);
+            expectedRewardAmounts[3] = pirexGmx.calculateRewards(false, false);
 
-        uint256 pLen = producerTokens.length;
+            vm.expectEmit(true, true, true, true, address(pirexRewards));
 
-        for (uint256 i; i < pLen; ++i) {
-            ERC20 p = producerTokens[i];
-            uint256 rewardAmount = rewardAmounts[i];
-
-            assertEq(
-                rewardAmount,
-                pirexRewards.getRewardState(p, rewardTokens[i])
+            emit Harvest(
+                expectedProducerTokens,
+                expectedRewardTokens,
+                expectedRewardAmounts
             );
+
+            (
+                ERC20[] memory producerTokens,
+                ERC20[] memory rewardTokens,
+                uint256[] memory rewardAmounts
+            ) = pirexRewards.harvest();
+
+            // Asserts separately to avoid stack issues
+            _assertGlobalState(
+                pxGlp,
+                expectedLastUpdate,
+                expectedGlpGlobalLastSupply,
+                expectedGlpGlobalRewards
+            );
+            _assertGlobalState(
+                pxGmx,
+                expectedLastUpdate,
+                expectedGmxGlobalLastSupply,
+                expectedGmxGlobalRewards
+            );
+
+            uint256 pLen = producerTokens.length;
+
+            for (uint256 j; j < pLen; ++j) {
+                ERC20 p = producerTokens[j];
+                totalExpectedRewardAmounts[j] += rewardAmounts[j];
+
+                assertEq(
+                    totalExpectedRewardAmounts[j],
+                    pirexRewards.getRewardState(p, rewardTokens[j])
+                );
+            }
         }
     }
 
@@ -1254,22 +1277,18 @@ contract PirexRewardsTest is Helper {
     /**
         @notice Test tx success: claim
         @param  secondsElapsed  uint32  Seconds to forward timestamp
-        @param  ethAmount       uint80  ETH amount used to mint pxGLP
         @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
         @param  useETH          bool    Whether to use ETH when minting
         @param  forwardRewards  bool    Whether to forward rewards
      */
     function testClaim(
         uint32 secondsElapsed,
-        uint80 ethAmount,
         uint8 multiplier,
         bool useETH,
         bool forwardRewards
     ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
-        vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
         vm.assume(multiplier != 0);
         vm.assume(multiplier < 10);
 
