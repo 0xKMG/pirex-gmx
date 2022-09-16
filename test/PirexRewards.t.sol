@@ -1704,29 +1704,20 @@ contract PirexRewardsTest is Helper {
         @notice Test tx success: upgrade the PirexRewards contract
      */
     function testUpgrade() external {
-        // Setup a new set of contracts for testing upgradeability
-        // as we can't use the existing one from the constructor (can't be upgraded)
-        PirexRewards oldImplementation = new PirexRewards();
-        address admin = testAccounts[0];
-
-        // Deploy and setup the proxy (with a test account as admin)
-        // Note that admin won't be able to fallback to the proxy's implementation methods
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
-            address(oldImplementation),
-            admin,
-            abi.encodeWithSelector(PirexRewards(address(0)).initialize.selector)
+        // Must be a payable-address due to the existence of fallback method on the base proxy
+        address payable proxyAddress = payable(address(pirexRewards));
+        TransparentUpgradeableProxy proxy = TransparentUpgradeableProxy(
+            proxyAddress
         );
-        address proxyAddress = address(proxy);
-        PirexRewards pirexRewardsProxy = PirexRewards(proxyAddress);
+
+        vm.prank(proxyAdmin);
+
+        // Store the old (pre-upgrade) implementation address before upgrading
+        address oldImplementation = proxy.implementation();
 
         pirexGmx.setContract(PirexGmx.Contracts.PirexRewards, proxyAddress);
 
         assertEq(proxyAddress, pirexGmx.pirexRewards());
-
-        // Only admin can call the implementation getter
-        vm.prank(admin);
-
-        assertEq(address(oldImplementation), proxy.implementation());
 
         // Simulate deposit to accrue rewards in which the reward data
         // will be used later to test upgraded implementation
@@ -1739,10 +1730,10 @@ contract PirexRewardsTest is Helper {
 
         vm.warp(block.timestamp + 1 days);
 
-        pirexRewardsProxy.setProducer(address(pirexGmx));
-        pirexRewardsProxy.harvest();
+        pirexRewards.setProducer(address(pirexGmx));
+        pirexRewards.harvest();
 
-        uint256 oldMethodResult = pirexRewardsProxy.getRewardState(
+        uint256 oldMethodResult = pirexRewards.getRewardState(
             ERC20(address(pxGmx)),
             WETH
         );
@@ -1752,11 +1743,12 @@ contract PirexRewardsTest is Helper {
         // Deploy and set a new implementation to the proxy as the admin
         PirexRewardsMock newImplementation = new PirexRewardsMock();
 
-        vm.startPrank(admin);
+        vm.startPrank(proxyAdmin);
 
         proxy.upgradeTo(address(newImplementation));
 
         assertEq(address(newImplementation), proxy.implementation());
+        assertTrue(oldImplementation != proxy.implementation());
 
         vm.stopPrank();
 
