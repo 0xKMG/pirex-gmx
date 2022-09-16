@@ -58,6 +58,41 @@ contract HelperEvents {
     event SetVoteDelegate(address voteDelegate);
     event ClearVoteDelegate();
 
+    // PirexRewards events
+    event SetProducer(address producer);
+    event SetRewardRecipient(
+        address indexed user,
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken,
+        address recipient
+    );
+    event UnsetRewardRecipient(
+        address indexed user,
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken
+    );
+    event AddRewardToken(
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken
+    );
+    event RemoveRewardToken(ERC20 indexed producerToken, uint256 removalIndex);
+    event SetRewardRecipientPrivileged(
+        address indexed lpContract,
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken,
+        address recipient
+    );
+    event UnsetRewardRecipientPrivileged(
+        address indexed lpContract,
+        ERC20 indexed producerToken,
+        ERC20 indexed rewardToken
+    );
+    event Harvest(
+        ERC20[] producerTokens,
+        ERC20[] rewardTokens,
+        uint256[] rewardAmounts
+    );
+
     // PirexFees events
     event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
     event SetTreasuryPercent(uint8 _treasuryPercent);
@@ -71,5 +106,9 @@ contract HelperEvents {
     // PxERC20 events
     event SetPirexRewards(address pirexRewards);
     event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 amount
+    );
 }

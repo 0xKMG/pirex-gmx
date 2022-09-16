@@ -12,40 +12,6 @@ import {Helper} from "./Helper.sol";
 import {Common} from "src/Common.sol";
 
 contract PirexRewardsTest is Helper {
-    event SetProducer(address producer);
-    event SetRewardRecipient(
-        address indexed user,
-        ERC20 indexed producerToken,
-        ERC20 indexed rewardToken,
-        address recipient
-    );
-    event UnsetRewardRecipient(
-        address indexed user,
-        ERC20 indexed producerToken,
-        ERC20 indexed rewardToken
-    );
-    event AddRewardToken(
-        ERC20 indexed producerToken,
-        ERC20 indexed rewardToken
-    );
-    event RemoveRewardToken(ERC20 indexed producerToken, uint256 removalIndex);
-    event SetRewardRecipientPrivileged(
-        address indexed lpContract,
-        ERC20 indexed producerToken,
-        ERC20 indexed rewardToken,
-        address recipient
-    );
-    event UnsetRewardRecipientPrivileged(
-        address indexed lpContract,
-        ERC20 indexed producerToken,
-        ERC20 indexed rewardToken
-    );
-    event Harvest(
-        ERC20[] producerTokens,
-        ERC20[] rewardTokens,
-        uint256[] rewardAmounts
-    );
-
     /**
         @notice Getter for a producer token's global state
     */
@@ -304,7 +270,11 @@ contract PirexRewardsTest is Helper {
 
             _burnPxGlp(testAccount, burnAmount);
 
-            (uint256 lastUpdate, uint256 lastSupply, uint256 rewards) = _getGlobalState(producerToken);
+            (
+                uint256 lastUpdate,
+                uint256 lastSupply,
+                uint256 rewards
+            ) = _getGlobalState(producerToken);
             uint256 postBurnSupply = pxGlp.totalSupply();
 
             // Verify conditions for "less reward accrual" post-burn
