@@ -1679,9 +1679,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: contract is paused
      */
     function testCannotSetPauseStatePaused() external {
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
+        _pauseContract();
 
         vm.expectRevert(PAUSED_ERROR);
 
@@ -1694,9 +1692,7 @@ contract PirexGmxTest is Test, Helper {
     function testSetPauseState() external {
         assertEq(false, pirexGmx.paused());
 
-        pirexGmx.setPauseState(true);
-
-        assertEq(true, pirexGmx.paused());
+        _pauseContract();
 
         pirexGmx.setPauseState(false);
 
