@@ -230,7 +230,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
 
         if (wethAmountIn != 0) {
             // Deposit received WETH for pxGLP
-            (pxGlpAmountOut, ) = PirexGmx(platform).depositGlp(
+            (, pxGlpAmountOut, ) = PirexGmx(platform).depositGlp(
                 address(WETH),
                 wethAmountIn,
                 minUsdg,

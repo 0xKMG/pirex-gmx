@@ -922,11 +922,26 @@ contract PirexRewardsTest is Helper {
             uint256 expectedGlpGlobalRewards = _calculateGlobalRewards(pxGlp);
             uint256 expectedGmxGlobalLastSupply = pxGmx.totalSupply();
             uint256 expectedGmxGlobalRewards = _calculateGlobalRewards(pxGmx);
-
-            expectedRewardAmounts[0] = pirexGmx.calculateRewards(true, true);
-            expectedRewardAmounts[1] = pirexGmx.calculateRewards(true, false);
-            expectedRewardAmounts[2] = pirexGmx.calculateRewards(false, true);
-            expectedRewardAmounts[3] = pirexGmx.calculateRewards(false, false);
+            expectedRewardAmounts[0] = _calculateRewards(
+                address(pirexGmx),
+                true,
+                true
+            );
+            expectedRewardAmounts[1] = _calculateRewards(
+                address(pirexGmx),
+                true,
+                false
+            );
+            expectedRewardAmounts[2] = _calculateRewards(
+                address(pirexGmx),
+                false,
+                true
+            );
+            expectedRewardAmounts[3] = _calculateRewards(
+                address(pirexGmx),
+                false,
+                false
+            );
 
             vm.expectEmit(true, true, true, true, address(pirexRewards));
 

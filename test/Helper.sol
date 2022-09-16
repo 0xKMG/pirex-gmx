@@ -157,6 +157,11 @@ contract Helper is Test, HelperEvents, HelperState {
         feeTypes[0] = PirexGmx.Fees.Deposit;
         feeTypes[1] = PirexGmx.Fees.Redemption;
         feeTypes[2] = PirexGmx.Fees.Reward;
+        feeDenominator = pirexGmx.FEE_DENOMINATOR();
+        percentDenominator = pirexFees.PERCENT_DENOMINATOR();
+        treasuryPercent = pirexFees.treasuryPercent();
+        treasury = pirexFees.treasury();
+        contributors = pirexFees.contributors();
     }
 
     /**
@@ -495,11 +500,9 @@ contract Helper is Test, HelperEvents, HelperState {
     {
         vm.deal(address(this), etherAmount);
 
-        (postFeeAmount, feeAmount) = pirexGmx.depositGlpETH{value: etherAmount}(
-            1,
-            1,
-            receiver
-        );
+        (, postFeeAmount, feeAmount) = pirexGmx.depositGlpETH{
+            value: etherAmount
+        }(1, 1, receiver);
 
         // Time skip to bypass the cooldown duration
         vm.warp(block.timestamp + 1 hours);
@@ -509,18 +512,22 @@ contract Helper is Test, HelperEvents, HelperState {
         @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
         @param  tokenAmount    uint256  Amount of token
         @param  receiver       address  Receiver of pxGLP
+        @return deposited      uint256  GLP deposited
         @return postFeeAmount  uint256  pxGLP minted for the receiver
         @return feeAmount      uint256  pxGLP distributed as fees
      */
     function _depositGlp(uint256 tokenAmount, address receiver)
         internal
-        returns (uint256 postFeeAmount, uint256 feeAmount)
+        returns (
+            uint256 deposited,
+            uint256 postFeeAmount,
+            uint256 feeAmount
+        )
     {
         _mintWbtc(tokenAmount);
-
         WBTC.approve(address(pirexGmx), tokenAmount);
 
-        (postFeeAmount, feeAmount) = pirexGmx.depositGlp(
+        (deposited, postFeeAmount, feeAmount) = pirexGmx.depositGlp(
             address(WBTC),
             tokenAmount,
             1,
@@ -577,18 +584,60 @@ contract Helper is Test, HelperEvents, HelperState {
     }
 
     /**
-        @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
-        @param  f           Fees     Fee type
-        @param  amount      uint256  GMX/GLP/WETH amount
-        @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
-        @return feeAmount   uint256  Fee amount
+        @notice Compute post-fee asset and fee amounts from a fee type and total assets
+        @param  f              Fees     Fee type
+        @param  assets         uint256  GMX/GLP/WETH asset amount
+        @return postFeeAmount  uint256  Post-fee asset amount (for mint/burn/claim/etc.)
+        @return feeAmount      uint256  Fee amount
      */
-    function _deriveAssetAmounts(PirexGmx.Fees f, uint256 amount)
+    function _computeAssetAmounts(PirexGmx.Fees f, uint256 assets)
         internal
         view
-        returns (uint256 userAmount, uint256 feeAmount)
+        returns (uint256 postFeeAmount, uint256 feeAmount)
     {
-        feeAmount = (amount * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
-        userAmount = amount - feeAmount;
+        feeAmount = (assets * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
+        postFeeAmount = assets - feeAmount;
+    }
+
+    /**
+        @notice Calculate the WETH/esGMX rewards for either GMX or GLP
+        @param  account  address  Whether to calculate WETH or esGMX rewards
+        @param  isWeth   bool     Whether to calculate WETH or esGMX rewards
+        @param  useGmx   bool     Whether the calculation should be for GMX
+        @return         uint256   Amount of WETH/esGMX rewards
+     */
+    function _calculateRewards(
+        address account,
+        bool isWeth,
+        bool useGmx
+    ) internal view returns (uint256) {
+        RewardTracker r;
+
+        if (isWeth) {
+            r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+        } else {
+            r = useGmx ? STAKED_GMX : FEE_STAKED_GLP;
+        }
+
+        address distributor = r.distributor();
+        uint256 pendingRewards = IRewardDistributor(distributor)
+            .pendingRewards();
+        uint256 distributorBalance = (isWeth ? WETH : ERC20(ES_GMX)).balanceOf(
+            distributor
+        );
+        uint256 blockReward = pendingRewards > distributorBalance
+            ? distributorBalance
+            : pendingRewards;
+        uint256 precision = r.PRECISION();
+        uint256 cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
+            ((blockReward * precision) / r.totalSupply());
+
+        if (cumulativeRewardPerToken == 0) return 0;
+
+        return
+            r.claimableReward(account) +
+            ((r.stakedAmounts(account) *
+                (cumulativeRewardPerToken -
+                    r.previousCumulatedRewardPerToken(account))) / precision);
     }
 }
