@@ -862,86 +862,10 @@ contract PirexGmxTest is Test, Helper {
         pirexGmx.redeemPxGlpETH(assets, invalidMinOut, receiver);
     }
 
-    /**
-        @notice Test tx success: redeem pxGLP for ETH
-        @param  etherAmount    uint80  Amount of ether in wei units
-        @param  redemptionFee  uint24  Redemption fee
-     */
-    function testRedeemPxGlpETH(uint80 etherAmount, uint24 redemptionFee)
-        external
-    {
-        vm.assume(etherAmount > 1e15);
-        vm.assume(etherAmount < 1e22);
-        vm.assume(redemptionFee != 0);
-        vm.assume(redemptionFee <= feeMax);
-
-        _setFee(PirexGmx.Fees.Redemption, redemptionFee);
-
-        // Commented out due to "Stack too deep..." compiler error
-        // address caller = address(this);
-
-        (
-            uint256 depositPostFeeAmount,
-            uint256 depositFeeAmount
-        ) = _depositGlpETH(1 ether, address(this));
-        uint256 assets = depositPostFeeAmount + depositFeeAmount;
-        (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
-            PirexGmx.Fees.Redemption,
-            assets
-        );
-        uint256 minOut = _calculateMinOutAmount(address(WETH), postFeeAmount);
-        address receiver = testAccounts[0];
-        uint256 pirexGmxBalanceBeforeRedemption = FEE_STAKED_GLP.balanceOf(
-            address(pirexGmx)
-        );
-
-        // Commented out due to "Stack too deep..." compiler error
-        // uint256 expectedPreRedeemGlpBalancePirexGmx = assets;
-        // uint256 expectedPreRedeemPxGlpBalanceCaller = assets;
-        // uint256 expectedPreRedeemWETHBalanceReceiver = 0;
-
-        assertFalse(address(this) == receiver);
-        assertEq(assets, pirexGmxBalanceBeforeRedemption);
-        assertEq(assets, pxGlp.balanceOf(address(this)));
-        assertEq(0, receiver.balance);
-
-        pxGlp.approve(address(pirexGmx), assets);
-
-        vm.expectEmit(true, true, true, false, address(pirexGmx));
-
-        emit RedeemGlp(
-            address(this),
-            receiver,
-            address(0),
-            assets,
-            minOut,
-            0,
-            postFeeAmount,
-            feeAmount
-        );
-
-        (
-            uint256 redeemed,
-            uint256 returnedPostFeeAmount,
-            uint256 returnedFeeAmount
-        ) = pirexGmx.redeemPxGlpETH(assets, minOut, receiver);
-        uint256 expectedPostRedeemGlpBalancePirexGmx = pirexGmxBalanceBeforeRedemption -
-                postFeeAmount;
-        uint256 expectedPostRedeemPxGlpBalanceCaller = 0;
-        uint256 expectedPostRedeemWETHBalanceReceiver = redeemed;
-
-        assertEq(
-            expectedPostRedeemGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
-        );
-        assertEq(
-            expectedPostRedeemPxGlpBalanceCaller,
-            pxGlp.balanceOf(address(this))
-        );
-        assertEq(expectedPostRedeemWETHBalanceReceiver, receiver.balance);
-        assertEq(postFeeAmount, returnedPostFeeAmount);
-        assertEq(feeAmount, returnedFeeAmount);
-    }
+    // /**
+    //     @notice Test tx success: testRedeemPxGlp fuzz test covers both methods
+    //  */
+    // function testRedeemPxGlpETH() external {}
 
     /*//////////////////////////////////////////////////////////////
                         redeemPxGlp TESTS
@@ -1056,84 +980,100 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test tx success: redeem pxGLP for whitelisted ERC20 tokens
-        @param  tokenAmount    uint40  Token amount
-        @param  redemptionFee  uint24  Redemption fee
+        @notice Test tx success: redeem pxGLP
+        @param  redemptionFee   uint24  Redemption fee
+        @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
+        @param  useETH          bool    Whether or not to use ETH as the source asset for minting GLP
      */
-    function testRedeemPxGlp(uint40 tokenAmount, uint24 redemptionFee)
-        external
-    {
-        vm.assume(tokenAmount > 1e5);
-        vm.assume(tokenAmount < 100e8);
-        vm.assume(redemptionFee != 0);
+    function testRedeemPxGlp(
+        uint24 redemptionFee,
+        uint8 multiplier,
+        bool useETH
+    ) external {
         vm.assume(redemptionFee <= feeMax);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
 
         _setFee(PirexGmx.Fees.Redemption, redemptionFee);
 
-        // Commented out due to "Stack too deep..." compiler error
-        // address caller = address(this);
-        // address token = address(WBTC);
-
-        (uint256 deposited, , ) = _depositGlp(tokenAmount, address(this));
-        (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
-            PirexGmx.Fees.Redemption,
-            deposited
-        );
-        uint256 minOut = _calculateMinOutAmount(address(WBTC), postFeeAmount);
-        address receiver = testAccounts[0];
-        uint256 pirexGmxBalanceBeforeRedemption = FEE_STAKED_GLP.balanceOf(
-            address(pirexGmx)
-        );
-
-        // Commented out due to "Stack too deep..." compiler error
-        // uint256 expectedPreRedeemGlpBalancePirexGmx = assets;
-        // uint256 expectedPreRedeemPxGlpBalanceCaller = assets;
-        // uint256 expectedPreRedeemWBTCBalanceReceiver = 0;
-
-        assertFalse(address(this) == receiver);
-        assertEq(deposited, pirexGmxBalanceBeforeRedemption);
-        assertEq(deposited, pxGlp.balanceOf(address(this)));
-        assertEq(0, WBTC.balanceOf(receiver));
-
-        pxGlp.approve(address(pirexGmx), deposited);
-
-        vm.expectEmit(true, true, true, false, address(pirexGmx));
-
-        emit RedeemGlp(
+        uint256[] memory depositAmounts = _depositGlpForTestAccounts(
+            false,
             address(this),
-            receiver,
-            address(WBTC),
-            deposited,
-            minOut,
-            0,
-            postFeeAmount,
-            feeAmount
+            multiplier,
+            useETH
         );
 
-        (
-            uint256 redeemed,
-            uint256 returnedPostFeeAmount,
-            uint256 returnedFeeAmount
-        ) = pirexGmx.redeemPxGlp(address(WBTC), deposited, minOut, receiver);
-        uint256 expectedPostRedeemGlpBalancePirexGmx = pirexGmxBalanceBeforeRedemption -
-                postFeeAmount;
-        uint256 expectedPostRedeemPxGlpBalanceCaller = 0;
-        uint256 expectedPostRedeemWBTCBalanceReceiver = redeemed;
+        vm.warp(block.timestamp + 1 days);
+
+        uint256 tLen = testAccounts.length;
+        uint256 totalDeposits;
+
+        for (uint256 i; i < tLen; ++i) {
+            totalDeposits += depositAmounts[i];
+        }
+
+        uint256 expectedPreRedeemGlpBalancePirexGmx = totalDeposits;
+        uint256 expectedPreRedeemPxGlpSupply = totalDeposits;
+
+        assertEq(
+            expectedPreRedeemGlpBalancePirexGmx,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+        );
+        assertEq(expectedPreRedeemGlpBalancePirexGmx, pxGlp.totalSupply());
+
+        uint256 expectedPostRedeemGlpBalancePirexGmx = expectedPreRedeemGlpBalancePirexGmx;
+        uint256 expectedPostRedeemPxGlpSupply = expectedPreRedeemPxGlpSupply;
+
+        for (uint256 i; i < tLen; ++i) {
+            address testAccount = testAccounts[i];
+            uint256 depositAmount = depositAmounts[i];
+            (uint256 postFeeAmount, ) = _computeAssetAmounts(
+                PirexGmx.Fees.Redemption,
+                depositAmount
+            );
+            address token = useETH ? address(WETH) : address(WBTC);
+
+            vm.startPrank(testAccount);
+
+            pxGlp.approve(address(pirexGmx), depositAmount);
+
+            vm.expectEmit(true, true, true, false, address(pirexGmx));
+
+            emit RedeemGlp(
+                testAccount,
+                testAccount,
+                useETH ? address(0) : address(WBTC),
+                0,
+                _calculateMinOutAmount(token, postFeeAmount),
+                0,
+                0,
+                0
+            );
+
+            (, uint256 returnedPostFeeAmount, ) = useETH
+                ? pirexGmx.redeemPxGlpETH(
+                    depositAmount,
+                    _calculateMinOutAmount(token, postFeeAmount),
+                    testAccount
+                )
+                : pirexGmx.redeemPxGlp(
+                    token,
+                    depositAmount,
+                    _calculateMinOutAmount(token, postFeeAmount),
+                    testAccount
+                );
+
+            vm.stopPrank();
+
+            expectedPostRedeemGlpBalancePirexGmx -= returnedPostFeeAmount;
+            expectedPostRedeemPxGlpSupply -= returnedPostFeeAmount;
+        }
 
         assertEq(
             expectedPostRedeemGlpBalancePirexGmx,
             FEE_STAKED_GLP.balanceOf(address(pirexGmx))
         );
-        assertEq(
-            expectedPostRedeemPxGlpBalanceCaller,
-            pxGlp.balanceOf(address(this))
-        );
-        assertEq(
-            expectedPostRedeemWBTCBalanceReceiver,
-            WBTC.balanceOf(receiver)
-        );
-        assertEq(postFeeAmount, returnedPostFeeAmount);
-        assertEq(feeAmount, returnedFeeAmount);
+        assertEq(expectedPostRedeemPxGlpSupply, pxGlp.totalSupply());
     }
 
     /*//////////////////////////////////////////////////////////////
