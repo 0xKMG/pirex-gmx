@@ -701,7 +701,7 @@ contract PirexRewardsTest is Helper {
         // Always deposit for pxGLP for burn tests
         _depositForTestAccounts(false, multiplier, useETH);
 
-        // Perform consecutive transfers in-between test accounts
+        // Perform burn for all test accounts and assert global rewards accrual
         for (uint256 i; i < testAccounts.length; ++i) {
             address testAccount = testAccounts[i];
 
