@@ -541,12 +541,16 @@ contract AutoPxGlpTest is Helper {
             address(autoPxGlp)
         );
         uint256 expectedGlobalLastSupply = autoPxGlp.totalSupply();
-        uint256 expectedGlobalRewards = _calculateGlobalRewards();
+
+        // In the case where no esGMX yields coming for GLP holders, harvest is not called
+        // thus the globalState's rewards will not be updated
+        uint256 expectedGlobalRewards = (
+            pxGmxRewardState != 0 ? _calculateGlobalRewards() : 0
+        );
 
         // Confirm current state prior to primary state mutating action
         assertEq(totalAssetsBeforeCompound, autoPxGlp.balanceOf(address(this)));
         assertGt(wethRewardState, 0);
-        assertGt(pxGmxRewardState, 0);
 
         // Perform compound and assertions partially (stack-too-deep)
         (
@@ -563,7 +567,7 @@ contract AutoPxGlpTest is Helper {
         assertEq(pxGmxRewardState, pxGmxAmountOut);
 
         _assertGlobalState(
-            block.timestamp,
+            block.timestamp - (pxGmxRewardState != 0 ? 0 : secondsElapsed), // Same case as the expectedGlobalRewards
             expectedGlobalLastSupply,
             expectedGlobalRewards
         );
@@ -573,7 +577,6 @@ contract AutoPxGlpTest is Helper {
             pxGlpIncentive,
             totalAssetsBeforeCompound
         );
-
         assertEq(
             (pxGmxAmountOut - totalPxGmxFee),
             pxGmx.balanceOf(address(autoPxGlp)) - pxGmxBalanceBeforeCompound
