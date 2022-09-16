@@ -42,7 +42,7 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Set fee and verify contract state
+        @notice Set fee, verify event emission, and validate new state
         @param  f    enum     Fee type
         @param  fee  uint256  Fee
      */
@@ -54,6 +54,41 @@ contract PirexGmxTest is Test, Helper {
         pirexGmx.setFee(f, fee);
 
         assertEq(fee, pirexGmx.fees(f));
+    }
+
+    /**
+        @notice Set contract, verify event emission, and validate new state
+        @param  c                enum     Contract type
+        @param  contractAddress  address  Contract address
+     */
+    function _setContract(PirexGmx.Contracts c, address contractAddress)
+        internal
+    {
+        vm.expectEmit(true, false, false, true, address(pirexGmx));
+
+        emit SetContract(c, contractAddress);
+
+        pirexGmx.setContract(c, contractAddress);
+
+        address newContractAddress;
+
+        // Use a conditional statement to set newContractAddress since no getter
+        if (c == PirexGmx.Contracts.RewardRouterV2)
+            newContractAddress = address(pirexGmx.gmxRewardRouterV2());
+        if (c == PirexGmx.Contracts.RewardTrackerGmx)
+            newContractAddress = address(pirexGmx.rewardTrackerGmx());
+        if (c == PirexGmx.Contracts.RewardTrackerGlp)
+            newContractAddress = address(pirexGmx.rewardTrackerGlp());
+        if (c == PirexGmx.Contracts.FeeStakedGlp)
+            newContractAddress = address(pirexGmx.feeStakedGlp());
+        if (c == PirexGmx.Contracts.StakedGmx)
+            newContractAddress = address(pirexGmx.stakedGmx());
+        if (c == PirexGmx.Contracts.GmxVault)
+            newContractAddress = address(pirexGmx.gmxVault());
+        if (c == PirexGmx.Contracts.GlpManager)
+            newContractAddress = address(pirexGmx.glpManager());
+
+        assertEq(contractAddress, newContractAddress);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -159,19 +194,9 @@ contract PirexGmxTest is Test, Helper {
         address currentContractAddress = address(pirexGmx.gmxRewardRouterV2());
         address contractAddress = address(this);
 
-        // Validate existing state
         assertFalse(currentContractAddress == contractAddress);
 
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetContract(PirexGmx.Contracts.RewardRouterV2, contractAddress);
-
-        pirexGmx.setContract(
-            PirexGmx.Contracts.RewardRouterV2,
-            contractAddress
-        );
-
-        assertEq(contractAddress, address(pirexGmx.gmxRewardRouterV2()));
+        _setContract(PirexGmx.Contracts.RewardRouterV2, contractAddress);
     }
 
     /**
@@ -183,16 +208,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertFalse(currentContractAddress == contractAddress);
 
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetContract(PirexGmx.Contracts.RewardTrackerGmx, contractAddress);
-
-        pirexGmx.setContract(
-            PirexGmx.Contracts.RewardTrackerGmx,
-            contractAddress
-        );
-
-        assertEq(contractAddress, address(pirexGmx.rewardTrackerGmx()));
+        _setContract(PirexGmx.Contracts.RewardTrackerGmx, contractAddress);
     }
 
     /**
@@ -204,16 +220,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertFalse(currentContractAddress == contractAddress);
 
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetContract(PirexGmx.Contracts.RewardTrackerGlp, contractAddress);
-
-        pirexGmx.setContract(
-            PirexGmx.Contracts.RewardTrackerGlp,
-            contractAddress
-        );
-
-        assertEq(contractAddress, address(pirexGmx.rewardTrackerGlp()));
+        _setContract(PirexGmx.Contracts.RewardTrackerGlp, contractAddress);
     }
 
     /**
@@ -225,13 +232,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertFalse(currentContractAddress == contractAddress);
 
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetContract(PirexGmx.Contracts.FeeStakedGlp, contractAddress);
-
-        pirexGmx.setContract(PirexGmx.Contracts.FeeStakedGlp, contractAddress);
-
-        assertEq(contractAddress, address(pirexGmx.feeStakedGlp()));
+        _setContract(PirexGmx.Contracts.FeeStakedGlp, contractAddress);
     }
 
     /**
@@ -255,13 +256,8 @@ contract PirexGmxTest is Test, Helper {
             currentContractAddressAllowance == expectedCurrentContractAllowance
         );
 
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
+        _setContract(PirexGmx.Contracts.StakedGmx, contractAddress);
 
-        emit SetContract(PirexGmx.Contracts.StakedGmx, contractAddress);
-
-        pirexGmx.setContract(PirexGmx.Contracts.StakedGmx, contractAddress);
-
-        assertEq(contractAddress, address(pirexGmx.stakedGmx()));
         assertEq(
             expectedCurrentContractAllowance,
             GMX.allowance(address(pirexGmx), currentContractAddress)
@@ -281,13 +277,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertFalse(currentContractAddress == contractAddress);
 
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetContract(PirexGmx.Contracts.GmxVault, contractAddress);
-
-        pirexGmx.setContract(PirexGmx.Contracts.GmxVault, contractAddress);
-
-        assertEq(contractAddress, address(pirexGmx.gmxVault()));
+        _setContract(PirexGmx.Contracts.GmxVault, contractAddress);
     }
 
     /**
@@ -299,13 +289,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertFalse(currentContractAddress == contractAddress);
 
-        vm.expectEmit(true, false, false, true, address(pirexGmx));
-
-        emit SetContract(PirexGmx.Contracts.GlpManager, contractAddress);
-
-        pirexGmx.setContract(PirexGmx.Contracts.GlpManager, contractAddress);
-
-        assertEq(contractAddress, address(pirexGmx.glpManager()));
+        _setContract(PirexGmx.Contracts.GlpManager, contractAddress);
     }
 
     /*//////////////////////////////////////////////////////////////
