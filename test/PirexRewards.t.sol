@@ -213,7 +213,6 @@ contract PirexRewardsTest is Helper {
         ERC20 producerToken = useGmx
             ? ERC20(address(pxGmx))
             : ERC20(address(pxGlp));
-        uint256 timestampBeforeMint = block.timestamp;
         (
             uint256 lastUpdateBeforeMint,
             uint256 lastSupplyBeforeMint,
@@ -227,7 +226,6 @@ contract PirexRewardsTest is Helper {
         // Kick off global rewards accrual by minting first tokens
         _mintPx(address(this), mintAmount, useGmx);
 
-        uint256 totalSupplyAfterMint = producerToken.totalSupply();
         (
             uint256 lastUpdateAfterMint,
             uint256 lastSupplyAfterMint,
@@ -235,35 +233,37 @@ contract PirexRewardsTest is Helper {
         ) = _getGlobalState(producerToken);
 
         // Ensure that the update timestamp and supply are tracked
-        assertEq(lastUpdateAfterMint, timestampBeforeMint);
-        assertEq(lastSupplyAfterMint, totalSupplyAfterMint);
+        assertEq(lastUpdateAfterMint, block.timestamp);
+        assertEq(lastSupplyAfterMint, producerToken.totalSupply());
 
         // No rewards should have accrued since time has not elapsed
         assertEq(0, rewardsAfterMint);
 
-        // Amount of rewards that should have accrued after warping
-        uint256 expectedRewards = lastSupplyAfterMint * secondsElapsed;
+        uint256 expectedTotalRewards = rewardsAfterMint;
+        uint256 expectedLastUpdate = lastUpdateAfterMint;
+        uint256 expectedTotalSupply = producerToken.totalSupply();
 
-        // Forward timestamp to accrue rewards
-        vm.warp(block.timestamp + secondsElapsed);
+        // Perform minting to all test accounts and assert the updated global rewards accrual
+        for (uint256 i; i < testAccounts.length; ++i) {
+            // Forward timestamp to accrue rewards for each test accounts
+            vm.warp(block.timestamp + secondsElapsed);
 
-        // Post-warp timestamp should be what is stored in global accrual state
-        uint256 expectedLastUpdate = block.timestamp;
+            // Total rewards should be what has been accrued based on the supply up to the last mint
+            expectedTotalRewards += expectedTotalSupply * secondsElapsed;
 
-        // Mint to call global reward accrual hook
-        _mintPx(address(this), mintAmount, useGmx);
+            // Mint to call global reward accrual hook
+            _mintPx(testAccounts[i], mintAmount, useGmx);
 
-        (
-            uint256 lastUpdate,
-            uint256 lastSupply,
-            uint256 rewards
-        ) = _getGlobalState(producerToken);
+            expectedTotalSupply = producerToken.totalSupply();
+            expectedLastUpdate += secondsElapsed;
 
-        assertEq(expectedLastUpdate, lastUpdate);
-        assertEq(producerToken.totalSupply(), lastSupply);
-
-        // Rewards should be what has been accrued based on the supply up to the mint
-        assertEq(expectedRewards, rewards);
+            _assertGlobalState(
+                producerToken,
+                expectedLastUpdate,
+                expectedTotalSupply,
+                expectedTotalRewards
+            );
+        }
     }
 
     /**
