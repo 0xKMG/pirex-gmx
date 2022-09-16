@@ -423,7 +423,7 @@ contract PirexGmxTest is Test, Helper {
 
         address caller = address(this);
         address receiver = testAccounts[0];
-        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
             PirexGmx.Fees.Deposit,
             assets
         );
@@ -1009,7 +1009,7 @@ contract PirexGmxTest is Test, Helper {
             uint256 depositFeeAmount
         ) = _depositGlpETH(1 ether, address(this));
         uint256 assets = depositPostFeeAmount + depositFeeAmount;
-        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
             PirexGmx.Fees.Redemption,
             assets
         );
@@ -1201,7 +1201,7 @@ contract PirexGmxTest is Test, Helper {
             address(this)
         );
         uint256 assets = depositPostFeeAmount + depositFeeAmount;
-        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
             PirexGmx.Fees.Redemption,
             assets
         );

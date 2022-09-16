@@ -186,13 +186,13 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
-        @param  f              Fees     Fee type
+        @notice Compute post-fee asset and fee amounts from a fee type and total assets
+        @param  f              enum     Fee
         @param  assets         uint256  GMX/GLP/WETH asset amount
         @return postFeeAmount  uint256  Post-fee asset amount (for mint/burn/claim/etc.)
         @return feeAmount      uint256  Fee amount
      */
-    function _deriveAssetAmounts(Fees f, uint256 assets)
+    function _computeAssetAmounts(Fees f, uint256 assets)
         internal
         view
         returns (uint256 postFeeAmount, uint256 feeAmount)
@@ -200,7 +200,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         feeAmount = (assets * fees[f]) / FEE_DENOMINATOR;
         postFeeAmount = assets - feeAmount;
 
-        // The sum of the fee and post-fee asset amounts should never exceed assets
         assert(feeAmount + postFeeAmount == assets);
     }
 
@@ -295,7 +294,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         gmxRewardRouterV2.stakeGmx(assets);
 
         // Get the pxGMX amounts for the receiver and the protocol (fees)
-        (postFeeAmount, feeAmount) = _deriveAssetAmounts(Fees.Deposit, assets);
+        (postFeeAmount, feeAmount) = _computeAssetAmounts(Fees.Deposit, assets);
 
         // Mint pxGMX for the receiver (excludes fees)
         pxGmx.mint(receiver, postFeeAmount);
@@ -355,7 +354,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         }
 
         // Calculate the post-fee and fee amounts based on the fee type and total assets
-        (postFeeAmount, feeAmount) = _deriveAssetAmounts(Fees.Deposit, assets);
+        (postFeeAmount, feeAmount) = _computeAssetAmounts(Fees.Deposit, assets);
 
         // Mint pxGLP for the receiver
         pxGlp.mint(receiver, postFeeAmount);
@@ -436,7 +435,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (receiver == address(0)) revert ZeroAddress();
 
         // Calculate the post-fee and fee amounts based on the fee type and total assets
-        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
             Fees.Redemption,
             assets
         );
@@ -655,7 +654,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (receiver == address(0)) revert ZeroAddress();
         if (amount == 0) return;
 
-        (uint256 postFeeAmount, uint256 feeAmount) = _deriveAssetAmounts(
+        (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
             Fees.Reward,
             amount
         );
