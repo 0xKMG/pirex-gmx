@@ -387,28 +387,26 @@ contract PirexGmxTest is Test, Helper {
         assertEq(expectedPreDepositPxGmxSupply, pxGmx.totalSupply());
 
         // Deposits GMX, verifies event emission, and validates depositGmx return values
-        (
-            uint256[] memory depositAmounts,
-            uint256[] memory mintAmounts
-        ) = _depositGmxForTestAccounts(
-                separateCaller,
-                address(this),
-                multiplier
-            );
+        uint256[] memory depositAmounts = _depositGmxForTestAccounts(
+            separateCaller,
+            address(this),
+            multiplier
+        );
 
         // Assign the initial post-deposit values to their pre-deposit counterparts
         uint256 expectedPostDepositGmxBalancePirexGmx = expectedPreDepositGmxBalancePirexGmx;
         uint256 expectedPostDepositPxGmxSupply = expectedPreDepositPxGmxSupply;
+        uint256 tLen = testAccounts.length;
 
-        for (uint256 i; i < depositAmounts.length; ++i) {
-            uint256 mintAmount = mintAmounts[i];
+        for (uint256 i; i < tLen; ++i) {
+            uint256 depositAmount = depositAmounts[i];
 
-            expectedPostDepositGmxBalancePirexGmx += depositAmounts[i];
-            expectedPostDepositPxGmxSupply += mintAmount;
+            expectedPostDepositGmxBalancePirexGmx += depositAmount;
+            expectedPostDepositPxGmxSupply += depositAmount;
 
             (uint256 postFeeAmount, ) = _computeAssetAmounts(
                 PirexGmx.Fees.Deposit,
-                mintAmount
+                depositAmount
             );
 
             // Check test account balances against post-fee pxGMX mint amount
@@ -541,79 +539,10 @@ contract PirexGmxTest is Test, Helper {
         );
     }
 
-    /**
-        @notice Test tx success: deposit for pxGLP with ETH
-        @param  etherAmount  uint80  Ether amount
-        @param  dealAmount   uint80  Ether deal amount
-        @param  depositFee   uint24  Deposit fee
-     */
-    function testDepositGlpETH(
-        uint80 etherAmount,
-        uint80 dealAmount,
-        uint24 depositFee
-    ) external {
-        vm.assume(etherAmount > 1e15);
-        vm.assume(etherAmount < 1e22);
-        vm.assume(dealAmount > etherAmount);
-        vm.assume(depositFee <= feeMax);
-        vm.deal(address(this), dealAmount);
-
-        _setFee(PirexGmx.Fees.Deposit, depositFee);
-
-        address caller = address(this);
-        uint256 minUsdg = 1;
-        uint256 minGlp = _calculateMinGlpAmount(address(0), etherAmount, 18);
-        address receiver = testAccounts[0];
-        uint256 expectedPreDepositGlpBalancePirexGmx = 0;
-        uint256 expectedPreDepositETHBalanceCaller = dealAmount;
-        uint256 expectedPreDepositPxGlpBalanceReceiver = 0;
-
-        assertFalse(caller == receiver);
-        assertEq(
-            expectedPreDepositGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
-        );
-        assertEq(expectedPreDepositETHBalanceCaller, caller.balance);
-        assertEq(
-            expectedPreDepositPxGlpBalanceReceiver,
-            pxGlp.balanceOf(receiver)
-        );
-
-        vm.expectEmit(true, true, true, false, address(pirexGmx));
-
-        // Cannot test the `asset` member of the event since it's not known until after
-        emit DepositGlp(
-            address(this),
-            receiver,
-            address(0),
-            etherAmount,
-            minUsdg,
-            minGlp,
-            0,
-            0,
-            0
-        );
-
-        (uint256 deposited, uint256 postFeeAmount, uint256 feeAmount) = pirexGmx
-            .depositGlpETH{value: etherAmount}(minUsdg, minGlp, receiver);
-        uint256 expectedPostDepositGlpBalancePirexGmx = expectedPreDepositGlpBalancePirexGmx +
-                deposited;
-        uint256 expectedPostDepositETHBalanceCaller = expectedPreDepositETHBalanceCaller -
-                etherAmount;
-        uint256 expectedPostDepositPxGlpBalanceReceiver = expectedPreDepositPxGlpBalanceReceiver +
-                postFeeAmount;
-
-        assertEq(deposited, postFeeAmount + feeAmount);
-        assertEq(
-            expectedPostDepositGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
-        );
-        assertEq(expectedPostDepositETHBalanceCaller, caller.balance);
-        assertEq(
-            expectedPostDepositPxGlpBalanceReceiver,
-            pxGlp.balanceOf(receiver)
-        );
-    }
+    // /**
+    //     @notice Test tx success: testDepositGlp fuzz test covers both methods
+    //  */
+    // function testDepositGlpETH() external {}
 
     /*//////////////////////////////////////////////////////////////
                         depositGlp TESTS
@@ -775,7 +704,7 @@ contract PirexGmxTest is Test, Helper {
             2;
         address receiver = address(this);
 
-        _mintWbtc(tokenAmount);
+        _mintWbtc(tokenAmount, address(this));
         WBTC.approve(address(pirexGmx), tokenAmount);
 
         vm.expectRevert(INSUFFICIENT_GLP_OUTPUT_ERROR);
@@ -790,72 +719,66 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test tx success: deposit for pxGLP with whitelisted ERC20 tokens
-        @param  tokenAmount  uint40  Token amount
-        @param  mintAmount   uint40  Token mint amount
-        @param  depositFee   uint24  Deposit fee
+        @notice Test tx success: deposit for pxGLP
+        @param  depositFee      uint24  Deposit fee
+        @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
+        @param  separateCaller  bool    Whether to separate method caller and receiver
+        @param  useETH          bool     Whether or not to use ETH as the source asset for minting GLP
      */
     function testDepositGlp(
-        uint40 tokenAmount,
-        uint40 mintAmount,
-        uint24 depositFee
+        uint24 depositFee,
+        uint8 multiplier,
+        bool separateCaller,
+        bool useETH
     ) external {
-        vm.assume(tokenAmount > 1e7);
-        vm.assume(tokenAmount < 100e8);
-        vm.assume(mintAmount > tokenAmount);
         vm.assume(depositFee <= feeMax);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
 
         _setFee(PirexGmx.Fees.Deposit, depositFee);
-        _mintWbtc(mintAmount);
-        WBTC.approve(address(pirexGmx), tokenAmount);
 
-        address caller = address(this);
-        address token = address(WBTC);
-        uint256 minUsdg = 1;
-        uint256 minGlp = _calculateMinGlpAmount(token, tokenAmount, 8);
-        address receiver = testAccounts[0];
+        uint256 expectedPreDepositGlpBalancePirexGmx = 0;
+        uint256 expectedPreDepositPxGlpSupply = 0;
 
-        // Commented out due to "Stack too deep..." compiler error
-        // uint256 expectedPreDepositGlpBalancePirexGmx = 0;
-        // uint256 expectedPreDepositWBTCBalanceCaller = mintAmount;
-        // uint256 expectedPreDepositPxGlpBalanceReceiver = 0;
+        assertEq(
+            expectedPreDepositGlpBalancePirexGmx,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+        );
+        assertEq(expectedPreDepositPxGlpSupply, pxGlp.totalSupply());
 
-        assertFalse(caller == receiver);
-        assertEq(0, FEE_STAKED_GLP.balanceOf(address(pirexGmx)));
-        assertEq(mintAmount, WBTC.balanceOf(caller));
-        assertEq(0, pxGlp.balanceOf(receiver));
-
-        vm.expectEmit(true, true, true, false, address(pirexGmx));
-
-        // Cannot test the `asset` member of the event since it's not known until after
-        emit DepositGlp(
+        // Deposits GLP, verifies event emission, and validates depositGmx return values
+        uint256[] memory depositAmounts = _depositGlpForTestAccounts(
+            separateCaller,
             address(this),
-            receiver,
-            token,
-            tokenAmount,
-            minUsdg,
-            minGlp,
-            0,
-            0,
-            0
+            multiplier,
+            useETH
         );
 
-        (uint256 deposited, uint256 postFeeAmount, uint256 feeAmount) = pirexGmx
-            .depositGlp(token, tokenAmount, minUsdg, minGlp, receiver);
-        uint256 expectedPostDepositGlpBalancePirexGmx = deposited;
-        uint256 expectedPostDepositWBTCBalanceCaller = mintAmount - tokenAmount;
-        uint256 expectedPostDepositPxGlpBalanceReceiver = postFeeAmount;
+        // Assign the initial post-deposit values to their pre-deposit counterparts
+        uint256 expectedPostDepositGlpBalancePirexGmx = expectedPreDepositGlpBalancePirexGmx;
+        uint256 expectedPostDepositPxGlpSupply = expectedPreDepositPxGlpSupply;
+        uint256 tLen = testAccounts.length;
 
-        assertEq(deposited, postFeeAmount + feeAmount);
+        for (uint256 i; i < tLen; ++i) {
+            uint256 depositAmount = depositAmounts[i];
+
+            expectedPostDepositGlpBalancePirexGmx += depositAmount;
+            expectedPostDepositPxGlpSupply += depositAmount;
+
+            (uint256 postFeeAmount, ) = _computeAssetAmounts(
+                PirexGmx.Fees.Deposit,
+                depositAmount
+            );
+
+            // Check test account balances against post-fee pxGMX mint amount
+            assertEq(postFeeAmount, pxGlp.balanceOf(testAccounts[i]));
+        }
+
         assertEq(
             expectedPostDepositGlpBalancePirexGmx,
             FEE_STAKED_GLP.balanceOf(address(pirexGmx))
         );
-        assertEq(expectedPostDepositWBTCBalanceCaller, WBTC.balanceOf(caller));
-        assertEq(
-            expectedPostDepositPxGlpBalanceReceiver,
-            pxGlp.balanceOf(receiver)
-        );
+        assertEq(expectedPostDepositPxGlpSupply, pxGlp.totalSupply());
     }
 
     /*//////////////////////////////////////////////////////////////

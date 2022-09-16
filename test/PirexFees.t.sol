@@ -292,7 +292,7 @@ contract PirexFeesTest is Helper {
         assertEq(0, pxGlp.balanceOf(treasury));
         assertEq(0, pxGlp.balanceOf(contributors));
 
-        _mintWbtc(wbtcAmount);
+        _mintWbtc(wbtcAmount, address(this));
         WBTC.approve(address(pirexGmx), wbtcAmount);
 
         (uint256 deposited, uint256 postFeeAmount, uint256 feeAmount) = pirexGmx

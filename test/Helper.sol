@@ -166,9 +166,10 @@ contract Helper is Test, HelperEvents, HelperState {
 
     /**
         @notice Mint WBTC for testing ERC20 GLP minting
-        @param  amount  uint256  Amount of WBTC
+        @param  amount    uint256  WBTC amount
+        @param  receiver  address  WBTC receiver
      */
-    function _mintWbtc(uint256 amount) internal {
+    function _mintWbtc(uint256 amount, address receiver) internal {
         // Set self to l2Gateway
         vm.store(
             address(WBTC),
@@ -176,7 +177,7 @@ contract Helper is Test, HelperEvents, HelperState {
             bytes32(uint256(uint160(address(this))))
         );
 
-        WBTC.bridgeMint(address(this), amount);
+        WBTC.bridgeMint(receiver, amount);
     }
 
     /**
@@ -225,7 +226,7 @@ contract Helper is Test, HelperEvents, HelperState {
         if (useGmx) {
             _depositGmxForTestAccounts(true, address(this), multiplier);
         } else {
-            _depositForTestAccountsPxGlp(multiplier, useETH);
+            _depositGlpForTestAccounts(true, address(this), multiplier, useETH);
         }
     }
 
@@ -234,20 +235,15 @@ contract Helper is Test, HelperEvents, HelperState {
         @param  separateCaller  bool       Whether to separate depositor (depositGmx caller) and receiver
         @param  caller          address    Account calling the minting, approving, and depositing methods
         @param  multiplier      uint256    Multiplied with fixed token amounts (uint256 to avoid overflow)
-        @return depositAmounts  uint256[]  GMX deposited for each test account
-        @return mintAmounts     uint256[]  pxGMX minted for each test account
+        @return depositAmounts  uint256[]  GMX deposited and pxGMX minted for each test account
      */
     function _depositGmxForTestAccounts(
         bool separateCaller,
         address caller,
         uint256 multiplier
-    )
-        internal
-        returns (uint256[] memory depositAmounts, uint256[] memory mintAmounts)
-    {
+    ) internal returns (uint256[] memory depositAmounts) {
         uint256 tLen = testAccounts.length;
         depositAmounts = new uint256[](tLen);
-        mintAmounts = new uint256[](tLen);
         depositAmounts[0] = 1e18 * multiplier;
         depositAmounts[1] = 2e18 * multiplier;
         depositAmounts[2] = 3e18 * multiplier;
@@ -288,8 +284,6 @@ contract Helper is Test, HelperEvents, HelperState {
                 uint256 depositFeeAmount
             ) = pirexGmx.depositGmx(depositAmount, testAccount);
 
-            mintAmounts[i] = deposited;
-
             assertEq(deposited, depositPostFeeAmount + feeAmount);
             assertEq(postFeeAmount, depositPostFeeAmount);
             assertEq(feeAmount, depositFeeAmount);
@@ -297,55 +291,109 @@ contract Helper is Test, HelperEvents, HelperState {
     }
 
     /**
-        @notice Mint pxGLP for test accounts
-        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
-        @param  useETH      bool     Whether or not to use ETH as the source asset for minting GLP
+        @notice Deposit GLP and mint pxGLP for test accounts
+        @param  separateCaller  bool       Whether to separate depositor (depositGmx caller) and receiver
+        @param  caller          address    Account calling the minting, approving, and depositing methods
+        @param  multiplier      uint256    Multiplied with fixed token amounts (uint256 to avoid overflow)
+        @param  useETH          bool       Whether or not to use ETH as the source asset for minting GLP
+        @return depositAmounts  uint256[]  GLP deposited for each test account
      */
-    function _depositForTestAccountsPxGlp(uint256 multiplier, bool useETH)
-        internal
-    {
+    function _depositGlpForTestAccounts(
+        bool separateCaller,
+        address caller,
+        uint256 multiplier,
+        bool useETH
+    ) internal returns (uint256[] memory depositAmounts) {
         uint256 tLen = testAccounts.length;
+
+        // Only used locally to track token amounts used to mint GLP
         uint256[] memory tokenAmounts = new uint256[](tLen);
 
-        // Conditionally set ETH or WBTC amounts and call the appropriate method for acquiring
-        if (useETH) {
-            tokenAmounts[0] = 1 ether * multiplier;
-            tokenAmounts[1] = 2 ether * multiplier;
-            tokenAmounts[2] = 3 ether * multiplier;
-
-            vm.deal(
-                address(this),
-                tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2]
-            );
-        } else {
-            tokenAmounts[0] = 1e8 * multiplier;
-            tokenAmounts[1] = 2e8 * multiplier;
-            tokenAmounts[2] = 3e8 * multiplier;
-            uint256 wBtcTotalAmount = tokenAmounts[0] +
-                tokenAmounts[1] +
-                tokenAmounts[2];
-
-            _mintWbtc(wBtcTotalAmount);
-            WBTC.approve(address(pirexGmx), wBtcTotalAmount);
-        }
+        depositAmounts = new uint256[](tLen);
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
         for (uint256 i; i < tLen; ++i) {
-            uint256 tokenAmount = tokenAmounts[i];
             address testAccount = testAccounts[i];
+            caller = separateCaller ? caller : testAccount;
+            uint256 deposited;
+            uint256 depositPostFeeAmount;
+            uint256 depositFeeAmount;
 
-            // Call the appropriate method based on the type of currency
+            // Conditionally set ETH or WBTC amounts and call the appropriate method for acquiring
             if (useETH) {
-                pirexGmx.depositGlpETH{value: tokenAmount}(1, 1, testAccount);
-            } else {
-                pirexGmx.depositGlp(
-                    address(WBTC),
-                    tokenAmount,
+                tokenAmounts[0] = 1 ether * multiplier;
+                tokenAmounts[1] = 2 ether * multiplier;
+                tokenAmounts[2] = 3 ether * multiplier;
+                uint256 total = tokenAmounts[0] +
+                    tokenAmounts[1] +
+                    tokenAmounts[2];
+
+                vm.deal(caller, total);
+                vm.prank(caller);
+                vm.expectEmit(true, true, true, false, address(pirexGmx));
+
+                emit DepositGlp(
+                    caller,
+                    testAccount,
+                    address(0),
+                    total,
                     1,
                     1,
-                    testAccount
+                    0,
+                    0,
+                    0
                 );
+
+                (deposited, depositPostFeeAmount, depositFeeAmount) = pirexGmx
+                    .depositGlpETH{value: total}(1, 1, testAccount);
+            } else {
+                tokenAmounts[0] = 1e8 * multiplier;
+                tokenAmounts[1] = 2e8 * multiplier;
+                tokenAmounts[2] = 3e8 * multiplier;
+                uint256 wBtcTotalAmount = tokenAmounts[0] +
+                    tokenAmounts[1] +
+                    tokenAmounts[2];
+
+                _mintWbtc(wBtcTotalAmount, caller);
+
+                vm.prank(caller);
+
+                WBTC.approve(address(pirexGmx), wBtcTotalAmount);
+
+                vm.prank(caller);
+                vm.expectEmit(true, true, true, false, address(pirexGmx));
+
+                emit DepositGlp(
+                    caller,
+                    testAccount,
+                    address(WBTC),
+                    wBtcTotalAmount,
+                    1,
+                    1,
+                    0,
+                    0,
+                    0
+                );
+
+                (deposited, depositPostFeeAmount, depositFeeAmount) = pirexGmx
+                    .depositGlp(
+                        address(WBTC),
+                        wBtcTotalAmount,
+                        1,
+                        1,
+                        testAccount
+                    );
             }
+
+            depositAmounts[i] = deposited;
+            (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
+                PirexGmx.Fees.Deposit,
+                deposited
+            );
+
+            assertEq(deposited, depositPostFeeAmount + feeAmount);
+            assertEq(postFeeAmount, depositPostFeeAmount);
+            assertEq(feeAmount, depositFeeAmount);
         }
     }
 
@@ -579,7 +627,7 @@ contract Helper is Test, HelperEvents, HelperState {
             uint256 feeAmount
         )
     {
-        _mintWbtc(tokenAmount);
+        _mintWbtc(tokenAmount, address(this));
         WBTC.approve(address(pirexGmx), tokenAmount);
 
         (deposited, postFeeAmount, feeAmount) = pirexGmx.depositGlp(
