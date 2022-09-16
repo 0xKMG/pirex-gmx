@@ -126,18 +126,15 @@ contract PirexFeesTest is Helper {
 
         // Separately calculate the total aggregated expected fees for treasury
         // and contributors to avoid rounding issue
-        uint256 treasuryPercent = pirexFees.treasuryPercent();
-        uint256 feePercent = pirexFees.PERCENT_DENOMINATOR();
-
         totalExpectedTreasuryDistributionWeth =
             (totalExpectedDistributionWeth * treasuryPercent) /
-            feePercent;
+            percentDenominator;
         totalExpectedContributorsDistributionWeth =
             totalExpectedDistributionWeth -
             totalExpectedTreasuryDistributionWeth;
         totalExpectedTreasuryDistributionPxGmx =
             (totalExpectedDistributionPxGmx * treasuryPercent) /
-            feePercent;
+            percentDenominator;
         totalExpectedContributorsDistributionPxGmx =
             totalExpectedDistributionPxGmx -
             totalExpectedTreasuryDistributionPxGmx;
@@ -407,19 +404,13 @@ contract PirexFeesTest is Helper {
 
         // Perform pxGLP deposit using WBTC (ERC20) for all test accounts and assert fees
         for (uint256 i; i < testAccounts.length; ++i) {
-            (uint256 deposited, , ) = _depositGlp(
-                wbtcAmount,
-                testAccounts[i]
-            );
+            (uint256 deposited, , ) = _depositGlp(wbtcAmount, testAccounts[i]);
 
             (
                 uint256 expectedDistribution,
                 uint256 expectedTreasuryDistribution,
                 uint256 expectedContributorsDistribution
-            ) = _calculateExpectedPirexFeeValues(
-                    deposited,
-                    depositFee
-                );
+            ) = _calculateExpectedPirexFeeValues(deposited, depositFee);
 
             totalExpectedTreasuryDistribution += expectedTreasuryDistribution;
             totalExpectedContributorsDistribution += expectedContributorsDistribution;
