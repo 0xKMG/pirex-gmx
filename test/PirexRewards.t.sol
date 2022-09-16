@@ -300,6 +300,15 @@ contract PirexRewardsTest is Helper {
             uint256 expectedAndNoBurnRewardDelta = (preBurnSupply -
                 postBurnSupply) * secondsElapsed;
 
+            vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+            emit GlobalAccrue(
+                producerToken,
+                block.timestamp,
+                postBurnSupply,
+                expectedRewardsAfterBurn
+            );
+
             pirexRewards.globalAccrue(producerToken);
 
             (, , uint256 rewardsAfterBurn) = _getGlobalState(producerToken);
@@ -392,6 +401,16 @@ contract PirexRewardsTest is Helper {
             user
         );
 
+        vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+        emit UserAccrue(
+            producerToken,
+            user,
+            block.timestamp,
+            pxBalance,
+            expectedUserRewards
+        );
+
         pirexRewards.userAccrue(producerToken, user);
 
         (
@@ -445,6 +464,15 @@ contract PirexRewardsTest is Helper {
         if (accrueGlobal) {
             uint256 totalSupplyBeforeAccrue = producerToken.totalSupply();
 
+            vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+            emit GlobalAccrue(
+                producerToken,
+                timestampBeforeAccrue,
+                totalSupplyBeforeAccrue,
+                expectedGlobalRewards
+            );
+
             pirexRewards.globalAccrue(producerToken);
 
             (
@@ -471,6 +499,16 @@ contract PirexRewardsTest is Helper {
             );
 
             assertGt(expectedRewards, 0);
+
+            vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+            emit UserAccrue(
+                producerToken,
+                testAccount,
+                block.timestamp,
+                balanceBeforeAccrue,
+                expectedRewards
+            );
 
             pirexRewards.userAccrue(producerToken, testAccount);
 
@@ -540,6 +578,26 @@ contract PirexRewardsTest is Helper {
                         producerToken,
                         testAccounts[j]
                     );
+                    uint256 expectedUserRewards = _calculateUserRewards(
+                        producerToken,
+                        testAccounts[j]
+                    );
+
+                    vm.expectEmit(
+                        true,
+                        true,
+                        false,
+                        true,
+                        address(pirexRewards)
+                    );
+
+                    emit UserAccrue(
+                        producerToken,
+                        testAccounts[j],
+                        block.timestamp,
+                        producerToken.balanceOf(testAccounts[j]),
+                        expectedUserRewards
+                    );
 
                     pirexRewards.userAccrue(producerToken, testAccounts[j]);
 
@@ -549,6 +607,8 @@ contract PirexRewardsTest is Helper {
                     );
 
                     nonDelayedTotalRewards += rewardsAfter - rewardsBefore;
+
+                    assertEq(expectedUserRewards, rewardsAfter);
                 }
             }
         }
@@ -560,6 +620,16 @@ contract PirexRewardsTest is Helper {
             delayedAccount
         );
         uint256 expectedGlobalRewards = _calculateGlobalRewards(producerToken);
+
+        vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+        emit UserAccrue(
+            producerToken,
+            delayedAccount,
+            block.timestamp,
+            producerToken.balanceOf(delayedAccount),
+            expectedDelayedRewards
+        );
 
         // Accrue rewards and check that the actual amount matches the expected
         pirexRewards.userAccrue(producerToken, delayedAccount);
@@ -658,8 +728,29 @@ contract PirexRewardsTest is Helper {
                     sender
                 );
 
-            // Accrue rewards for both sender and receiver
+            // Accrue rewards for sender and receiver
+            vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+            emit UserAccrue(
+                producerToken,
+                sender,
+                block.timestamp,
+                producerToken.balanceOf(sender),
+                expectedSenderRewardsAfterTransferAndWarp
+            );
+
             pirexRewards.userAccrue(producerToken, sender);
+
+            vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+            emit UserAccrue(
+                producerToken,
+                receiver,
+                block.timestamp,
+                producerToken.balanceOf(receiver),
+                expectedReceiverRewards
+            );
+
             pirexRewards.userAccrue(producerToken, receiver);
 
             // Retrieve actual user reward accrual states
@@ -748,6 +839,16 @@ contract PirexRewardsTest is Helper {
             // Delta of expected/actual rewards accrued and no-burn rewards accrued
             uint256 expectedAndNoBurnRewardDelta = (preBurnBalance -
                 postBurnBalance) * secondsElapsed;
+
+            vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+            emit UserAccrue(
+                pxGlp,
+                testAccount,
+                block.timestamp,
+                postBurnBalance,
+                expectedRewards
+            );
 
             pirexRewards.userAccrue(pxGlp, testAccount);
 
@@ -1347,7 +1448,16 @@ contract PirexRewardsTest is Helper {
                 ? WETH.balanceOf(recipient)
                 : 0;
 
+            vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+            emit Claim(pxGmx, testAccounts[i]);
+
             pirexRewards.claim(pxGmx, testAccounts[i]);
+
+            vm.expectEmit(true, true, false, true, address(pirexRewards));
+
+            emit Claim(pxGlp, testAccounts[i]);
+
             pirexRewards.claim(pxGlp, testAccounts[i]);
 
             (, , uint256 globalRewardsAfterClaimPxGmx) = _getGlobalState(pxGmx);

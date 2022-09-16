@@ -76,6 +76,25 @@ contract HelperEvents {
         ERC20 indexed rewardToken
     );
     event RemoveRewardToken(ERC20 indexed producerToken, uint256 removalIndex);
+    event GlobalAccrue(
+        ERC20 indexed producerToken,
+        uint256 lastUpdate,
+        uint256 lastSupply,
+        uint256 rewards
+    );
+    event UserAccrue(
+        ERC20 indexed producerToken,
+        address indexed user,
+        uint256 lastUpdate,
+        uint256 lastBalance,
+        uint256 rewards
+    );
+    event Harvest(
+        ERC20[] producerTokens,
+        ERC20[] rewardTokens,
+        uint256[] rewardAmounts
+    );
+    event Claim(ERC20 indexed producerToken, address indexed user);
     event SetRewardRecipientPrivileged(
         address indexed lpContract,
         ERC20 indexed producerToken,
@@ -86,11 +105,6 @@ contract HelperEvents {
         address indexed lpContract,
         ERC20 indexed producerToken,
         ERC20 indexed rewardToken
-    );
-    event Harvest(
-        ERC20[] producerTokens,
-        ERC20[] rewardTokens,
-        uint256[] rewardAmounts
     );
 
     // PirexFees events
