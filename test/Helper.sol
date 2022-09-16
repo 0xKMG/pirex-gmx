@@ -223,33 +223,76 @@ contract Helper is Test, HelperEvents, HelperState {
         bool useETH
     ) internal {
         if (useGmx) {
-            _depositForTestAccountsPxGmx(multiplier);
+            _depositGmxForTestAccounts(true, address(this), multiplier);
         } else {
             _depositForTestAccountsPxGlp(multiplier, useETH);
         }
     }
 
     /**
-        @notice Mint pxGMX for test accounts
-        @param  multiplier  uint256  Multiplied with fixed token amounts (uint256 to avoid overflow)
+        @notice Deposit GMX and mint pxGMX for test accounts
+        @param  separateCaller  bool       Whether to separate depositor (depositGmx caller) and receiver
+        @param  caller          address    Account calling the minting, approving, and depositing methods
+        @param  multiplier      uint256    Multiplied with fixed token amounts (uint256 to avoid overflow)
+        @return depositAmounts  uint256[]  GMX deposited for each test account
+        @return mintAmounts     uint256[]  pxGMX minted for each test account
      */
-    function _depositForTestAccountsPxGmx(uint256 multiplier) internal {
+    function _depositGmxForTestAccounts(
+        bool separateCaller,
+        address caller,
+        uint256 multiplier
+    )
+        internal
+        returns (uint256[] memory depositAmounts, uint256[] memory mintAmounts)
+    {
         uint256 tLen = testAccounts.length;
-        uint256[] memory tokenAmounts = new uint256[](tLen);
-        tokenAmounts[0] = 1e18 * multiplier;
-        tokenAmounts[1] = 2e18 * multiplier;
-        tokenAmounts[2] = 3e18 * multiplier;
-        uint256 total = tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2];
-
-        _mintGmx(total);
-        GMX.approve(address(pirexGmx), total);
+        depositAmounts = new uint256[](tLen);
+        mintAmounts = new uint256[](tLen);
+        depositAmounts[0] = 1e18 * multiplier;
+        depositAmounts[1] = 2e18 * multiplier;
+        depositAmounts[2] = 3e18 * multiplier;
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
         for (uint256 i; i < tLen; ++i) {
-            uint256 tokenAmount = tokenAmounts[i];
+            uint256 depositAmount = depositAmounts[i];
             address testAccount = testAccounts[i];
 
-            pirexGmx.depositGmx(tokenAmount, testAccount);
+            caller = separateCaller ? caller : testAccount;
+
+            _mintApproveGmx(
+                depositAmount,
+                caller,
+                address(pirexGmx),
+                depositAmount
+            );
+
+            (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
+                PirexGmx.Fees.Deposit,
+                depositAmount
+            );
+
+            vm.prank(caller);
+            vm.expectEmit(true, true, false, true, address(pirexGmx));
+
+            emit DepositGmx(
+                caller,
+                testAccount,
+                depositAmount,
+                postFeeAmount,
+                feeAmount
+            );
+
+            (
+                uint256 deposited,
+                uint256 depositPostFeeAmount,
+                uint256 depositFeeAmount
+            ) = pirexGmx.depositGmx(depositAmount, testAccount);
+
+            mintAmounts[i] = deposited;
+
+            assertEq(deposited, depositPostFeeAmount + feeAmount);
+            assertEq(postFeeAmount, depositPostFeeAmount);
+            assertEq(feeAmount, depositFeeAmount);
         }
     }
 
@@ -308,9 +351,21 @@ contract Helper is Test, HelperEvents, HelperState {
 
     /**
         @notice Mint GMX for pxGMX related tests
-        @param  amount  uint256  Amount of GMX
+        @param  amount            uint256  GMX amount
+        @param  receiver          address  GMX receiver
+        @param  spender           address  GMX spender
+        @param  spenderAllowance  uint256  GMX spender allowance
      */
-    function _mintGmx(uint256 amount) internal {
+    function _mintApproveGmx(
+        uint256 amount,
+        address receiver,
+        address spender,
+        uint256 spenderAllowance
+    ) internal {
+        vm.prank(receiver);
+
+        GMX.approve(spender, spenderAllowance);
+
         // Simulate minting for GMX by impersonating the admin in the timelock contract
         // Using the current values as they do change based on which block is pinned for tests
         ITimelock gmxTimeLock = ITimelock(GMX.gov());
@@ -318,11 +373,11 @@ contract Helper is Test, HelperEvents, HelperState {
 
         vm.startPrank(timelockAdmin);
 
-        gmxTimeLock.signalMint(address(GMX), address(this), amount);
+        gmxTimeLock.signalMint(address(GMX), receiver, amount);
 
         vm.warp(block.timestamp + gmxTimeLock.buffer() + 1 hours);
 
-        gmxTimeLock.processMint(address(GMX), address(this), amount);
+        gmxTimeLock.processMint(address(GMX), receiver, amount);
 
         vm.stopPrank();
     }
@@ -545,8 +600,12 @@ contract Helper is Test, HelperEvents, HelperState {
         @param  receiver     address  Receiver of pxGMX
      */
     function _depositGmx(uint256 tokenAmount, address receiver) internal {
-        _mintGmx(tokenAmount);
-        GMX.approve(address(pirexGmx), tokenAmount);
+        _mintApproveGmx(
+            tokenAmount,
+            address(this),
+            address(pirexGmx),
+            tokenAmount
+        );
         pirexGmx.depositGmx(tokenAmount, receiver);
     }
 

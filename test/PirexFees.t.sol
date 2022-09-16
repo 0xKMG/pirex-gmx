@@ -191,8 +191,7 @@ contract PirexFeesTest is Helper {
         assertEq(0, token.balanceOf(treasury));
         assertEq(0, token.balanceOf(contributors));
 
-        _mintGmx(gmxAmount);
-        GMX.approve(address(pirexGmx), gmxAmount);
+        _mintApproveGmx(gmxAmount, address(this), address(pirexGmx), gmxAmount);
         pirexGmx.depositGmx(gmxAmount, receiver);
 
         assertEq(expectedDistribution, token.balanceOf(address(pirexFees)));
