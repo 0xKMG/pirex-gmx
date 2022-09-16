@@ -285,54 +285,61 @@ contract PirexRewardsTest is Helper {
         vm.assume(burnPercent <= 100);
 
         ERC20 producerToken = pxGlp;
-        address user = address(this);
 
-        _mintPx(user, mintAmount, false);
+        // Perform minting+burning to all test accounts and assert the updated global rewards accrual
+        for (uint256 i; i < testAccounts.length; ++i) {
+            address testAccount = testAccounts[i];
 
-        // Forward time in order to accrue rewards globally
-        vm.warp(block.timestamp + secondsElapsed);
+            _mintPx(testAccount, mintAmount, false);
 
-        uint256 preBurnSupply = pxGlp.totalSupply();
-        uint256 burnAmount = (pxGlp.balanceOf(user) * burnPercent) / 100;
+            // Forward time in order to accrue rewards globally
+            vm.warp(block.timestamp + secondsElapsed);
 
-        // Global rewards accrued up to the token burn
-        uint256 expectedRewards = _calculateGlobalRewards(producerToken);
+            uint256 preBurnSupply = pxGlp.totalSupply();
+            uint256 burnAmount = (pxGlp.balanceOf(testAccount) * burnPercent) /
+                100;
 
-        _burnPxGlp(user, burnAmount);
+            // Global rewards accrued up to the last token burn
+            uint256 expectedRewards = _calculateGlobalRewards(producerToken);
 
-        (, , uint256 rewards) = _getGlobalState(producerToken);
-        uint256 postBurnSupply = pxGlp.totalSupply();
+            _burnPxGlp(testAccount, burnAmount);
 
-        // Verify conditions for "less reward accrual" post-burn
-        assertTrue(postBurnSupply < preBurnSupply);
+            (uint256 lastUpdate, uint256 lastSupply, uint256 rewards) = _getGlobalState(producerToken);
+            uint256 postBurnSupply = pxGlp.totalSupply();
 
-        // User should have accrued rewards based on their balance up to the burn
-        assertEq(expectedRewards, rewards);
+            // Verify conditions for "less reward accrual" post-burn
+            assertTrue(postBurnSupply < preBurnSupply);
 
-        // Forward time in order to accrue rewards globally
-        vm.warp(block.timestamp + secondsElapsed);
+            // Assert global rewards accrual post burn
+            assertEq(expectedRewards, rewards);
+            assertEq(block.timestamp, lastUpdate);
+            assertEq(postBurnSupply, lastSupply);
 
-        // Global rewards accrued after the token burn
-        uint256 expectedRewardsAfterBurn = _calculateGlobalRewards(
-            producerToken
-        );
+            // Forward time in order to accrue rewards globally
+            vm.warp(block.timestamp + secondsElapsed);
 
-        // Rewards accrued had supply not been reduced by burning
-        uint256 noBurnRewards = rewards + preBurnSupply * secondsElapsed;
+            // Global rewards accrued after the token burn
+            uint256 expectedRewardsAfterBurn = _calculateGlobalRewards(
+                producerToken
+            );
 
-        // Delta of expected/actual rewards accrued and no-burn rewards accrued
-        uint256 expectedAndNoBurnRewardDelta = (preBurnSupply -
-            postBurnSupply) * secondsElapsed;
+            // Rewards accrued had supply not been reduced by burning
+            uint256 noBurnRewards = rewards + preBurnSupply * secondsElapsed;
 
-        pirexRewards.globalAccrue(producerToken);
+            // Delta of expected/actual rewards accrued and no-burn rewards accrued
+            uint256 expectedAndNoBurnRewardDelta = (preBurnSupply -
+                postBurnSupply) * secondsElapsed;
 
-        (, , uint256 rewardsAfterBurn) = _getGlobalState(producerToken);
+            pirexRewards.globalAccrue(producerToken);
 
-        assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
-        assertEq(
-            expectedRewardsAfterBurn,
-            noBurnRewards - expectedAndNoBurnRewardDelta
-        );
+            (, , uint256 rewardsAfterBurn) = _getGlobalState(producerToken);
+
+            assertEq(expectedRewardsAfterBurn, rewardsAfterBurn);
+            assertEq(
+                expectedRewardsAfterBurn,
+                noBurnRewards - expectedAndNoBurnRewardDelta
+            );
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
