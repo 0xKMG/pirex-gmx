@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
+import {TransparentUpgradeableProxy} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxERC20} from "src/PxERC20.sol";
@@ -89,6 +90,11 @@ contract Helper is Test, HelperEvents, HelperState {
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
 
+    // Used as admin on upgradable contracts
+    // We should not use any of the testAccounts as they won't be able to be used on related tests
+    // due to the limitation of admin role in these proxy contracts
+    address internal proxyAdmin = 0x37c80252Ce544Be11F5bc24B0722DB8d483D0a4d;
+
     // For testing ETH transfers
     receive() external payable {}
 
@@ -96,31 +102,47 @@ contract Helper is Test, HelperEvents, HelperState {
         // Deploying our own delegateRegistry since no official one exists yet in Arbitrum
         delegateRegistry = new DelegateRegistry();
 
-        // Use normal (non-upgradeable) instance for most tests (outside the upgrade test)
-        pirexRewards = new PirexRewards();
-        pirexRewards.initialize();
-        pxGmx = new PxGmx(address(pirexRewards));
-        pxGlp = new PxERC20(address(pirexRewards), "Pirex GLP", "pxGLP", 18);
+        // Deploy the upgradable pirexRewards contract instance
+        // Note that we are using special address as admin so that less prank calls are needed
+        // to call methods in most PirexRewards tests (as admin can't fallback on the proxy impl. methods)
+        PirexRewards pirexRewardsImplementation = new PirexRewards();
+        TransparentUpgradeableProxy pirexRewardsProxy = new TransparentUpgradeableProxy(
+            address(pirexRewardsImplementation),
+            proxyAdmin, // Admin address
+            abi.encodeWithSelector(PirexRewards.initialize.selector)
+        );
+        address pirexRewardsProxyAddr = address(pirexRewardsProxy);
+        pirexRewards = PirexRewards(pirexRewardsProxyAddr);
+
+        pxGmx = new PxGmx(address(pirexRewardsProxyAddr));
+        pxGlp = new PxERC20(
+            address(pirexRewardsProxyAddr),
+            "Pirex GLP",
+            "pxGLP",
+            18
+        );
         pirexFees = new PirexFees(testAccounts[1], testAccounts[2]);
         pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
-            address(pirexRewards),
+            address(pirexRewardsProxyAddr),
             address(delegateRegistry)
         );
         autoPxGmx = new AutoPxGmx(
             address(pxGmx),
             "Autocompounding pxGMX",
             "apxGMX",
-            address(pirexGmx)
+            address(pirexGmx),
+            address(pirexRewardsProxyAddr)
         );
         autoPxGlp = new AutoPxGlp(
             address(pxGlp),
             address(pxGmx),
             "Autocompounding pxGLP",
             "apxGLP",
-            address(pirexGmx)
+            address(pirexGmx),
+            address(pirexRewardsProxyAddr)
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmx));

@@ -9,9 +9,7 @@ contract PxERC20 is ERC20, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
 
-    PirexRewards public pirexRewards;
-
-    event SetPirexRewards(address pirexRewards);
+    PirexRewards public immutable pirexRewards;
 
     error ZeroAddress();
     error ZeroAmount();
@@ -37,21 +35,6 @@ contract PxERC20 is ERC20, AccessControl {
         pirexRewards = PirexRewards(_pirexRewards);
 
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-    }
-
-    /**
-        @notice Set PirexRewards contract
-        @param  _pirexRewards  address  PirexRewards contract address
-     */
-    function setPirexRewards(address _pirexRewards)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        if (_pirexRewards == address(0)) revert ZeroAddress();
-
-        pirexRewards = PirexRewards(_pirexRewards);
-
-        emit SetPirexRewards(_pirexRewards);
     }
 
     /**

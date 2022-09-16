@@ -8,42 +8,6 @@ import {Helper} from "./Helper.sol";
 
 contract PxGmxTest is Helper {
     /*//////////////////////////////////////////////////////////////
-                            setPirexRewards TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: caller does not have the admin role
-     */
-    function testCannotSetPirexRewardsNoAdminRole() external {
-        address invalidCaller = testAccounts[0];
-        address _pirexRewards = address(this);
-
-        vm.expectRevert(
-            _encodeRoleError(invalidCaller, pxGmx.DEFAULT_ADMIN_ROLE())
-        );
-        vm.prank(invalidCaller);
-
-        pxGmx.setPirexRewards(_pirexRewards);
-    }
-
-    /**
-        @notice Test tx success: set pirexRewards
-     */
-    function testSetPirexRewards() external {
-        address _pirexRewards = address(this);
-
-        assertTrue(_pirexRewards != address(pxGmx.pirexRewards()));
-
-        vm.expectEmit(false, false, false, true, address(pxGmx));
-
-        emit SetPirexRewards(_pirexRewards);
-
-        pxGmx.setPirexRewards(_pirexRewards);
-
-        assertEq(_pirexRewards, address(pxGmx.pirexRewards()));
-    }
-
-    /*//////////////////////////////////////////////////////////////
                             mint TESTS
     //////////////////////////////////////////////////////////////*/
 
