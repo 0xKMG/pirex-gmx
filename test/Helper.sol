@@ -135,6 +135,11 @@ contract Helper is Test, HelperEvents, HelperState {
         feeTypes[0] = PirexGmx.Fees.Deposit;
         feeTypes[1] = PirexGmx.Fees.Redemption;
         feeTypes[2] = PirexGmx.Fees.Reward;
+        feeDenominator = pirexGmx.FEE_DENOMINATOR();
+        percentDenominator = pirexFees.PERCENT_DENOMINATOR();
+        treasuryPercent = pirexFees.treasuryPercent();
+        treasury = pirexFees.treasury();
+        contributors = pirexFees.contributors();
     }
 
     /**
@@ -473,11 +478,9 @@ contract Helper is Test, HelperEvents, HelperState {
     {
         vm.deal(address(this), etherAmount);
 
-        (postFeeAmount, feeAmount) = pirexGmx.depositGlpETH{value: etherAmount}(
-            1,
-            1,
-            receiver
-        );
+        (, postFeeAmount, feeAmount) = pirexGmx.depositGlpETH{
+            value: etherAmount
+        }(1, 1, receiver);
 
         // Time skip to bypass the cooldown duration
         vm.warp(block.timestamp + 1 hours);
@@ -487,18 +490,22 @@ contract Helper is Test, HelperEvents, HelperState {
         @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
         @param  tokenAmount    uint256  Amount of token
         @param  receiver       address  Receiver of pxGLP
+        @return deposited      uint256  GLP deposited
         @return postFeeAmount  uint256  pxGLP minted for the receiver
         @return feeAmount      uint256  pxGLP distributed as fees
      */
     function _depositGlp(uint256 tokenAmount, address receiver)
         internal
-        returns (uint256 postFeeAmount, uint256 feeAmount)
+        returns (
+            uint256 deposited,
+            uint256 postFeeAmount,
+            uint256 feeAmount
+        )
     {
         _mintWbtc(tokenAmount);
-
         WBTC.approve(address(pirexGmx), tokenAmount);
 
-        (postFeeAmount, feeAmount) = pirexGmx.depositGlp(
+        (deposited, postFeeAmount, feeAmount) = pirexGmx.depositGlp(
             address(WBTC),
             tokenAmount,
             1,

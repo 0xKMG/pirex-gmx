@@ -7,6 +7,12 @@ import {PirexFees} from "src/PirexFees.sol";
 contract HelperState {
     // PirexGmx reusable state
     uint256 internal feeMax;
-
+    uint256 internal feeDenominator;
     PirexGmx.Fees[3] internal feeTypes;
+
+    // PirexFees reusable state
+    uint8 percentDenominator;
+    uint8 treasuryPercent;
+    address treasury;
+    address contributors;
 }
