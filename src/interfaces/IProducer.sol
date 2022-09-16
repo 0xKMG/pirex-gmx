@@ -13,8 +13,8 @@ interface IProducer {
         );
 
     function claimUserReward(
-        address recipient,
         address rewardTokenAddress,
-        uint256 rewardAmount
+        uint256 rewardAmount,
+        address recipient
     ) external;
 }

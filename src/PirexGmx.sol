@@ -711,26 +711,25 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Mint/transfer the specified reward token to the receiver
-        @param  receiver  address  Reward receiver
         @param  token     address  Reward token address
         @param  amount    uint256  Reward amount
+        @param  receiver  address  Reward receiver
      */
     function claimUserReward(
-        address receiver,
         address token,
-        uint256 amount
+        uint256 amount,
+        address receiver
     ) external onlyPirexRewards {
         if (token == address(0)) revert ZeroAddress();
-        if (receiver == address(0)) revert ZeroAddress();
         if (amount == 0) return;
+        if (receiver == address(0)) revert ZeroAddress();
 
         (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
             Fees.Reward,
             amount
         );
-        address pxGmxAddress = address(pxGmx);
 
-        if (token == pxGmxAddress) {
+        if (token == address(pxGmx)) {
             // Mint pxGMX for the user - the analog for esGMX rewards
             pxGmx.mint(receiver, postFeeAmount);
 
