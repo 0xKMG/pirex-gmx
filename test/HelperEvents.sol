@@ -12,7 +12,7 @@ contract HelperEvents {
     event DepositGmx(
         address indexed caller,
         address indexed receiver,
-        uint256 assets,
+        uint256 deposited,
         uint256 postFeeAmount,
         uint256 feeAmount
     );
@@ -71,5 +71,9 @@ contract HelperEvents {
     // PxERC20 events
     event SetPirexRewards(address pirexRewards);
     event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 amount
+    );
 }
