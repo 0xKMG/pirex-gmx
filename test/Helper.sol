@@ -11,6 +11,7 @@ import {PxGmx} from "src/PxGmx.sol";
 import {PxERC20} from "src/PxERC20.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexFees} from "src/PirexFees.sol";
+import {Common} from "src/Common.sol";
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
 import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
@@ -572,5 +573,67 @@ contract Helper is Test, HelperEvents, HelperState {
     {
         feeAmount = (amount * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
         userAmount = amount - feeAmount;
+    }
+
+    /**
+        @notice Getter for a producer token's global state
+    */
+    function _getGlobalState(ERC20 producerToken)
+        internal
+        view
+        returns (
+            uint256 lastUpdate,
+            uint256 lastSupply,
+            uint256 rewards
+        )
+    {
+        Common.GlobalState memory globalState = pirexRewards.producerTokens(
+            producerToken
+        );
+
+        return (
+            globalState.lastUpdate,
+            globalState.lastSupply,
+            globalState.rewards
+        );
+    }
+
+    /**
+        @notice Calculate the global rewards accrued since the last update
+        @param  producerToken  ERC20    Producer token
+        @return                uint256  Global rewards
+    */
+    function _calculateGlobalRewards(ERC20 producerToken)
+        internal
+        view
+        returns (uint256)
+    {
+        (
+            uint256 lastUpdate,
+            uint256 lastSupply,
+            uint256 rewards
+        ) = _getGlobalState(producerToken);
+
+        return rewards + (block.timestamp - lastUpdate) * lastSupply;
+    }
+
+    /**
+        @notice Calculate a user's rewards since the last update
+        @param  producerToken  ERC20    Producer token contract
+        @param  user           address  User
+        @return                uint256  User rewards
+    */
+    function _calculateUserRewards(ERC20 producerToken, address user)
+        internal
+        view
+        returns (uint256)
+    {
+        (
+            uint256 lastUpdate,
+            uint256 lastBalance,
+            uint256 rewards
+        ) = pirexRewards.getUserState(producerToken, user);
+
+        return rewards + lastBalance * (block.timestamp - lastUpdate);
     }
 }
