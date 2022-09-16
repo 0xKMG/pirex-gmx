@@ -166,6 +166,7 @@ contract Helper is Test, HelperEvents, HelperState {
         percentDenominator = pirexFees.PERCENT_DENOMINATOR();
         treasuryPercent = pirexFees.treasuryPercent();
         treasury = pirexFees.treasury();
+        maxTreasuryPercent = 75;
         contributors = pirexFees.contributors();
     }
 

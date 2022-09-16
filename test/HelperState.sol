@@ -13,6 +13,7 @@ contract HelperState {
     // PirexFees reusable state
     uint8 percentDenominator;
     uint8 treasuryPercent;
+    uint8 maxTreasuryPercent;
     address treasury;
     address contributors;
 }

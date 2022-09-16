@@ -9,12 +9,6 @@ import {PirexGmx} from "src/PirexGmx.sol";
 import {Helper} from "./Helper.sol";
 
 contract PirexFeesTest is Helper {
-    address internal immutable DEFAULT_TREASURY = treasuryAddress;
-    address internal immutable DEFAULT_CONTRIBUTORS = contributorsAddress;
-    uint8 internal constant DEFAULT_TREASURY_PERCENT = 75;
-
-    uint8 internal constant MAX_TREASURY_PERCENT = 75;
-
     /**
         @notice Calculate the expected PirexFee fee values
         @param  assets                            uint256  Underlying GMX or GLP token assets
@@ -148,8 +142,8 @@ contract PirexFeesTest is Helper {
         @notice Test tx reversion: caller is not authorized
      */
     function testCannotSetFeeRecipientNotAuthorized() external {
-        assertEq(DEFAULT_TREASURY, pirexFees.treasury());
-        assertEq(DEFAULT_CONTRIBUTORS, pirexFees.contributors());
+        assertEq(treasury, pirexFees.treasury());
+        assertEq(contributors, pirexFees.contributors());
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
         vm.prank(testAccounts[0]);
@@ -164,8 +158,8 @@ contract PirexFeesTest is Helper {
         @notice Test tx reversion: recipient is zero address
      */
     function testCannotSetFeeRecipientZeroAddress() external {
-        assertEq(DEFAULT_TREASURY, pirexFees.treasury());
-        assertEq(DEFAULT_CONTRIBUTORS, pirexFees.contributors());
+        assertEq(treasury, pirexFees.treasury());
+        assertEq(contributors, pirexFees.contributors());
 
         vm.expectRevert(PirexFees.ZeroAddress.selector);
 
@@ -182,8 +176,8 @@ contract PirexFeesTest is Helper {
     function testSetFeeRecipient(uint8 fVal) external {
         vm.assume(fVal <= uint8(type(PirexFees.FeeRecipient).max));
 
-        assertEq(DEFAULT_TREASURY, pirexFees.treasury());
-        assertEq(DEFAULT_CONTRIBUTORS, pirexFees.contributors());
+        assertEq(treasury, pirexFees.treasury());
+        assertEq(contributors, pirexFees.contributors());
 
         PirexFees.FeeRecipient f = PirexFees.FeeRecipient(fVal);
         address recipient = testAccounts[0];
@@ -212,24 +206,24 @@ contract PirexFeesTest is Helper {
         @notice Test tx reversion: caller is not authorized
      */
     function testCannotSetTreasuryPercentNotAuthorized() external {
-        assertEq(DEFAULT_TREASURY_PERCENT, pirexFees.treasuryPercent());
+        assertEq(treasuryPercent, pirexFees.treasuryPercent());
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
         vm.prank(testAccounts[0]);
 
-        pirexFees.setTreasuryPercent(MAX_TREASURY_PERCENT);
+        pirexFees.setTreasuryPercent(maxTreasuryPercent);
     }
 
     /**
         @notice Test tx reversion: treasury percent is invalid
      */
     function testCannotSetTreasuryPercentInvalidFeePercent() external {
-        assertEq(DEFAULT_TREASURY_PERCENT, pirexFees.treasuryPercent());
+        assertEq(treasuryPercent, pirexFees.treasuryPercent());
 
         // The percentage is invalid if > maxTreasuryPercent
         vm.expectRevert(PirexFees.InvalidFeePercent.selector);
 
-        pirexFees.setTreasuryPercent(MAX_TREASURY_PERCENT + 1);
+        pirexFees.setTreasuryPercent(maxTreasuryPercent + 1);
     }
 
     /**
@@ -237,9 +231,9 @@ contract PirexFeesTest is Helper {
         @param  percent  uint8  Treasury percent
      */
     function testSetTreasuryPercent(uint8 percent) external {
-        vm.assume(percent <= MAX_TREASURY_PERCENT);
+        vm.assume(percent <= maxTreasuryPercent);
 
-        assertEq(DEFAULT_TREASURY_PERCENT, pirexFees.treasuryPercent());
+        assertEq(treasuryPercent, pirexFees.treasuryPercent());
 
         vm.expectEmit(false, false, false, true);
 
