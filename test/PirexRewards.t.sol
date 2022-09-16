@@ -823,10 +823,26 @@ contract PirexRewardsTest is Helper {
         expectedRewardTokens[1] = WETH;
         expectedRewardTokens[2] = ERC20(pxGmx); // esGMX rewards are distributed as pxGMX
         expectedRewardTokens[3] = ERC20(pxGmx);
-        expectedRewardAmounts[0] = pirexGmx.calculateRewards(true, true);
-        expectedRewardAmounts[1] = pirexGmx.calculateRewards(true, false);
-        expectedRewardAmounts[2] = pirexGmx.calculateRewards(false, true);
-        expectedRewardAmounts[3] = pirexGmx.calculateRewards(false, false);
+        expectedRewardAmounts[0] = _calculateRewards(
+            address(pirexGmx),
+            true,
+            true
+        );
+        expectedRewardAmounts[1] = _calculateRewards(
+            address(pirexGmx),
+            true,
+            false
+        );
+        expectedRewardAmounts[2] = _calculateRewards(
+            address(pirexGmx),
+            false,
+            true
+        );
+        expectedRewardAmounts[3] = _calculateRewards(
+            address(pirexGmx),
+            false,
+            false
+        );
 
         vm.expectEmit(true, true, true, true, address(pirexRewards));
 

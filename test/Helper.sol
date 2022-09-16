@@ -576,4 +576,46 @@ contract Helper is Test, HelperEvents, HelperState {
         feeAmount = (assets * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
         postFeeAmount = assets - feeAmount;
     }
+
+    /**
+        @notice Calculate the WETH/esGMX rewards for either GMX or GLP
+        @param  account  address  Whether to calculate WETH or esGMX rewards
+        @param  isWeth   bool     Whether to calculate WETH or esGMX rewards
+        @param  useGmx   bool     Whether the calculation should be for GMX
+        @return         uint256   Amount of WETH/esGMX rewards
+     */
+    function _calculateRewards(
+        address account,
+        bool isWeth,
+        bool useGmx
+    ) internal view returns (uint256) {
+        RewardTracker r;
+
+        if (isWeth) {
+            r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+        } else {
+            r = useGmx ? STAKED_GMX : FEE_STAKED_GLP;
+        }
+
+        address distributor = r.distributor();
+        uint256 pendingRewards = IRewardDistributor(distributor)
+            .pendingRewards();
+        uint256 distributorBalance = (isWeth ? WETH : ERC20(ES_GMX)).balanceOf(
+            distributor
+        );
+        uint256 blockReward = pendingRewards > distributorBalance
+            ? distributorBalance
+            : pendingRewards;
+        uint256 precision = r.PRECISION();
+        uint256 cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
+            ((blockReward * precision) / r.totalSupply());
+
+        if (cumulativeRewardPerToken == 0) return 0;
+
+        return
+            r.claimableReward(account) +
+            ((r.stakedAmounts(account) *
+                (cumulativeRewardPerToken -
+                    r.previousCumulatedRewardPerToken(account))) / precision);
+    }
 }

@@ -204,6 +204,48 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
+        @notice Calculate the WETH/esGMX rewards for either GMX or GLP
+        @param  isWeth  bool     Whether to calculate WETH or esGMX rewards
+        @param  useGmx  bool     Whether the calculation should be for GMX
+        @return         uint256  Amount of WETH/esGMX rewards
+     */
+    function _calculateRewards(bool isWeth, bool useGmx)
+        internal
+        view
+        returns (uint256)
+    {
+        RewardTracker r;
+
+        if (isWeth) {
+            r = useGmx ? rewardTrackerGmx : rewardTrackerGlp;
+        } else {
+            r = useGmx ? stakedGmx : feeStakedGlp;
+        }
+
+        address distributor = r.distributor();
+        uint256 pendingRewards = IRewardDistributor(distributor)
+            .pendingRewards();
+        uint256 distributorBalance = (isWeth ? WETH : ES_GMX).balanceOf(
+            distributor
+        );
+        uint256 blockReward = pendingRewards > distributorBalance
+            ? distributorBalance
+            : pendingRewards;
+        uint256 precision = r.PRECISION();
+        uint256 cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
+            ((blockReward * precision) / r.totalSupply());
+
+        if (cumulativeRewardPerToken == 0) return 0;
+
+        return
+            r.claimableReward(address(this)) +
+            ((r.stakedAmounts(address(this)) *
+                (cumulativeRewardPerToken -
+                    r.previousCumulatedRewardPerToken(address(this)))) /
+                precision);
+    }
+
+    /**
         @notice Set fee
         @param  f    enum     Fee
         @param  fee  uint256  Fee amount
@@ -275,11 +317,11 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Deposit GMX for pxGMX
-        @param  assets         uint256  GMX amount
-        @param  receiver       address  pxGMX receiver
-        @return deposited      address  GMX deposited
-        @return postFeeAmount  uint256  pxGMX minted for the receiver
-        @return feeAmount      uint256  pxGMX distributed as fees
+        @param  assets    uint256  GMX amount
+        @param  receiver  address  pxGMX receiver
+        @return           address  GMX deposited
+        @return           uint256  pxGMX minted for the receiver
+        @return           uint256  pxGMX distributed as fees
      */
     function depositGmx(uint256 assets, address receiver)
         external
@@ -408,7 +450,17 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         uint256 minUsdg,
         uint256 minGlp,
         address receiver
-    ) external payable whenNotPaused nonReentrant returns (uint256, uint256, uint256) {
+    )
+        external
+        payable
+        whenNotPaused
+        nonReentrant
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
+    {
         return _depositGlp(address(0), msg.value, minUsdg, minGlp, receiver);
     }
 
@@ -419,7 +471,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         @param  minUsdg      uint256  Minimum USDG purchased and used to mint GLP
         @param  minGlp       uint256  Minimum GLP amount minted from ERC20 tokens
         @param  receiver     address  pxGLP receiver
-        @return deposited    uint256  GLP deposited
+        @return              uint256  GLP deposited
         @return              uint256  pxGLP minted for the receiver
         @return              uint256  pxGLP distributed as fees
      */
@@ -429,7 +481,16 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         uint256 minUsdg,
         uint256 minGlp,
         address receiver
-    ) external whenNotPaused nonReentrant returns (uint256, uint256, uint256) {
+    )
+        external
+        whenNotPaused
+        nonReentrant
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
+    {
         if (token == address(0)) revert ZeroAddress();
         if (!gmxVault.whitelistedTokens(token)) revert InvalidToken(token);
 
@@ -509,12 +570,12 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Redeem pxGLP for ETH from redeeming GLP
-        @param  assets         uint256  pxGLP amount
-        @param  minOut         uint256  Minimum ETH output from GLP redemption
-        @param  receiver       address  ETH recipient
-        @return                uint256  ETH redeemed from GLP
-        @return                uint256  pxGLP burned from the msg.sender
-        @return                uint256  pxGLP distributed as fees
+        @param  assets    uint256  pxGLP amount
+        @param  minOut    uint256  Minimum ETH output from GLP redemption
+        @param  receiver  address  ETH recipient
+        @return           uint256  ETH redeemed from GLP
+        @return           uint256  pxGLP burned from the msg.sender
+        @return           uint256  pxGLP distributed as fees
      */
     function redeemPxGlpETH(
         uint256 assets,
@@ -535,13 +596,13 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
     /**
         @notice Redeem pxGLP for ERC20 tokens from redeeming GLP
-        @param  token          address  GMX-whitelisted token to be redeemed
-        @param  assets         uint256  pxGLP amount
-        @param  minOut         uint256  Minimum ERC20 output from GLP redemption
-        @param  receiver       address  ERC20 token recipient
-        @return                uint256  ERC20 tokens from redeeming GLP
-        @return                uint256  pxGLP burned from the msg.sender
-        @return                uint256  pxGLP distributed as fees
+        @param  token     address  GMX-whitelisted token to be redeemed
+        @param  assets    uint256  pxGLP amount
+        @param  minOut    uint256  Minimum ERC20 output from GLP redemption
+        @param  receiver  address  ERC20 token recipient
+        @return           uint256  ERC20 tokens from redeeming GLP
+        @return           uint256  pxGLP burned from the msg.sender
+        @return           uint256  pxGLP distributed as fees
      */
     function redeemPxGlp(
         address token,
@@ -562,48 +623,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (!gmxVault.whitelistedTokens(token)) revert InvalidToken(token);
 
         return _redeemPxGlp(token, assets, minOut, receiver);
-    }
-
-    /**
-        @notice Calculate the WETH/esGMX rewards for either GMX or GLP
-        @param  isWeth  bool     Whether to calculate WETH or esGMX rewards
-        @param  useGmx  bool     Whether the calculation should be for GMX
-        @return         uint256  Amount of WETH/esGMX rewards
-     */
-    function calculateRewards(bool isWeth, bool useGmx)
-        public
-        view
-        returns (uint256)
-    {
-        RewardTracker r;
-
-        if (isWeth) {
-            r = useGmx ? rewardTrackerGmx : rewardTrackerGlp;
-        } else {
-            r = useGmx ? stakedGmx : feeStakedGlp;
-        }
-
-        address distributor = r.distributor();
-        uint256 pendingRewards = IRewardDistributor(distributor)
-            .pendingRewards();
-        uint256 distributorBalance = ERC20(isWeth ? WETH : ES_GMX).balanceOf(
-            distributor
-        );
-        uint256 blockReward = pendingRewards > distributorBalance
-            ? distributorBalance
-            : pendingRewards;
-        uint256 precision = r.PRECISION();
-        uint256 cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
-            ((blockReward * precision) / r.totalSupply());
-
-        if (cumulativeRewardPerToken == 0) return 0;
-
-        return
-            r.claimableReward(address(this)) +
-            ((r.stakedAmounts(address(this)) *
-                (cumulativeRewardPerToken -
-                    r.previousCumulatedRewardPerToken(address(this)))) /
-                precision);
     }
 
     /**
@@ -642,10 +661,10 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         );
 
         // Calculate the unclaimed reward token amounts produced for each token type
-        uint256 gmxWethRewards = calculateRewards(true, true);
-        uint256 glpWethRewards = calculateRewards(true, false);
-        uint256 gmxEsGmxRewards = calculateRewards(false, true);
-        uint256 glpEsGmxRewards = calculateRewards(false, false);
+        uint256 gmxWethRewards = _calculateRewards(true, true);
+        uint256 glpWethRewards = _calculateRewards(true, false);
+        uint256 gmxEsGmxRewards = _calculateRewards(false, true);
+        uint256 glpEsGmxRewards = _calculateRewards(false, false);
 
         // Claim and stake esGMX + MP, and claim WETH
         gmxRewardRouterV2.handleRewards(

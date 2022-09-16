@@ -1305,13 +1305,23 @@ contract PirexGmxTest is Test, Helper {
         uint256 previousStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(
             address(pirexGmx)
         );
-        uint256 expectedWETHRewardsGmx = pirexGmx.calculateRewards(true, true);
-        uint256 expectedWETHRewardsGlp = pirexGmx.calculateRewards(true, false);
-        uint256 expectedEsGmxRewardsGmx = pirexGmx.calculateRewards(
+        uint256 expectedWETHRewardsGmx = _calculateRewards(
+            address(pirexGmx),
+            true,
+            true
+        );
+        uint256 expectedWETHRewardsGlp = _calculateRewards(
+            address(pirexGmx),
+            true,
+            false
+        );
+        uint256 expectedEsGmxRewardsGmx = _calculateRewards(
+            address(pirexGmx),
             false,
             true
         );
-        uint256 expectedEsGmxRewardsGlp = pirexGmx.calculateRewards(
+        uint256 expectedEsGmxRewardsGlp = _calculateRewards(
+            address(pirexGmx),
             false,
             false
         );
@@ -1366,10 +1376,10 @@ contract PirexGmxTest is Test, Helper {
         );
 
         // Claimable reward amounts should all be zero post-claim
-        assertEq(0, pirexGmx.calculateRewards(true, true));
-        assertEq(0, pirexGmx.calculateRewards(true, false));
-        assertEq(0, pirexGmx.calculateRewards(false, true));
-        assertEq(0, pirexGmx.calculateRewards(false, false));
+        assertEq(0, _calculateRewards(address(pirexGmx), true, true));
+        assertEq(0, _calculateRewards(address(pirexGmx), true, false));
+        assertEq(0, _calculateRewards(address(pirexGmx), false, true));
+        assertEq(0, _calculateRewards(address(pirexGmx), false, false));
         assertEq(0, calculateBnGmxRewards(address(pirexGmx)));
 
         // Claimed esGMX rewards + MP should also be staked immediately
@@ -1884,8 +1894,11 @@ contract PirexGmxTest is Test, Helper {
         // Store the staked balances for later validations
         uint256 oldStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
         uint256 oldStakedGlpBalance = FEE_STAKED_GLP.balanceOf(oldContract);
-        uint256 oldEsGmxClaimable = pirexGmx.calculateRewards(false, true) +
-            pirexGmx.calculateRewards(false, false);
+        uint256 oldEsGmxClaimable = _calculateRewards(
+            address(pirexGmx),
+            false,
+            true
+        ) + _calculateRewards(address(pirexGmx), false, false);
         uint256 oldMpBalance = REWARD_TRACKER_MP.claimable(oldContract);
 
         // Pause the contract before proceeding
