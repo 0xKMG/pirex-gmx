@@ -89,6 +89,10 @@ contract Helper is Test, HelperEvents, HelperState {
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
 
+    // Arbitrary addresses used for testing fees
+    address internal treasuryAddress = 0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
+    address internal contributorsAddress = 0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
+
     // For testing ETH transfers
     receive() external payable {}
 
@@ -101,7 +105,7 @@ contract Helper is Test, HelperEvents, HelperState {
         pirexRewards.initialize();
         pxGmx = new PxGmx(address(pirexRewards));
         pxGlp = new PxERC20(address(pirexRewards), "Pirex GLP", "pxGLP", 18);
-        pirexFees = new PirexFees(testAccounts[1], testAccounts[2]);
+        pirexFees = new PirexFees(treasuryAddress, contributorsAddress);
         pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
