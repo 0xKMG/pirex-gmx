@@ -844,60 +844,77 @@ contract AutoPxGlpTest is Helper {
         autoPxGlp.claim(invalidReceiver);
     }
 
-    // /**
-    //     @notice Test tx success: claim pxGMX rewards and assert the reward states updates
-    //     @param  etherAmount     uint96  Amount of ETH to deposit
-    //     @param  secondsElapsed  uint32  Seconds to forward timestamp
-    //  */
-    // function testClaim(uint96 etherAmount, uint32 secondsElapsed) external {
-    //     _validateTestArgs(etherAmount, secondsElapsed);
+    /**
+        @notice Test tx success: claim pxGMX rewards and assert the reward states updates
+        @param  etherAmount     uint96  Amount of ETH to deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testClaim(uint96 etherAmount, uint32 secondsElapsed) external {
+        _validateTestArgs(etherAmount, secondsElapsed);
 
-    //     address account = address(this);
-    //     address receiver = testAccounts[0];
+        address account = address(this);
+        address receiver = testAccounts[0];
 
-    //     (, uint256 pxGmxRewardState) = _provisionRewardState(
-    //         etherAmount,
-    //         account,
-    //         secondsElapsed
-    //     );
+        (, uint256 pxGmxRewardState) = _provisionRewardState(
+            etherAmount,
+            account,
+            secondsElapsed
+        );
 
-    //     uint256 pxGmxBalanceBeforeClaim = pxGmx.balanceOf(receiver);
-    //     uint256 pxGmxRewardAfterFees = pxGmxRewardState -
-    //         (pxGmxRewardState * autoPxGlp.platformFee()) /
-    //         autoPxGlp.FEE_DENOMINATOR();
-    //     uint256 expectedLastUpdate = block.timestamp;
-    //     uint256 expectedLastBalance = autoPxGlp.balanceOf(account);
-    //     uint256 expectedGlobalRewards = _calculateGlobalRewards();
-    //     uint256 expectedUserRewardState = _calculateUserRewards(account);
-    //     uint256 expectedClaimableReward = (pxGmxRewardAfterFees *
-    //         expectedUserRewardState) / expectedGlobalRewards;
+        uint256 pxGmxBalanceBeforeClaim = pxGmx.balanceOf(receiver);
+        uint256 pxGmxRewardAfterFees = pxGmxRewardState -
+            (pxGmxRewardState * autoPxGlp.platformFee()) /
+            autoPxGlp.FEE_DENOMINATOR();
+        uint256 expectedLastBalance = autoPxGlp.balanceOf(account);
 
-    //     assertEq(autoPxGlp.rewardState(), 0);
+        // In the case where there is no esGMX yields for GLP, lastUpdate and rewards for globalState are not updated
+        uint256 expectedGlobalLastUpdate = block.timestamp -
+            (pxGmxRewardState != 0 ? 0 : secondsElapsed);
+        uint256 expectedGlobalRewards = (
+            pxGmxRewardState != 0 ? _calculateGlobalRewards() : 0
+        );
 
-    //     vm.expectEmit(true, false, false, false, address(autoPxGlp));
+        uint256 expectedUserRewardState = _calculateUserRewards(account);
+        uint256 expectedClaimableReward = (
+            expectedGlobalRewards != 0
+                ? (pxGmxRewardAfterFees * expectedUserRewardState) /
+                    expectedGlobalRewards
+                : 0
+        );
 
-    //     emit PxGmxClaimed(account, receiver, 0);
+        assertEq(autoPxGlp.rewardState(), 0);
 
-    //     // Claim pxGMX reward from the vault and transfer it to the receiver directly
-    //     autoPxGlp.claim(receiver);
+        // Event is only logged when rewards exists (ie. non-zero esGMX yields)
+        if (expectedGlobalRewards != 0) {
+            vm.expectEmit(true, false, false, false, address(autoPxGlp));
 
-    //     // Claiming should also update the pxGMX balance for the receiver and the reward state
-    //     assertEq(
-    //         pxGmx.balanceOf(receiver),
-    //         expectedClaimableReward + pxGmxBalanceBeforeClaim
-    //     );
-    //     _assertGlobalState(
-    //         expectedLastUpdate,
-    //         autoPxGlp.totalSupply(),
-    //         expectedGlobalRewards - expectedUserRewardState
-    //     );
-    //     _assertUserRewardState(
-    //         account,
-    //         expectedLastUpdate,
-    //         expectedLastBalance,
-    //         0
-    //     );
-    // }
+            emit PxGmxClaimed(account, receiver, 0);
+        }
+
+        // Claim pxGMX reward from the vault and transfer it to the receiver directly
+        autoPxGlp.claim(receiver);
+
+        // Claiming should also update the pxGMX balance for the receiver and the reward state
+        assertEq(
+            pxGmx.balanceOf(receiver),
+            expectedClaimableReward + pxGmxBalanceBeforeClaim
+        );
+        _assertGlobalState(
+            expectedGlobalLastUpdate,
+            autoPxGlp.totalSupply(),
+            (
+                expectedGlobalRewards != 0
+                    ? expectedGlobalRewards - expectedUserRewardState
+                    : 0
+            )
+        );
+        _assertUserRewardState(
+            account,
+            block.timestamp,
+            expectedLastBalance,
+            (expectedGlobalRewards != 0 ? 0 : expectedUserRewardState)
+        );
+    }
 
     /*//////////////////////////////////////////////////////////////
                         transfer TESTS
