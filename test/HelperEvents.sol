@@ -104,7 +104,6 @@ contract HelperEvents {
     );
 
     // PxERC20 events
-    event SetPirexRewards(address pirexRewards);
     event Transfer(address indexed from, address indexed to, uint256 amount);
     event Approval(
         address indexed owner,

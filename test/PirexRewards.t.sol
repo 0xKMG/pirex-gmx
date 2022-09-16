@@ -1711,8 +1711,6 @@ contract PirexRewardsTest is Helper {
         // Store the old (pre-upgrade) implementation address before upgrading
         address oldImplementation = proxy.implementation();
 
-        pirexGmx.setContract(PirexGmx.Contracts.PirexRewards, proxyAddress);
-
         assertEq(proxyAddress, pirexGmx.pirexRewards());
 
         // Simulate deposit to accrue rewards in which the reward data

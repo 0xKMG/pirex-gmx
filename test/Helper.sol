@@ -133,14 +133,16 @@ contract Helper is Test, HelperEvents, HelperState {
             address(pxGmx),
             "Autocompounding pxGMX",
             "apxGMX",
-            address(pirexGmx)
+            address(pirexGmx),
+            address(pirexRewardsProxyAddr)
         );
         autoPxGlp = new AutoPxGlp(
             address(pxGlp),
             address(pxGmx),
             "Autocompounding pxGLP",
             "apxGLP",
-            address(pirexGmx)
+            address(pirexGmx),
+            address(pirexRewardsProxyAddr)
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmx));

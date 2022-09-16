@@ -33,8 +33,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         FeeStakedGlp,
         StakedGmx,
         GmxVault,
-        GlpManager,
-        PirexRewards
+        GlpManager
     }
 
     // External contracts which are unlikely to change (e.g. protocol tokens)
@@ -64,8 +63,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     IVault public gmxVault = IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public glpManager = 0x321F653eED006AD1C29D174e17d96351BDe22649;
 
-    // Pirex reward module contract which is subject to changing upon updates
-    address public pirexRewards;
+    // Pirex reward module contract
+    address public immutable pirexRewards;
 
     // Fee denominator
     uint256 public constant FEE_DENOMINATOR = 1_000_000;
@@ -266,8 +265,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
             glpManager = contractAddress;
             return;
         }
-
-        pirexRewards = contractAddress;
     }
 
     /**

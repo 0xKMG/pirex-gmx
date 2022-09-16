@@ -26,13 +26,14 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     uint256 public platformFee = 1000;
     uint256 public compoundIncentive = 1000;
     address public platform;
-    address public rewardsModule;
+
+    // Address of the rewards module (ie. PirexRewards instance)
+    address public immutable rewardsModule;
 
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
     event CompoundIncentiveUpdated(uint256 incentive);
     event PlatformUpdated(address _platform);
-    event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
         address indexed caller,
         uint256 minGlp,
@@ -51,25 +52,29 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     error InvalidParam();
 
     /**
-        @param  _asset     address  Asset address (vault asset, e.g. pxGLP)
-        @param  _pxGmx     address  pxGMX address (as secondary reward)
-        @param  _name      string   Asset name (e.g. Autocompounding pxGLP)
-        @param  _symbol    string   Asset symbol (e.g. apxGLP)
-        @param  _platform  address  Platform address (e.g. PirexGmx)
+        @param  _asset          address  Asset address (vault asset, e.g. pxGLP)
+        @param  _pxGmx          address  pxGMX address (as secondary reward)
+        @param  _name           string   Asset name (e.g. Autocompounding pxGLP)
+        @param  _symbol         string   Asset symbol (e.g. apxGLP)
+        @param  _platform       address  Platform address (e.g. PirexGmx)
+        @param  _rewardsModule  address  Rewards module address
      */
     constructor(
         address _asset,
         address _pxGmx,
         string memory _name,
         string memory _symbol,
-        address _platform
+        address _platform,
+        address _rewardsModule
     ) PxGmxReward(_pxGmx) PirexERC4626(ERC20(_asset), _name, _symbol) {
         if (_asset == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
         if (bytes(_symbol).length == 0) revert InvalidAssetParam();
         if (_platform == address(0)) revert ZeroAddress();
+        if (_rewardsModule == address(0)) revert ZeroAddress();
 
         platform = _platform;
+        rewardsModule = _rewardsModule;
 
         // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
         WETH.safeApprove(address(_platform), type(uint256).max);
@@ -121,18 +126,6 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         platform = _platform;
 
         emit PlatformUpdated(_platform);
-    }
-
-    /**
-        @notice Set rewardsModule
-        @param  _rewardsModule  address  Rewards module contract
-     */
-    function setRewardsModule(address _rewardsModule) external onlyOwner {
-        if (_rewardsModule == address(0)) revert ZeroAddress();
-
-        rewardsModule = _rewardsModule;
-
-        emit RewardsModuleUpdated(_rewardsModule);
     }
 
     /**
