@@ -142,11 +142,6 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     error InvalidFee();
     error EmptyString();
 
-    modifier onlyPirexRewards() {
-        if (msg.sender != pirexRewards) revert NotPirexRewards();
-        _;
-    }
-
     /**
         @param  _pxGmx             address  PxGmx contract address
         @param  _pxGlp             address  PxGlp contract address
@@ -183,6 +178,11 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         GMX.safeApprove(address(stakedGmx), maxAmount);
         ERC20(pxGmx).safeApprove(_pirexFees, maxAmount);
         ERC20(pxGlp).safeApprove(_pirexFees, maxAmount);
+    }
+
+    modifier onlyPirexRewards() {
+        if (msg.sender != pirexRewards) revert NotPirexRewards();
+        _;
     }
 
     /**
