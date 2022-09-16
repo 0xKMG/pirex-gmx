@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/interfaces/IERC20.sol";
 import {Strings} from "openzeppelin-contracts/contracts/utils/Strings.sol";
+import {TransparentUpgradeableProxy} from "openzeppelin-contracts/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {PxGmx} from "src/PxGmx.sol";
 import {PxERC20} from "src/PxERC20.sol";
@@ -94,6 +95,11 @@ contract Helper is Test, HelperEvents, HelperState {
     address internal treasuryAddress = 0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
     address internal contributorsAddress = 0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
 
+    // Used as admin on upgradable contracts
+    // We should not use any of the testAccounts as they won't be able to be used on related tests
+    // due to the limitation of admin role in these proxy contracts
+    address internal proxyAdmin = 0x37c80252Ce544Be11F5bc24B0722DB8d483D0a4d;
+
     // For testing ETH transfers
     receive() external payable {}
 
@@ -101,31 +107,47 @@ contract Helper is Test, HelperEvents, HelperState {
         // Deploying our own delegateRegistry since no official one exists yet in Arbitrum
         delegateRegistry = new DelegateRegistry();
 
-        // Use normal (non-upgradeable) instance for most tests (outside the upgrade test)
-        pirexRewards = new PirexRewards();
-        pirexRewards.initialize();
-        pxGmx = new PxGmx(address(pirexRewards));
-        pxGlp = new PxERC20(address(pirexRewards), "Pirex GLP", "pxGLP", 18);
+        // Deploy the upgradable pirexRewards contract instance
+        // Note that we are using special address as admin so that less prank calls are needed
+        // to call methods in most PirexRewards tests (as admin can't fallback on the proxy impl. methods)
+        PirexRewards pirexRewardsImplementation = new PirexRewards();
+        TransparentUpgradeableProxy pirexRewardsProxy = new TransparentUpgradeableProxy(
+            address(pirexRewardsImplementation),
+            proxyAdmin, // Admin address
+            abi.encodeWithSelector(PirexRewards.initialize.selector)
+        );
+        address pirexRewardsProxyAddr = address(pirexRewardsProxy);
+        pirexRewards = PirexRewards(pirexRewardsProxyAddr);
+
+        pxGmx = new PxGmx(address(pirexRewardsProxyAddr));
+        pxGlp = new PxERC20(
+            address(pirexRewardsProxyAddr),
+            "Pirex GLP",
+            "pxGLP",
+            18
+        );
         pirexFees = new PirexFees(treasuryAddress, contributorsAddress);
         pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
-            address(pirexRewards),
+            address(pirexRewardsProxyAddr),
             address(delegateRegistry)
         );
         autoPxGmx = new AutoPxGmx(
             address(pxGmx),
             "Autocompounding pxGMX",
             "apxGMX",
-            address(pirexGmx)
+            address(pirexGmx),
+            address(pirexRewardsProxyAddr)
         );
         autoPxGlp = new AutoPxGlp(
             address(pxGlp),
             address(pxGmx),
             "Autocompounding pxGLP",
             "apxGLP",
-            address(pirexGmx)
+            address(pirexGmx),
+            address(pirexRewardsProxyAddr)
         );
 
         pxGmx.grantRole(pxGmx.MINTER_ROLE(), address(pirexGmx));
@@ -140,6 +162,11 @@ contract Helper is Test, HelperEvents, HelperState {
         feeTypes[0] = PirexGmx.Fees.Deposit;
         feeTypes[1] = PirexGmx.Fees.Redemption;
         feeTypes[2] = PirexGmx.Fees.Reward;
+        feeDenominator = pirexGmx.FEE_DENOMINATOR();
+        percentDenominator = pirexFees.PERCENT_DENOMINATOR();
+        treasuryPercent = pirexFees.treasuryPercent();
+        treasury = pirexFees.treasury();
+        contributors = pirexFees.contributors();
     }
 
     /**
@@ -478,11 +505,9 @@ contract Helper is Test, HelperEvents, HelperState {
     {
         vm.deal(address(this), etherAmount);
 
-        (postFeeAmount, feeAmount) = pirexGmx.depositGlpETH{value: etherAmount}(
-            1,
-            1,
-            receiver
-        );
+        (, postFeeAmount, feeAmount) = pirexGmx.depositGlpETH{
+            value: etherAmount
+        }(1, 1, receiver);
 
         // Time skip to bypass the cooldown duration
         vm.warp(block.timestamp + 1 hours);
@@ -492,18 +517,22 @@ contract Helper is Test, HelperEvents, HelperState {
         @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
         @param  tokenAmount    uint256  Amount of token
         @param  receiver       address  Receiver of pxGLP
+        @return deposited      uint256  GLP deposited
         @return postFeeAmount  uint256  pxGLP minted for the receiver
         @return feeAmount      uint256  pxGLP distributed as fees
      */
     function _depositGlp(uint256 tokenAmount, address receiver)
         internal
-        returns (uint256 postFeeAmount, uint256 feeAmount)
+        returns (
+            uint256 deposited,
+            uint256 postFeeAmount,
+            uint256 feeAmount
+        )
     {
         _mintWbtc(tokenAmount);
-
         WBTC.approve(address(pirexGmx), tokenAmount);
 
-        (postFeeAmount, feeAmount) = pirexGmx.depositGlp(
+        (deposited, postFeeAmount, feeAmount) = pirexGmx.depositGlp(
             address(WBTC),
             tokenAmount,
             1,
@@ -560,19 +589,61 @@ contract Helper is Test, HelperEvents, HelperState {
     }
 
     /**
-        @notice Derive fee and post-fee asset amounts from a fee type and total asset amount
-        @param  f           Fees     Fee type
-        @param  amount      uint256  GMX/GLP/WETH amount
-        @return userAmount  uint256  Post-fee user-related asset amount (mint/burn/claim/etc.)
-        @return feeAmount   uint256  Fee amount
+        @notice Compute post-fee asset and fee amounts from a fee type and total assets
+        @param  f              Fees     Fee type
+        @param  assets         uint256  GMX/GLP/WETH asset amount
+        @return postFeeAmount  uint256  Post-fee asset amount (for mint/burn/claim/etc.)
+        @return feeAmount      uint256  Fee amount
      */
-    function _deriveAssetAmounts(PirexGmx.Fees f, uint256 amount)
+    function _computeAssetAmounts(PirexGmx.Fees f, uint256 assets)
         internal
         view
-        returns (uint256 userAmount, uint256 feeAmount)
+        returns (uint256 postFeeAmount, uint256 feeAmount)
     {
-        feeAmount = (amount * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
-        userAmount = amount - feeAmount;
+        feeAmount = (assets * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
+        postFeeAmount = assets - feeAmount;
+    }
+
+    /**
+        @notice Calculate the WETH/esGMX rewards for either GMX or GLP
+        @param  account  address  Whether to calculate WETH or esGMX rewards
+        @param  isWeth   bool     Whether to calculate WETH or esGMX rewards
+        @param  useGmx   bool     Whether the calculation should be for GMX
+        @return         uint256   Amount of WETH/esGMX rewards
+     */
+    function _calculateRewards(
+        address account,
+        bool isWeth,
+        bool useGmx
+    ) internal view returns (uint256) {
+        RewardTracker r;
+
+        if (isWeth) {
+            r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+        } else {
+            r = useGmx ? STAKED_GMX : FEE_STAKED_GLP;
+        }
+
+        address distributor = r.distributor();
+        uint256 pendingRewards = IRewardDistributor(distributor)
+            .pendingRewards();
+        uint256 distributorBalance = (isWeth ? WETH : ERC20(ES_GMX)).balanceOf(
+            distributor
+        );
+        uint256 blockReward = pendingRewards > distributorBalance
+            ? distributorBalance
+            : pendingRewards;
+        uint256 precision = r.PRECISION();
+        uint256 cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
+            ((blockReward * precision) / r.totalSupply());
+
+        if (cumulativeRewardPerToken == 0) return 0;
+
+        return
+            r.claimableReward(account) +
+            ((r.stakedAmounts(account) *
+                (cumulativeRewardPerToken -
+                    r.previousCumulatedRewardPerToken(account))) / precision);
     }
 
     /**

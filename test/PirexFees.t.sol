@@ -16,26 +16,6 @@ contract PirexFeesTest is Helper {
     uint8 internal constant MAX_TREASURY_PERCENT = 75;
 
     /**
-        @notice Get PirexFee variables that are frequently accessed
-        @return feeNumerator     uint256  Fee numerator (i.e. fee value)
-        @return treasury         address  Treasury address
-        @return contributors     address  Contributors address
-     */
-    function _getPirexFeeVariables(PirexGmx.Fees f)
-        internal
-        view
-        returns (
-            uint256 feeNumerator,
-            address treasury,
-            address contributors
-        )
-    {
-        feeNumerator = pirexGmx.fees(f);
-        treasury = pirexFees.treasury();
-        contributors = pirexFees.contributors();
-    }
-
-    /**
         @notice Calculate the expected PirexFee fee values
         @param  assets                            uint256  Underlying GMX or GLP token assets
         @param  feeNumerator                      uint256  Fee numerator
@@ -55,14 +35,10 @@ contract PirexFeesTest is Helper {
             uint256 expectedContributorsDistribution
         )
     {
-        uint256 feeDenominator = pirexGmx.FEE_DENOMINATOR();
-        uint256 feePercent = pirexFees.PERCENT_DENOMINATOR();
-        uint256 treasuryPercent = pirexFees.treasuryPercent();
-
         expectedDistribution = (assets * feeNumerator) / feeDenominator;
         expectedTreasuryDistribution =
             (expectedDistribution * treasuryPercent) /
-            feePercent;
+            percentDenominator;
         expectedContributorsDistribution =
             expectedDistribution -
             expectedTreasuryDistribution;
@@ -297,13 +273,7 @@ contract PirexFeesTest is Helper {
         pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
 
         ERC20 token = pxGmx;
-        (
-            uint256 feeNumerator,
-            address treasury,
-            address contributors
-        ) = _getPirexFeeVariables(PirexGmx.Fees.Deposit);
 
-        assertEq(depositFee, feeNumerator);
         assertEq(0, token.balanceOf(treasury));
         assertEq(0, token.balanceOf(contributors));
 
@@ -318,7 +288,7 @@ contract PirexFeesTest is Helper {
                 uint256 expectedDistribution,
                 uint256 expectedTreasuryDistribution,
                 uint256 expectedContributorsDistribution
-            ) = _calculateExpectedPirexFeeValues(gmxAmount, feeNumerator);
+            ) = _calculateExpectedPirexFeeValues(gmxAmount, depositFee);
 
             totalExpectedTreasuryDistribution += expectedTreasuryDistribution;
             totalExpectedContributorsDistribution += expectedContributorsDistribution;
@@ -364,13 +334,7 @@ contract PirexFeesTest is Helper {
         pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
 
         ERC20 token = pxGlp;
-        (
-            uint256 feeNumerator,
-            address treasury,
-            address contributors
-        ) = _getPirexFeeVariables(PirexGmx.Fees.Deposit);
 
-        assertEq(depositFee, pirexGmx.fees(PirexGmx.Fees.Deposit));
         assertEq(0, token.balanceOf(treasury));
         assertEq(0, token.balanceOf(contributors));
 
@@ -390,7 +354,7 @@ contract PirexFeesTest is Helper {
                 uint256 expectedContributorsDistribution
             ) = _calculateExpectedPirexFeeValues(
                     postFeeAmount + feeAmount,
-                    feeNumerator
+                    depositFee
                 );
 
             totalExpectedTreasuryDistribution += expectedTreasuryDistribution;
@@ -435,13 +399,6 @@ contract PirexFeesTest is Helper {
 
         pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
 
-        (
-            uint256 feeNumerator,
-            address treasury,
-            address contributors
-        ) = _getPirexFeeVariables(PirexGmx.Fees.Deposit);
-
-        assertEq(depositFee, feeNumerator);
         assertEq(0, pxGlp.balanceOf(treasury));
         assertEq(0, pxGlp.balanceOf(contributors));
 
@@ -450,7 +407,7 @@ contract PirexFeesTest is Helper {
 
         // Perform pxGLP deposit using WBTC (ERC20) for all test accounts and assert fees
         for (uint256 i; i < testAccounts.length; ++i) {
-            (uint256 postFeeAmount, uint256 feeAmount) = _depositGlp(
+            (uint256 deposited, , ) = _depositGlp(
                 wbtcAmount,
                 testAccounts[i]
             );
@@ -460,8 +417,8 @@ contract PirexFeesTest is Helper {
                 uint256 expectedTreasuryDistribution,
                 uint256 expectedContributorsDistribution
             ) = _calculateExpectedPirexFeeValues(
-                    postFeeAmount + feeAmount,
-                    feeNumerator
+                    deposited,
+                    depositFee
                 );
 
             totalExpectedTreasuryDistribution += expectedTreasuryDistribution;
@@ -511,13 +468,7 @@ contract PirexFeesTest is Helper {
         pirexGmx.setFee(PirexGmx.Fees.Redemption, redemptionFee);
 
         ERC20 token = pxGlp;
-        (
-            uint256 feeNumerator,
-            address treasury,
-            address contributors
-        ) = _getPirexFeeVariables(PirexGmx.Fees.Redemption);
 
-        assertEq(redemptionFee, feeNumerator);
         assertEq(0, token.balanceOf(treasury));
         assertEq(0, token.balanceOf(contributors));
 
@@ -537,7 +488,7 @@ contract PirexFeesTest is Helper {
                 uint256 expectedContributorsDistribution
             ) = _calculateExpectedPirexFeeValues(
                     redemptionAmount,
-                    feeNumerator
+                    redemptionFee
                 );
 
             totalExpectedTreasuryDistribution += expectedTreasuryDistribution;
@@ -602,13 +553,7 @@ contract PirexFeesTest is Helper {
         pirexGmx.setFee(PirexGmx.Fees.Redemption, redemptionFee);
 
         ERC20 token = pxGlp;
-        (
-            uint256 feeNumerator,
-            address treasury,
-            address contributors
-        ) = _getPirexFeeVariables(PirexGmx.Fees.Redemption);
 
-        assertEq(redemptionFee, feeNumerator);
         assertEq(0, token.balanceOf(treasury));
         assertEq(0, token.balanceOf(contributors));
 
@@ -628,7 +573,7 @@ contract PirexFeesTest is Helper {
                 uint256 expectedContributorsDistribution
             ) = _calculateExpectedPirexFeeValues(
                     redemptionAmount,
-                    feeNumerator
+                    redemptionFee
                 );
 
             totalExpectedTreasuryDistribution += expectedTreasuryDistribution;
@@ -711,12 +656,6 @@ contract PirexFeesTest is Helper {
 
         pirexGmx.setFee(PirexGmx.Fees.Reward, rewardFee);
 
-        (
-            uint256 feeNumerator,
-            address treasury,
-            address contributors
-        ) = _getPirexFeeVariables(PirexGmx.Fees.Reward);
-
         assertEq(0, WETH.balanceOf(address(pirexFees)));
         assertEq(0, WETH.balanceOf(treasury));
         assertEq(0, WETH.balanceOf(contributors));
@@ -728,10 +667,8 @@ contract PirexFeesTest is Helper {
             uint256 totalExpectedDistributionPxGmx,
             uint256 totalExpectedTreasuryDistributionPxGmx,
             uint256 totalExpectedContributorsDistributionPxGmx
-        ) = _claimAndAggregateExpectedFees(feeNumerator);
+        ) = _claimAndAggregateExpectedFees(rewardFee);
 
-        // Pre-claim balance assertions to ensure we're (mostly) starting from a clean slate
-        assertEq(rewardFee, feeNumerator);
         assertEq(
             totalExpectedDistributionWeth,
             WETH.balanceOf(address(pirexFees))

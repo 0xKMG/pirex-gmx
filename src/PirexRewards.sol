@@ -213,9 +213,8 @@ contract PirexRewards is OwnableUpgradeable {
             uint256 rewards
         )
     {
-        Common.UserState memory userState = producerTokens[producerToken].userStates[
-            user
-        ];
+        Common.UserState memory userState = producerTokens[producerToken]
+            .userStates[user];
 
         return (userState.lastUpdate, userState.lastBalance, userState.rewards);
     }
@@ -282,7 +281,9 @@ contract PirexRewards is OwnableUpgradeable {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (user == address(0)) revert ZeroAddress();
 
-        Common.UserState storage u = producerTokens[producerToken].userStates[user];
+        Common.UserState storage u = producerTokens[producerToken].userStates[
+            user
+        ];
         uint256 balance = producerToken.balanceOf(user);
 
         // Calculate the amount of rewards accrued by the user up to this call
@@ -302,9 +303,10 @@ contract PirexRewards is OwnableUpgradeable {
         @param  globalState    Common.GlobalState  Global state of the producer token
         @param  producerToken  ERC20               Producer token contract
     */
-    function _globalAccrue(Common.GlobalState storage globalState, ERC20 producerToken)
-        internal
-    {
+    function _globalAccrue(
+        Common.GlobalState storage globalState,
+        ERC20 producerToken
+    ) internal {
         uint256 totalSupply = producerToken.totalSupply();
         uint256 lastUpdate = globalState.lastUpdate;
         uint256 lastSupply = globalState.lastSupply;
@@ -406,7 +408,11 @@ contract PirexRewards is OwnableUpgradeable {
                     // Update reward state (i.e. amount) to reflect reward tokens transferred out
                     p.rewardStates[rewardToken] = rewardState - amount;
 
-                    producer.claimUserReward(recipient, address(rewardToken), amount);
+                    producer.claimUserReward(
+                        address(rewardToken),
+                        amount,
+                        recipient
+                    );
                 }
             }
         }

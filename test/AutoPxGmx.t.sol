@@ -11,7 +11,6 @@ contract AutoPxGmxTest is Helper {
     event PlatformFeeUpdated(uint256 fee);
     event CompoundIncentiveUpdated(uint256 percent);
     event PlatformUpdated(address _platform);
-    event RewardsModuleUpdated(address _rewardsModule);
     event Compounded(
         address indexed caller,
         uint24 fee,
@@ -239,52 +238,6 @@ contract AutoPxGmxTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        setRewardsModule TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-        @notice Test tx reversion: caller is unauthorized
-     */
-    function testCannotSetRewardsModuleUnauthorized() external {
-        address rewardsModule = address(this);
-
-        vm.expectRevert("UNAUTHORIZED");
-
-        vm.prank(testAccounts[0]);
-
-        autoPxGmx.setRewardsModule(rewardsModule);
-    }
-
-    /**
-        @notice Test tx reversion: rewardsModule is zero address
-     */
-    function testCannotSetRewardsModuleZeroAddress() external {
-        address invalidRewardsModule = address(0);
-
-        vm.expectRevert(AutoPxGmx.ZeroAddress.selector);
-
-        autoPxGmx.setRewardsModule(invalidRewardsModule);
-    }
-
-    /**
-        @notice Test tx success: set rewardsModule
-     */
-    function testSetRewardsModule() external {
-        address initialRewardsModule = autoPxGmx.rewardsModule();
-        address rewardsModule = address(this);
-        address expectedRewardsModule = rewardsModule;
-
-        vm.expectEmit(false, false, false, true, address(autoPxGmx));
-
-        emit RewardsModuleUpdated(expectedRewardsModule);
-
-        autoPxGmx.setRewardsModule(rewardsModule);
-
-        assertEq(expectedRewardsModule, autoPxGmx.rewardsModule());
-        assertTrue(expectedRewardsModule != initialRewardsModule);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                         totalAssets TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -357,9 +310,6 @@ contract AutoPxGmxTest is Helper {
         vm.assume(gmxAmount < 100000e18);
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
-
-        // Configure initial pre-compound state
-        autoPxGmx.setRewardsModule(address(pirexRewards));
 
         (
             uint256 wethRewardState,
