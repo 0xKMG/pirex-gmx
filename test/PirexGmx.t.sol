@@ -11,7 +11,6 @@ import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 import {Helper} from "./Helper.sol";
 
 contract PirexGmxTest is Test, Helper {
-    bytes32 internal constant DEFAULT_DELEGATION_SPACE = bytes32("gmx.eth");
     bytes internal constant PAUSED_ERROR = "Pausable: paused";
     bytes internal constant NOT_PAUSED_ERROR = "Pausable: not paused";
     bytes internal constant INSUFFICIENT_OUTPUT_ERROR =
@@ -1339,17 +1338,17 @@ contract PirexGmxTest is Test, Helper {
         // Set the vote delegate before clearing it when setting new delegation space
         pirexGmx.setVoteDelegate(voteDelegate);
 
-        assertEq(DEFAULT_DELEGATION_SPACE, pirexGmx.delegationSpace());
+        assertEq(delegationSpace, pirexGmx.delegationSpace());
         assertEq(
             voteDelegate,
-            d.delegation(address(pirexGmx), DEFAULT_DELEGATION_SPACE)
+            d.delegation(address(pirexGmx), delegationSpace)
         );
 
         string memory space = "new.eth";
         bytes32 expectedDelegationSpace = bytes32(bytes(space));
         address expectedVoteDelegate = clear ? address(0) : voteDelegate;
 
-        assertFalse(expectedDelegationSpace == DEFAULT_DELEGATION_SPACE);
+        assertFalse(expectedDelegationSpace == delegationSpace);
 
         vm.expectEmit(false, false, false, true, address(pirexGmx));
 
@@ -1360,7 +1359,7 @@ contract PirexGmxTest is Test, Helper {
         assertEq(expectedDelegationSpace, pirexGmx.delegationSpace());
         assertEq(
             expectedVoteDelegate,
-            d.delegation(address(pirexGmx), DEFAULT_DELEGATION_SPACE)
+            d.delegation(address(pirexGmx), delegationSpace)
         );
     }
 

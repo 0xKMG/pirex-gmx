@@ -163,6 +163,7 @@ contract Helper is Test, HelperEvents, HelperState {
         feeTypes[1] = PirexGmx.Fees.Redemption;
         feeTypes[2] = PirexGmx.Fees.Reward;
         feeDenominator = pirexGmx.FEE_DENOMINATOR();
+        delegationSpace = pirexGmx.delegationSpace();
         percentDenominator = pirexFees.PERCENT_DENOMINATOR();
         treasuryPercent = pirexFees.treasuryPercent();
         treasury = pirexFees.treasury();
