@@ -12,6 +12,7 @@ import {PxGmx} from "src/PxGmx.sol";
 import {PxERC20} from "src/PxERC20.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexFees} from "src/PirexFees.sol";
+import {Common} from "src/Common.sol";
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
 import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
@@ -90,6 +91,10 @@ contract Helper is Test, HelperEvents, HelperState {
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
 
+    // Arbitrary addresses used for testing fees
+    address internal treasuryAddress = 0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
+    address internal contributorsAddress = 0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
+
     // Used as admin on upgradable contracts
     // We should not use any of the testAccounts as they won't be able to be used on related tests
     // due to the limitation of admin role in these proxy contracts
@@ -121,7 +126,7 @@ contract Helper is Test, HelperEvents, HelperState {
             "pxGLP",
             18
         );
-        pirexFees = new PirexFees(testAccounts[1], testAccounts[2]);
+        pirexFees = new PirexFees(treasuryAddress, contributorsAddress);
         pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
@@ -161,6 +166,7 @@ contract Helper is Test, HelperEvents, HelperState {
         percentDenominator = pirexFees.PERCENT_DENOMINATOR();
         treasuryPercent = pirexFees.treasuryPercent();
         treasury = pirexFees.treasury();
+        maxTreasuryPercent = 75;
         contributors = pirexFees.contributors();
     }
 
@@ -639,5 +645,67 @@ contract Helper is Test, HelperEvents, HelperState {
             ((r.stakedAmounts(account) *
                 (cumulativeRewardPerToken -
                     r.previousCumulatedRewardPerToken(account))) / precision);
+    }
+
+    /**
+        @notice Getter for a producer token's global state
+    */
+    function _getGlobalState(ERC20 producerToken)
+        internal
+        view
+        returns (
+            uint256 lastUpdate,
+            uint256 lastSupply,
+            uint256 rewards
+        )
+    {
+        Common.GlobalState memory globalState = pirexRewards.producerTokens(
+            producerToken
+        );
+
+        return (
+            globalState.lastUpdate,
+            globalState.lastSupply,
+            globalState.rewards
+        );
+    }
+
+    /**
+        @notice Calculate the global rewards accrued since the last update
+        @param  producerToken  ERC20    Producer token
+        @return                uint256  Global rewards
+    */
+    function _calculateGlobalRewards(ERC20 producerToken)
+        internal
+        view
+        returns (uint256)
+    {
+        (
+            uint256 lastUpdate,
+            uint256 lastSupply,
+            uint256 rewards
+        ) = _getGlobalState(producerToken);
+
+        return rewards + (block.timestamp - lastUpdate) * lastSupply;
+    }
+
+    /**
+        @notice Calculate a user's rewards since the last update
+        @param  producerToken  ERC20    Producer token contract
+        @param  user           address  User
+        @return                uint256  User rewards
+    */
+    function _calculateUserRewards(ERC20 producerToken, address user)
+        internal
+        view
+        returns (uint256)
+    {
+        (
+            uint256 lastUpdate,
+            uint256 lastBalance,
+            uint256 rewards
+        ) = pirexRewards.getUserState(producerToken, user);
+
+        return rewards + lastBalance * (block.timestamp - lastUpdate);
     }
 }
