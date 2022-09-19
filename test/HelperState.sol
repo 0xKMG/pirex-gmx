@@ -9,10 +9,12 @@ contract HelperState {
     uint256 internal feeMax;
     uint256 internal feeDenominator;
     PirexGmx.Fees[3] internal feeTypes;
+    bytes32 internal delegationSpace;
 
     // PirexFees reusable state
     uint8 percentDenominator;
     uint8 treasuryPercent;
+    uint8 maxTreasuryPercent;
     address treasury;
     address contributors;
 }

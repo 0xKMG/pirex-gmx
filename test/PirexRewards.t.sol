@@ -9,71 +9,8 @@ import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexRewardsMock} from "src/mocks/PirexRewardsMock.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {Helper} from "./Helper.sol";
-import {Common} from "src/Common.sol";
 
 contract PirexRewardsTest is Helper {
-    /**
-        @notice Getter for a producer token's global state
-    */
-    function _getGlobalState(ERC20 producerToken)
-        internal
-        view
-        returns (
-            uint256 lastUpdate,
-            uint256 lastSupply,
-            uint256 rewards
-        )
-    {
-        Common.GlobalState memory globalState = pirexRewards.producerTokens(
-            producerToken
-        );
-
-        return (
-            globalState.lastUpdate,
-            globalState.lastSupply,
-            globalState.rewards
-        );
-    }
-
-    /**
-        @notice Calculate the global rewards accrued since the last update
-        @param  producerToken  ERC20    Producer token
-        @return                uint256  Global rewards
-    */
-    function _calculateGlobalRewards(ERC20 producerToken)
-        internal
-        view
-        returns (uint256)
-    {
-        (
-            uint256 lastUpdate,
-            uint256 lastSupply,
-            uint256 rewards
-        ) = _getGlobalState(producerToken);
-
-        return rewards + (block.timestamp - lastUpdate) * lastSupply;
-    }
-
-    /**
-        @notice Calculate a user's rewards since the last update
-        @param  producerToken  ERC20    Producer token contract
-        @param  user           address  User
-        @return                uint256  User rewards
-    */
-    function _calculateUserRewards(ERC20 producerToken, address user)
-        internal
-        view
-        returns (uint256)
-    {
-        (
-            uint256 lastUpdate,
-            uint256 lastBalance,
-            uint256 rewards
-        ) = pirexRewards.getUserState(producerToken, user);
-
-        return rewards + lastBalance * (block.timestamp - lastUpdate);
-    }
-
     /**
         @notice Perform assertions for global state
     */
@@ -890,8 +827,8 @@ contract PirexRewardsTest is Helper {
         vm.assume(additionalDeposit < rounds);
 
         // Perform initial pxGMX+pxGLP deposits for all test accounts before calling harvest
-        _depositForTestAccountsPxGmx(multiplier);
-        _depositForTestAccountsPxGlp(multiplier, useETH);
+        _depositGmxForTestAccounts(true, address(this), multiplier);
+        _depositGlpForTestAccounts(true, address(this), multiplier, useETH);
 
         ERC20[] memory expectedProducerTokens = new ERC20[](4);
         ERC20[] memory expectedRewardTokens = new ERC20[](4);
@@ -910,8 +847,8 @@ contract PirexRewardsTest is Helper {
         for (uint256 i; i < rounds; ++i) {
             // Perform additional deposits before the next harvest at randomly chosen index
             if (i == additionalDeposit) {
-                _depositForTestAccountsPxGmx(multiplier);
-                _depositForTestAccountsPxGlp(multiplier, useETH);
+                _depositGmxForTestAccounts(true, address(this), multiplier);
+                _depositGlpForTestAccounts(true, address(this),multiplier, useETH);
             }
 
             // Time skip to accrue rewards for each round
@@ -1408,8 +1345,8 @@ contract PirexRewardsTest is Helper {
         vm.assume(multiplier != 0);
         vm.assume(multiplier < 10);
 
-        _depositForTestAccountsPxGmx(multiplier);
-        _depositForTestAccountsPxGlp(multiplier, useETH);
+        _depositGmxForTestAccounts(true, address(this), multiplier);
+        _depositGlpForTestAccounts(true, address(this), multiplier, useETH);
 
         vm.warp(block.timestamp + secondsElapsed);
 
@@ -1843,8 +1780,7 @@ contract PirexRewardsTest is Helper {
         address receiver = address(this);
         uint256 gmxAmount = 100e18;
 
-        _mintGmx(gmxAmount);
-        GMX.approve(address(pirexGmx), gmxAmount);
+        _mintApproveGmx(gmxAmount, address(this), address(pirexGmx), gmxAmount);
         pirexGmx.depositGmx(gmxAmount, receiver);
 
         vm.warp(block.timestamp + 1 days);
