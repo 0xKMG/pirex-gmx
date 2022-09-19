@@ -627,7 +627,7 @@ contract PirexFeesTest is Helper {
         pirexRewards.addRewardToken(pxGmx, WETH);
 
         // Mint pxGMX to accrue rewards and test fee distribution for all test accounts
-        _depositForTestAccountsPxGmx(multiplier);
+        _depositGmxForTestAccounts(false, address(this), multiplier);
 
         // Forward timestamp to begin accruing rewards
         vm.warp(block.timestamp + secondsElapsed);

@@ -827,8 +827,8 @@ contract PirexRewardsTest is Helper {
         vm.assume(additionalDeposit < rounds);
 
         // Perform initial pxGMX+pxGLP deposits for all test accounts before calling harvest
-        _depositForTestAccountsPxGmx(multiplier);
-        _depositForTestAccountsPxGlp(multiplier, useETH);
+        _depositGmxForTestAccounts(true, address(this), multiplier);
+        _depositGlpForTestAccounts(true, address(this), multiplier, useETH);
 
         ERC20[] memory expectedProducerTokens = new ERC20[](4);
         ERC20[] memory expectedRewardTokens = new ERC20[](4);
@@ -847,8 +847,8 @@ contract PirexRewardsTest is Helper {
         for (uint256 i; i < rounds; ++i) {
             // Perform additional deposits before the next harvest at randomly chosen index
             if (i == additionalDeposit) {
-                _depositForTestAccountsPxGmx(multiplier);
-                _depositForTestAccountsPxGlp(multiplier, useETH);
+                _depositGmxForTestAccounts(true, address(this), multiplier);
+                _depositGlpForTestAccounts(true, address(this),multiplier, useETH);
             }
 
             // Time skip to accrue rewards for each round
@@ -1345,8 +1345,8 @@ contract PirexRewardsTest is Helper {
         vm.assume(multiplier != 0);
         vm.assume(multiplier < 10);
 
-        _depositForTestAccountsPxGmx(multiplier);
-        _depositForTestAccountsPxGlp(multiplier, useETH);
+        _depositGmxForTestAccounts(true, address(this), multiplier);
+        _depositGlpForTestAccounts(true, address(this), multiplier, useETH);
 
         vm.warp(block.timestamp + secondsElapsed);
 
@@ -1780,8 +1780,7 @@ contract PirexRewardsTest is Helper {
         address receiver = address(this);
         uint256 gmxAmount = 100e18;
 
-        _mintGmx(gmxAmount);
-        GMX.approve(address(pirexGmx), gmxAmount);
+        _mintApproveGmx(gmxAmount, address(this), address(pirexGmx), gmxAmount);
         pirexGmx.depositGmx(gmxAmount, receiver);
 
         vm.warp(block.timestamp + 1 days);
