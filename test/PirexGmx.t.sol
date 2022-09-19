@@ -434,6 +434,136 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
+                        depositFsGlp TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: contract is paused
+     */
+    function testCannotDepositFsGlpPaused() external {
+        _pauseContract();
+
+        uint256 assets = 1;
+        address receiver = address(this);
+
+        vm.expectRevert(PAUSED_ERROR);
+
+        pirexGmx.depositFsGlp(assets, receiver);
+    }
+
+    /**
+        @notice Test tx reversion: assets is zero
+     */
+    function testCannotDepositFsGlpAssetsZeroAmount() external {
+        uint256 invalidAssets = 0;
+        address receiver = address(this);
+
+        vm.expectRevert(PirexGmx.ZeroAmount.selector);
+
+        pirexGmx.depositFsGlp(invalidAssets, receiver);
+    }
+
+    /**
+        @notice Test tx reversion: receiver is zero address
+     */
+    function testCannotDepositFsGlpReceiverZeroAddress() external {
+        uint256 assets = 1;
+        address invalidReceiver = address(0);
+
+        vm.expectRevert(PirexGmx.ZeroAddress.selector);
+
+        pirexGmx.depositFsGlp(assets, invalidReceiver);
+    }
+
+    /**
+        @notice Test tx reversion: insufficient fsGLP balance
+        @param  ethAmount  uint80  ETH amount
+     */
+    function testCannotDepositFsGlpInsufficientBalance(uint80 ethAmount)
+        external
+    {
+        vm.assume(ethAmount > 0.001 ether);
+        vm.assume(ethAmount < 10000 ether);
+
+        uint256 invalidAssets = _mintAndApproveFsGlp(ethAmount, address(this)) +
+            1;
+        address receiver = testAccounts[0];
+
+        vm.expectRevert("StakedGlp: transfer amount exceeds allowance");
+
+        pirexGmx.depositFsGlp(invalidAssets, receiver);
+    }
+
+    /**
+        @notice Test tx success: deposit fsGLP for pxGLP
+        @param  depositFee      uint24  Deposit fee
+        @param  multiplier      uint8   Multiplied with fixed token amounts for randomness
+        @param  separateCaller  bool    Whether to separate method caller and receiver
+     */
+    function testDepositFsGlp(
+        uint24 depositFee,
+        uint8 multiplier,
+        bool separateCaller
+    ) external {
+        vm.assume(depositFee <= feeMax);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+
+        _setFee(PirexGmx.Fees.Deposit, depositFee);
+
+        uint256 tLen = testAccounts.length;
+        uint256 expectedPreDepositGlpBalancePirexGmx = 0;
+        uint256 expectedPreDepositPxGlpSupply = 0;
+
+        assertEq(
+            expectedPreDepositGlpBalancePirexGmx,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+        );
+        assertEq(expectedPreDepositPxGlpSupply, pxGlp.totalSupply());
+
+        uint256 expectedPostDepositGlpBalancePirexGmx = expectedPreDepositGlpBalancePirexGmx;
+        uint256 expectedPostDepositPxGlpSupply = expectedPreDepositPxGlpSupply;
+
+        for (uint256 i; i < tLen; ++i) {
+            address testAccount = testAccounts[i];
+            address caller = separateCaller ? address(this) : testAccount;
+            uint256 assets = _mintAndApproveFsGlp(1 ether * multiplier, caller);
+            address receiver = testAccount;
+
+            vm.prank(caller);
+            vm.expectEmit(true, true, true, false, address(pirexGmx));
+
+            emit DepositGlp(
+                caller,
+                receiver,
+                address(STAKED_GLP),
+                0,
+                0,
+                0,
+                0,
+                0,
+                0
+            );
+
+            (uint256 deposited, uint256 postFeeAmount, ) = pirexGmx
+                .depositFsGlp(assets, receiver);
+            uint256 receiverPxGlpBalance = pxGlp.balanceOf(receiver);
+
+            expectedPostDepositGlpBalancePirexGmx += deposited;
+            expectedPostDepositPxGlpSupply += deposited;
+
+            assertLt(0, receiverPxGlpBalance);
+            assertEq(postFeeAmount, receiverPxGlpBalance);
+        }
+
+        assertEq(
+            expectedPostDepositGlpBalancePirexGmx,
+            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+        );
+        assertEq(expectedPostDepositPxGlpSupply, pxGlp.totalSupply());
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         depositGlpETH TESTS
     //////////////////////////////////////////////////////////////*/
 

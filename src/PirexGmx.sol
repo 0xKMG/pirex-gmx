@@ -367,6 +367,59 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
+        @notice Deposit fsGLP for pxGLP
+        @param  assets    uint256  fsGLP amount
+        @param  receiver  address  pxGLP receiver
+        @return           address  fsGLP deposited
+        @return           uint256  pxGLP minted for the receiver
+        @return           uint256  pxGLP distributed as fees
+     */
+    function depositFsGlp(uint256 assets, address receiver)
+        external
+        whenNotPaused
+        nonReentrant
+        returns (
+            uint256,
+            uint256,
+            uint256
+        )
+    {
+        if (assets == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Transfer the caller's fsGLP (unstaked for the user, staked for this contract)
+        stakedGlp.transferFrom(msg.sender, address(this), assets);
+
+        // Get the pxGLP amounts for the receiver and the protocol (fees)
+        (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
+            Fees.Deposit,
+            assets
+        );
+
+        // Mint pxGLP for the receiver (excludes fees)
+        pxGlp.mint(receiver, postFeeAmount);
+
+        // Mint pxGLP for fee distribution contract
+        if (feeAmount != 0) {
+            pxGlp.mint(address(pirexFees), feeAmount);
+        }
+
+        emit DepositGlp(
+            msg.sender,
+            receiver,
+            address(stakedGlp),
+            0,
+            0,
+            0,
+            assets,
+            postFeeAmount,
+            feeAmount
+        );
+
+        return (assets, postFeeAmount, feeAmount);
+    }
+
+    /**
         @notice Deposit GLP for pxGLP
         @param  token          address  GMX-whitelisted token for minting GLP (optional)
         @param  tokenAmount    uint256  Token amount
