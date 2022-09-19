@@ -30,6 +30,14 @@ import {HelperEvents} from "./HelperEvents.sol";
 import {HelperState} from "./HelperState.sol";
 
 contract Helper is Test, HelperEvents, HelperState {
+    enum RewardTrackers {
+        GmxWeth,
+        Gmx,
+        GlpWeth,
+        Glp,
+        Mp
+    }
+
     IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     RewardTracker public constant REWARD_TRACKER_GMX =
@@ -92,8 +100,10 @@ contract Helper is Test, HelperEvents, HelperState {
     ];
 
     // Arbitrary addresses used for testing fees
-    address internal treasuryAddress = 0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
-    address internal contributorsAddress = 0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
+    address internal treasuryAddress =
+        0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
+    address internal contributorsAddress =
+        0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
 
     // Used as admin on upgradable contracts
     // We should not use any of the testAccounts as they won't be able to be used on related tests
@@ -665,39 +675,6 @@ contract Helper is Test, HelperEvents, HelperState {
     }
 
     /**
-        @notice Precise calculations for bnGMX rewards (i.e. multiplier points)
-        @param  account  address  Account with bnGMX rewards
-        @return          uint256  bnGMX amount
-     */
-    function calculateBnGmxRewards(address account)
-        public
-        view
-        returns (uint256)
-    {
-        address distributor = REWARD_TRACKER_MP.distributor();
-        uint256 pendingRewards = IRewardDistributor(distributor)
-            .pendingRewards();
-        uint256 distributorBalance = ERC20(BN_GMX).balanceOf(distributor);
-        uint256 blockReward = pendingRewards > distributorBalance
-            ? distributorBalance
-            : pendingRewards;
-        uint256 precision = REWARD_TRACKER_MP.PRECISION();
-        uint256 cumulativeRewardPerToken = REWARD_TRACKER_MP
-            .cumulativeRewardPerToken() +
-            ((blockReward * precision) / REWARD_TRACKER_MP.totalSupply());
-
-        if (cumulativeRewardPerToken == 0) return 0;
-
-        return
-            REWARD_TRACKER_MP.claimableReward(account) +
-            ((REWARD_TRACKER_MP.stakedAmounts(account) *
-                (cumulativeRewardPerToken -
-                    REWARD_TRACKER_MP.previousCumulatedRewardPerToken(
-                        account
-                    ))) / precision);
-    }
-
-    /**
         @notice Compute post-fee asset and fee amounts from a fee type and total assets
         @param  f              Fees     Fee type
         @param  assets         uint256  GMX/GLP/WETH asset amount
@@ -715,44 +692,62 @@ contract Helper is Test, HelperEvents, HelperState {
 
     /**
         @notice Calculate the WETH/esGMX rewards for either GMX or GLP
-        @param  account  address  Whether to calculate WETH or esGMX rewards
-        @param  isWeth   bool     Whether to calculate WETH or esGMX rewards
-        @param  useGmx   bool     Whether the calculation should be for GMX
-        @return         uint256   Amount of WETH/esGMX rewards
+        @param  account        address  Whether to calculate WETH or esGMX rewards
+        @param  rewardTracker  enum     RewardTrackers
+        @return                uint256  Amount of WETH/esGMX rewards
      */
-    function _calculateRewards(
-        address account,
-        bool isWeth,
-        bool useGmx
-    ) internal view returns (uint256) {
-        RewardTracker r;
+    function _calculateRewards(address account, RewardTrackers rewardTracker)
+        internal
+        view
+        returns (uint256)
+    {
+        RewardTracker tracker;
+        ERC20 reward;
 
-        if (isWeth) {
-            r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
-        } else {
-            r = useGmx ? STAKED_GMX : FEE_STAKED_GLP;
+        if (rewardTracker == RewardTrackers.GmxWeth) {
+            tracker = REWARD_TRACKER_GMX;
+            reward = WETH;
         }
 
-        address distributor = r.distributor();
+        if (rewardTracker == RewardTrackers.Gmx) {
+            tracker = STAKED_GMX;
+            reward = ERC20(ES_GMX);
+        }
+
+        if (rewardTracker == RewardTrackers.GlpWeth) {
+            tracker = REWARD_TRACKER_GLP;
+            reward = WETH;
+        }
+
+        if (rewardTracker == RewardTrackers.Glp) {
+            tracker = FEE_STAKED_GLP;
+            reward = ERC20(ES_GMX);
+        }
+
+        if (rewardTracker == RewardTrackers.Mp) {
+            tracker = REWARD_TRACKER_MP;
+            reward = ERC20(BN_GMX);
+        }
+
+        address distributor = tracker.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
-        uint256 distributorBalance = (isWeth ? WETH : ERC20(ES_GMX)).balanceOf(
-            distributor
-        );
+        uint256 distributorBalance = reward.balanceOf(distributor);
         uint256 blockReward = pendingRewards > distributorBalance
             ? distributorBalance
             : pendingRewards;
-        uint256 precision = r.PRECISION();
-        uint256 cumulativeRewardPerToken = r.cumulativeRewardPerToken() +
-            ((blockReward * precision) / r.totalSupply());
+        uint256 precision = tracker.PRECISION();
+        uint256 cumulativeRewardPerToken = tracker.cumulativeRewardPerToken() +
+            ((blockReward * precision) / tracker.totalSupply());
 
         if (cumulativeRewardPerToken == 0) return 0;
 
         return
-            r.claimableReward(account) +
-            ((r.stakedAmounts(account) *
+            tracker.claimableReward(account) +
+            ((tracker.stakedAmounts(account) *
                 (cumulativeRewardPerToken -
-                    r.previousCumulatedRewardPerToken(account))) / precision);
+                    tracker.previousCumulatedRewardPerToken(account))) /
+                precision);
     }
 
     /**

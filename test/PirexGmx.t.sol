@@ -1125,25 +1125,24 @@ contract PirexGmxTest is Test, Helper {
         );
         uint256 expectedWETHRewardsGmx = _calculateRewards(
             address(pirexGmx),
-            true,
-            true
+            RewardTrackers.GmxWeth
         );
         uint256 expectedWETHRewardsGlp = _calculateRewards(
             address(pirexGmx),
-            true,
-            false
+            RewardTrackers.GlpWeth
         );
         uint256 expectedEsGmxRewardsGmx = _calculateRewards(
             address(pirexGmx),
-            false,
-            true
+            RewardTrackers.Gmx
         );
         uint256 expectedEsGmxRewardsGlp = _calculateRewards(
             address(pirexGmx),
-            false,
-            false
+            RewardTrackers.Glp
         );
-        uint256 expectedBnGmxRewards = calculateBnGmxRewards(address(pirexGmx));
+        uint256 expectedBnGmxRewards = _calculateRewards(
+            address(pirexGmx),
+            RewardTrackers.Mp
+        );
         uint256 expectedWETHRewards = expectedWETHRewardsGmx +
             expectedWETHRewardsGlp;
         uint256 expectedEsGmxRewards = expectedEsGmxRewardsGmx +
@@ -1194,11 +1193,17 @@ contract PirexGmxTest is Test, Helper {
         );
 
         // Claimable reward amounts should all be zero post-claim
-        assertEq(0, _calculateRewards(address(pirexGmx), true, true));
-        assertEq(0, _calculateRewards(address(pirexGmx), true, false));
-        assertEq(0, _calculateRewards(address(pirexGmx), false, true));
-        assertEq(0, _calculateRewards(address(pirexGmx), false, false));
-        assertEq(0, calculateBnGmxRewards(address(pirexGmx)));
+        assertEq(
+            0,
+            _calculateRewards(address(pirexGmx), RewardTrackers.GmxWeth)
+        );
+        assertEq(
+            0,
+            _calculateRewards(address(pirexGmx), RewardTrackers.GlpWeth)
+        );
+        assertEq(0, _calculateRewards(address(pirexGmx), RewardTrackers.Gmx));
+        assertEq(0, _calculateRewards(address(pirexGmx), RewardTrackers.Glp));
+        assertEq(0, _calculateRewards(address(pirexGmx), RewardTrackers.Mp));
 
         // Claimed esGMX rewards + MP should also be staked immediately
         assertEq(
@@ -1709,9 +1714,8 @@ contract PirexGmxTest is Test, Helper {
         uint256 oldStakedGlpBalance = FEE_STAKED_GLP.balanceOf(oldContract);
         uint256 oldEsGmxClaimable = _calculateRewards(
             address(pirexGmx),
-            false,
-            true
-        ) + _calculateRewards(address(pirexGmx), false, false);
+            RewardTrackers.Gmx
+        ) + _calculateRewards(address(pirexGmx), RewardTrackers.Glp);
         uint256 oldMpBalance = REWARD_TRACKER_MP.claimable(oldContract);
 
         // Pause the contract before proceeding

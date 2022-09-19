@@ -848,7 +848,12 @@ contract PirexRewardsTest is Helper {
             // Perform additional deposits before the next harvest at randomly chosen index
             if (i == additionalDeposit) {
                 _depositGmxForTestAccounts(true, address(this), multiplier);
-                _depositGlpForTestAccounts(true, address(this),multiplier, useETH);
+                _depositGlpForTestAccounts(
+                    true,
+                    address(this),
+                    multiplier,
+                    useETH
+                );
             }
 
             // Time skip to accrue rewards for each round
@@ -861,23 +866,19 @@ contract PirexRewardsTest is Helper {
             uint256 expectedGmxGlobalRewards = _calculateGlobalRewards(pxGmx);
             expectedRewardAmounts[0] = _calculateRewards(
                 address(pirexGmx),
-                true,
-                true
+                RewardTrackers.GmxWeth
             );
             expectedRewardAmounts[1] = _calculateRewards(
                 address(pirexGmx),
-                true,
-                false
+                RewardTrackers.GlpWeth
             );
             expectedRewardAmounts[2] = _calculateRewards(
                 address(pirexGmx),
-                false,
-                true
+                RewardTrackers.Gmx
             );
             expectedRewardAmounts[3] = _calculateRewards(
                 address(pirexGmx),
-                false,
-                false
+                RewardTrackers.Glp
             );
 
             vm.expectEmit(true, true, true, true, address(pirexRewards));
