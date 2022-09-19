@@ -125,7 +125,7 @@ contract AutoPxGlpTest is Helper {
     }
 
     /**
-        @notice Perform common setup for reward accrual and test accounts for vault tests
+        @notice Perform deposit to the vault
         @param  user  address  User address
         @return       uint256  Amount of shares
      */
