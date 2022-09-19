@@ -270,6 +270,9 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
 
             // Update the pxGmx reward accrual
             _harvest(pxGmxAmountOut - totalPxGmxFee);
+        } else {
+            // Required to keep the globalState up-to-date
+            _globalAccrue();
         }
 
         emit Compounded(

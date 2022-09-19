@@ -546,7 +546,6 @@ contract AutoPxGlpTest is Helper {
         // Confirm current state prior to primary state mutating action
         assertEq(totalAssetsBeforeCompound, autoPxGlp.balanceOf(address(this)));
         assertGt(wethRewardState, 0);
-        assertGt(pxGmxRewardState, 0);
 
         // Perform compound and assertions partially (stack-too-deep)
         (
@@ -573,7 +572,6 @@ contract AutoPxGlpTest is Helper {
             pxGlpIncentive,
             totalAssetsBeforeCompound
         );
-
         assertEq(
             (pxGmxAmountOut - totalPxGmxFee),
             pxGmx.balanceOf(address(autoPxGlp)) - pxGmxBalanceBeforeCompound
@@ -862,18 +860,22 @@ contract AutoPxGlpTest is Helper {
         uint256 pxGmxRewardAfterFees = pxGmxRewardState -
             (pxGmxRewardState * autoPxGlp.platformFee()) /
             autoPxGlp.FEE_DENOMINATOR();
-        uint256 expectedLastUpdate = block.timestamp;
         uint256 expectedLastBalance = autoPxGlp.balanceOf(account);
+        uint256 expectedGlobalLastUpdate = block.timestamp;
         uint256 expectedGlobalRewards = _calculateGlobalRewards();
+
         uint256 expectedUserRewardState = _calculateUserRewards(account);
         uint256 expectedClaimableReward = (pxGmxRewardAfterFees *
             expectedUserRewardState) / expectedGlobalRewards;
 
         assertEq(autoPxGlp.rewardState(), 0);
 
-        vm.expectEmit(true, false, false, false, address(autoPxGlp));
+        // Event is only logged when rewards exists (ie. non-zero esGMX yields)
+        if (expectedClaimableReward != 0) {
+            vm.expectEmit(true, false, false, false, address(autoPxGlp));
 
-        emit PxGmxClaimed(account, receiver, 0);
+            emit PxGmxClaimed(account, receiver, 0);
+        }
 
         // Claim pxGMX reward from the vault and transfer it to the receiver directly
         autoPxGlp.claim(receiver);
@@ -884,13 +886,13 @@ contract AutoPxGlpTest is Helper {
             expectedClaimableReward + pxGmxBalanceBeforeClaim
         );
         _assertGlobalState(
-            expectedLastUpdate,
+            expectedGlobalLastUpdate,
             autoPxGlp.totalSupply(),
             expectedGlobalRewards - expectedUserRewardState
         );
         _assertUserRewardState(
             account,
-            expectedLastUpdate,
+            block.timestamp,
             expectedLastBalance,
             0
         );
