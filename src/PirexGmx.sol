@@ -11,6 +11,7 @@ import {PirexFees} from "src/PirexFees.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
+import {IStakedGlp} from "src/interfaces/IStakedGlp.sol";
 import {IVault} from "src/interfaces/IVault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {IPirexRewards} from "src/interfaces/IPirexRewards.sol";
@@ -32,6 +33,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         RewardTrackerGlp,
         FeeStakedGlp,
         StakedGmx,
+        StakedGlp,
         GmxVault,
         GlpManager
     }
@@ -74,6 +76,9 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     RewardTracker public stakedGmx =
         RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
+    IStakedGlp public stakedGlp =
+        IStakedGlp(0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE);
+
     IVault public gmxVault = IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
     address public glpManager = 0x321F653eED006AD1C29D174e17d96351BDe22649;
 
@@ -298,6 +303,11 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
             // Approve the new stakedGmx contract address allowance to the max
             GMX.safeApprove(contractAddress, type(uint256).max);
+            return;
+        }
+
+        if (c == Contracts.StakedGlp) {
+            stakedGlp = IStakedGlp(contractAddress);
             return;
         }
 

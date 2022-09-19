@@ -82,6 +82,8 @@ contract PirexGmxTest is Test, Helper {
             newContractAddress = address(pirexGmx.feeStakedGlp());
         if (c == PirexGmx.Contracts.StakedGmx)
             newContractAddress = address(pirexGmx.stakedGmx());
+        if (c == PirexGmx.Contracts.StakedGlp)
+            newContractAddress = address(pirexGmx.stakedGlp());
         if (c == PirexGmx.Contracts.GmxVault)
             newContractAddress = address(pirexGmx.gmxVault());
         if (c == PirexGmx.Contracts.GlpManager)
@@ -265,6 +267,18 @@ contract PirexGmxTest is Test, Helper {
             expectedContractAddressAllowance,
             GMX.allowance(address(pirexGmx), contractAddress)
         );
+    }
+
+    /**
+        @notice Test tx success: set feeStakedGlp to a new contract address
+     */
+    function testSetContractStakedGlp() external {
+        address currentContractAddress = address(pirexGmx.stakedGlp());
+        address contractAddress = address(this);
+
+        assertFalse(currentContractAddress == contractAddress);
+
+        _setContract(PirexGmx.Contracts.StakedGlp, contractAddress);
     }
 
     /**
