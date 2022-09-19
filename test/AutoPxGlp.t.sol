@@ -133,6 +133,7 @@ contract AutoPxGlpTest is Helper {
         vm.startPrank(user);
 
         pxGlp.approve(address(autoPxGlp), pxGlp.balanceOf(user));
+
         uint256 shares = autoPxGlp.deposit(pxGlp.balanceOf(user), user);
 
         vm.stopPrank();
