@@ -599,12 +599,13 @@ contract Helper is Test, HelperEvents, HelperState {
 
     /**
         @notice Deposit ETH for pxGLP for testing purposes
-        @param  etherAmount    uint256  Amount of ETH
-        @param  receiver       address  Receiver of pxGLP
-        @return postFeeAmount  uint256  pxGLP minted for the receiver
-        @return feeAmount      uint256  pxGLP distributed as fees
+        @param  etherAmount     uint256  Amount of ETH
+        @param  receiver        address  Receiver of pxGLP
+        @param  secondsElapsed  uint32   Seconds to forward timestamp
+        @return postFeeAmount   uint256  pxGLP minted for the receiver
+        @return feeAmount       uint256  pxGLP distributed as fees
      */
-    function _depositGlpETH(uint256 etherAmount, address receiver)
+    function _depositGlpETHWithTimeSkip(uint256 etherAmount, address receiver, uint256 secondsElapsed)
         internal
         returns (uint256 postFeeAmount, uint256 feeAmount)
     {
@@ -614,8 +615,22 @@ contract Helper is Test, HelperEvents, HelperState {
             value: etherAmount
         }(1, 1, receiver);
 
-        // Time skip to bypass the cooldown duration
-        vm.warp(block.timestamp + 1 hours);
+        vm.warp(block.timestamp + secondsElapsed);
+    }
+
+    /**
+        @notice Deposit ETH for pxGLP for testing purposes
+        @param  etherAmount    uint256  Amount of ETH
+        @param  receiver       address  Receiver of pxGLP
+        @return postFeeAmount  uint256  pxGLP minted for the receiver
+        @return feeAmount      uint256  pxGLP distributed as fees
+     */
+    function _depositGlpETH(uint256 etherAmount, address receiver)
+        internal
+        returns (uint256 postFeeAmount, uint256 feeAmount)
+    {
+        // Use the standard 1-hour time skip
+        return _depositGlpETHWithTimeSkip(etherAmount, receiver, 1 hours);
     }
 
     /**
