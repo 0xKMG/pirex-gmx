@@ -267,10 +267,13 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
                 pxGmx.safeTransfer(msg.sender, pxGmxIncentive);
 
             pxGmx.safeTransfer(owner, totalPxGmxFee - pxGmxIncentive);
-        }
 
-        // Harvest should always be called to properly keep globalState up-to-date
-        _harvest(pxGmxAmountOut - totalPxGmxFee);
+            // Update the pxGmx reward accrual
+            _harvest(pxGmxAmountOut - totalPxGmxFee);
+        } else {
+            // Required to keep the globalState up-to-date
+            _globalAccrue();
+        }
 
         emit Compounded(
             msg.sender,
