@@ -25,6 +25,7 @@ import {IWBTC} from "src/interfaces/IWBTC.sol";
 import {IVault} from "src/interfaces/IVault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
+import {IStakedGlp} from "src/interfaces/IStakedGlp.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
 import {HelperEvents} from "./HelperEvents.sol";
 import {HelperState} from "./HelperState.sol";
@@ -42,6 +43,8 @@ contract Helper is Test, HelperEvents, HelperState {
         RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
     RewardTracker internal constant STAKED_GMX =
         RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
+    IStakedGlp internal constant STAKED_GLP =
+        IStakedGlp(0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE);
     IVaultReader internal constant VAULT_READER =
         IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
     IGlpManager internal constant GLP_MANAGER =
@@ -92,8 +95,10 @@ contract Helper is Test, HelperEvents, HelperState {
     ];
 
     // Arbitrary addresses used for testing fees
-    address internal treasuryAddress = 0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
-    address internal contributorsAddress = 0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
+    address internal treasuryAddress =
+        0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
+    address internal contributorsAddress =
+        0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
 
     // Used as admin on upgradable contracts
     // We should not use any of the testAccounts as they won't be able to be used on related tests
@@ -435,6 +440,32 @@ contract Helper is Test, HelperEvents, HelperState {
         gmxTimeLock.processMint(address(GMX), receiver, amount);
 
         vm.stopPrank();
+    }
+
+    /**
+        @notice Mint fsGLP and approve pirexGmx with a transfer allowance
+        @param  ethAmount  uint256  ETH amount used to mint fsGLP
+        @param  receiver   address  fsGLP receiver
+        @return fsGlp      uint256  fsGLP mint/approval amount
+     */
+    function _mintAndApproveFsGlp(uint256 ethAmount, address receiver)
+        internal
+        returns (uint256 fsGlp)
+    {
+        assertEq(0, FEE_STAKED_GLP.balanceOf(receiver));
+
+        vm.deal(receiver, ethAmount);
+        vm.startPrank(receiver);
+
+        fsGlp = REWARD_ROUTER_V2.mintAndStakeGlpETH{value: ethAmount}(1, 1);
+
+        vm.warp(block.timestamp + 1 hours);
+
+        STAKED_GLP.approve(address(pirexGmx), fsGlp);
+
+        vm.stopPrank();
+
+        assertEq(fsGlp, FEE_STAKED_GLP.balanceOf(receiver));
     }
 
     /**
