@@ -26,6 +26,9 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     uint256 public constant FEE_DENOMINATOR = 10000;
     uint256 public constant MAX_COMPOUND_INCENTIVE = 5000;
 
+    // Uniswap pool fee
+    uint24 public poolFee = 3000;
+
     uint256 public withdrawalPenalty = 300;
     uint256 public platformFee = 1000;
     uint256 public compoundIncentive = 1000;
@@ -34,6 +37,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     // Address of the rewards module (ie. PirexRewards instance)
     address public immutable rewardsModule;
 
+    event PoolFeeUpdated(uint24 _poolFee);
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
     event CompoundIncentiveUpdated(uint256 incentive);
@@ -50,6 +54,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         uint256 incentive
     );
 
+    error ZeroAmount();
     error ZeroAddress();
     error InvalidAssetParam();
     error ExceedsMax();
@@ -82,6 +87,18 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
         WETH.safeApprove(address(SWAP_ROUTER), type(uint256).max);
         GMX.safeApprove(_platform, type(uint256).max);
+    }
+
+    /**
+        @notice Set the Uniswap pool fee
+        @param  _poolFee  uint24  Uniswap pool fee
+     */
+    function setPoolFee(uint24 _poolFee) external onlyOwner {
+        if (_poolFee == 0) revert ZeroAmount();
+
+        poolFee = _poolFee;
+
+        emit PoolFeeUpdated(_poolFee);
     }
 
     /**
@@ -199,7 +216,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         uint256,
         uint256
     ) internal override {
-        compound(3000, 1, 0, true);
+        compound(poolFee, 1, 0, true);
     }
 
     /**

@@ -7,10 +7,7 @@ import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
 import {Helper} from "./Helper.sol";
 
 contract AutoPxGmxTest is Helper {
-    event WithdrawalPenaltyUpdated(uint256 penalty);
-    event PlatformFeeUpdated(uint256 fee);
-    event CompoundIncentiveUpdated(uint256 percent);
-    event PlatformUpdated(address _platform);
+    event PoolFeeUpdated(uint24 _poolFee);
     event Compounded(
         address indexed caller,
         uint24 fee,
@@ -48,6 +45,52 @@ contract AutoPxGmxTest is Helper {
 
         wethRewardState = pirexRewards.getRewardState(pxGmx, WETH);
         pxGmxRewardState = pirexRewards.getRewardState(pxGmx, pxGmx);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        setPoolFee TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotSetPoolFeeUnauthorized() external {
+        uint24 fee = 1;
+
+        vm.expectRevert("UNAUTHORIZED");
+
+        vm.prank(testAccounts[0]);
+
+        autoPxGmx.setPoolFee(fee);
+    }
+
+    /**
+        @notice Test tx reversion: pool fee is zero
+     */
+    function testCannotSetPoolFeeZeroAmount() external {
+        uint24 invalidFee = 0;
+
+        vm.expectRevert(AutoPxGmx.ZeroAmount.selector);
+
+        autoPxGmx.setPoolFee(invalidFee);
+    }
+
+    /**
+        @notice Test tx success: set pool fee
+     */
+    function testSetPoolFee() external {
+        uint24 initialPoolFee = autoPxGmx.poolFee();
+        uint24 fee = 10000;
+        uint24 expectedPoolFee = fee;
+
+        vm.expectEmit(false, false, false, true, address(autoPxGmx));
+
+        emit PoolFeeUpdated(expectedPoolFee);
+
+        autoPxGmx.setPoolFee(fee);
+
+        assertEq(expectedPoolFee, autoPxGmx.poolFee());
+        assertTrue(expectedPoolFee != initialPoolFee);
     }
 
     /*//////////////////////////////////////////////////////////////

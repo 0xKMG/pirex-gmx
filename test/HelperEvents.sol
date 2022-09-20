@@ -124,4 +124,10 @@ contract HelperEvents {
         address indexed spender,
         uint256 amount
     );
+
+    // Shared Vault events
+    event WithdrawalPenaltyUpdated(uint256 penalty);
+    event PlatformFeeUpdated(uint256 fee);
+    event CompoundIncentiveUpdated(uint256 incentive);
+    event PlatformUpdated(address _platform);
 }
