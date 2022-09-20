@@ -9,10 +9,6 @@ import {Common} from "src/Common.sol";
 import {Helper} from "./Helper.sol";
 
 contract AutoPxGlpTest is Helper {
-    event WithdrawalPenaltyUpdated(uint256 penalty);
-    event PlatformFeeUpdated(uint256 fee);
-    event CompoundIncentiveUpdated(uint256 incentive);
-    event PlatformUpdated(address _platform);
     event Compounded(
         address indexed caller,
         uint256 minGlp,
