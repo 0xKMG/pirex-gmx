@@ -22,25 +22,41 @@ contract AutoPxGmxTest is Helper {
 
     /**
         @notice Provision reward state to test compounding of rewards
-        @param  gmxAmount         uint256  Amount of pxGMX to get from the deposit
-        @param  receiver          address  Receiver of the GMX and pxGMX tokens (i.e. user)
-        @param  secondsElapsed    uint256  Seconds to forward timestamp
-        @return wethRewardState   uint256  WETH reward state
-        @return pxGmxRewardState  uint256  pxGMX reward state
+        @param  assets            uint256    GMX/pxGMX amount to deposit in the vault
+        @param  receivers         address[]  Receivers of the apxGMX tokens
+        @param  secondsElapsed    uint256    Seconds to forward timestamp
+        @return wethRewardState   uint256    WETH reward state
+        @return pxGmxRewardState  uint256    pxGMX reward state
+        @return shareBalances     uint256[]  Receivers' apxGMX balances
      */
     function _provisionRewardState(
-        uint256 gmxAmount,
-        address receiver,
+        uint256 assets,
+        address[] memory receivers,
         uint256 secondsElapsed
-    ) internal returns (uint256 wethRewardState, uint256 pxGmxRewardState) {
-        _depositGmx(gmxAmount, receiver);
-        pxGmx.approve(address(autoPxGmx), pxGmx.balanceOf(receiver));
-        autoPxGmx.deposit(pxGmx.balanceOf(receiver), receiver);
-        pirexRewards.addRewardToken(pxGmx, WETH);
-        pirexRewards.addRewardToken(pxGmx, pxGmx);
+    )
+        internal
+        returns (
+            uint256 wethRewardState,
+            uint256 pxGmxRewardState,
+            uint256[] memory shareBalances
+        )
+    {
+        uint256 rLen = receivers.length;
+        shareBalances = new uint256[](rLen);
+
+        for (uint256 i; i < rLen; ++i) {
+            address receiver = receivers[i];
+
+            _depositGmx(assets, receiver);
+            pxGmx.approve(address(autoPxGmx), assets);
+
+            shareBalances[i] = autoPxGmx.deposit(assets, receiver);
+        }
 
         vm.warp(block.timestamp + secondsElapsed);
 
+        pirexRewards.addRewardToken(pxGmx, WETH);
+        pirexRewards.addRewardToken(pxGmx, pxGmx);
         pirexRewards.harvest();
 
         wethRewardState = pirexRewards.getRewardState(pxGmx, WETH);
@@ -354,10 +370,13 @@ contract AutoPxGmxTest is Helper {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
 
+        address[] memory receivers = new address[](1);
+        receivers[0] = address(this);
         (
             uint256 wethRewardState,
-            uint256 pxGmxRewardState
-        ) = _provisionRewardState(gmxAmount, address(this), secondsElapsed);
+            uint256 pxGmxRewardState,
+
+        ) = _provisionRewardState(gmxAmount, receivers, secondsElapsed);
         uint256 totalAssetsBeforeCompound = autoPxGmx.totalAssets();
         uint256 shareToAssetAmountBeforeCompound = autoPxGmx.convertToAssets(
             autoPxGmx.balanceOf(address(this))
