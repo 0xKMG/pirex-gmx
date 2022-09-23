@@ -289,6 +289,32 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     }
 
     /**
+        @notice Override the withdrawal method to make sure compound is called before withdrawing
+     */
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override returns (uint256 shares) {
+        compound(1, 1, true);
+
+        shares = PirexERC4626.withdraw(assets, receiver, owner);
+    }
+
+    /**
+        @notice Override the redemption method to make sure compound is called before redeeming
+     */
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) public override returns (uint256 assets) {
+        compound(1, 1, true);
+
+        assets = PirexERC4626.redeem(shares, receiver, owner);
+    }
+
+    /**
         @notice Compound and internally update pxGMX reward accrual before deposit
      */
     function beforeDeposit(
@@ -310,17 +336,6 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     ) internal override {
         _globalAccrue();
         _userAccrue(receiver);
-    }
-
-    /**
-        @notice Compound and internally update pxGMX reward accrual before withdrawal
-     */
-    function beforeWithdraw(
-        address,
-        uint256,
-        uint256
-    ) internal override {
-        compound(1, 1, true);
     }
 
     /**

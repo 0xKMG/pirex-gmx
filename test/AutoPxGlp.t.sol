@@ -872,8 +872,11 @@ contract AutoPxGlpTest is Helper {
             // Withdraw from the vault and assert the updated pxGMX reward states
             vm.startPrank(testAccounts[i]);
 
+            // Take into account withdrawal penalty
             uint256 shares = autoPxGlp.withdraw(
-                autoPxGlp.previewRedeem(initialBalance),
+                (autoPxGlp.previewRedeem(initialBalance) *
+                    (autoPxGlp.FEE_DENOMINATOR() - autoPxGlp.withdrawalPenalty())) /
+                    autoPxGlp.FEE_DENOMINATOR(),
                 testAccounts[i],
                 testAccounts[i]
             );
