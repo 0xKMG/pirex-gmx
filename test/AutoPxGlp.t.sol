@@ -879,14 +879,17 @@ contract AutoPxGlpTest is Helper {
             // Withdraw from the vault and assert the updated pxGMX reward states
             vm.startPrank(testAccounts[i]);
 
-            // Take into account additional glp from compound
+            // Take into account additional glp from compound and withdraw all
             uint256 shares = autoPxGlp.withdraw(
                 autoPxGlp.previewRedeem(initialBalance) + expectedAdditionalGlp,
                 testAccounts[i],
                 testAccounts[i]
             );
-            assertEq(autoPxGlp.balanceOf(testAccounts[i]), 0);
+
             vm.stopPrank();
+
+            // Since we withdraw the entire balance of the user, post-withdrawal should leave it with 0 share
+            assertEq(0, autoPxGlp.balanceOf(testAccounts[i]));
 
             // Assert pxGMX reward states
             _assertGlobalState(
