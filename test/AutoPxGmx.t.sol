@@ -48,9 +48,14 @@ contract AutoPxGmxTest is Helper {
             address receiver = receivers[i];
 
             _depositGmx(assets, receiver);
+
+            vm.startPrank(receiver);
+
             pxGmx.approve(address(autoPxGmx), assets);
 
             shareBalances[i] = autoPxGmx.deposit(assets, receiver);
+
+            vm.stopPrank();
         }
 
         vm.warp(block.timestamp + secondsElapsed);
@@ -450,5 +455,120 @@ contract AutoPxGmxTest is Helper {
             shareToAssetAmountBeforeCompound,
             autoPxGmx.convertToAssets(autoPxGmx.balanceOf(address(this)))
         );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        withdraw TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx success: withdraw from vault and assert the withdrawn assets
+        @param  gmxAmount       uint96  Amount of pxGMX to get from the deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testWithdraw(uint96 gmxAmount, uint32 secondsElapsed) external {
+        vm.assume(gmxAmount > 5e17);
+        vm.assume(gmxAmount < 100000e18);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address[] memory receivers = new address[](testAccounts.length);
+        uint256[] memory assetBalances = new uint256[](testAccounts.length);
+        for (uint256 i; i < testAccounts.length; ++i) {
+            receivers[i] = testAccounts[i];
+        }
+
+        (, , uint256[] memory shareBalances) = _provisionRewardState(
+            gmxAmount,
+            receivers,
+            secondsElapsed
+        );
+
+        // Store current redemption values before the first compound trigger
+        for (uint256 i; i < testAccounts.length; ++i) {
+            assetBalances[i] = autoPxGmx.previewRedeem(shareBalances[i]);
+        }
+
+        for (uint256 i; i < testAccounts.length; ++i) {
+            uint256 initialShare = autoPxGmx.balanceOf(testAccounts[i]);
+
+            assertEq(shareBalances[i], initialShare);
+
+            uint256 initialSupply = autoPxGmx.totalSupply();
+
+            // Withdraw from the vault and assert the updated assets
+            vm.prank(testAccounts[i]);
+
+            // Attempt to withdraw using previous asset snapshot before compound,
+            // which means the user might still have some leftover of the share due to the compound call
+            autoPxGmx.withdraw(
+                assetBalances[i],
+                testAccounts[i],
+                testAccounts[i]
+            );
+
+            // Withdrawal should still decrement the totalSupply and user shares
+            // Using approximation since we can't get exact amount of new GMX from the compound trigger
+            // before triggering it via the withdraw call
+            assertLe(initialSupply - initialShare, autoPxGmx.totalSupply());
+            assertGe(autoPxGmx.balanceOf(testAccounts[i]), 0);
+
+            // Since we use withdraw, the actual received pxGmx should be equal to the
+            // previously stored redeem preview balance
+            assertEq(pxGmx.balanceOf(testAccounts[i]), assetBalances[i]);
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        redeem TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx success: redeem from vault and assert the redeemed assets
+        @param  gmxAmount       uint96  Amount of pxGMX to get from the deposit
+        @param  secondsElapsed  uint32  Seconds to forward timestamp
+     */
+    function testRedeem(uint96 gmxAmount, uint32 secondsElapsed) external {
+        vm.assume(gmxAmount > 5e17);
+        vm.assume(gmxAmount < 100000e18);
+        vm.assume(secondsElapsed > 10);
+        vm.assume(secondsElapsed < 365 days);
+
+        address[] memory receivers = new address[](testAccounts.length);
+        uint256[] memory assetBalances = new uint256[](testAccounts.length);
+        for (uint256 i; i < testAccounts.length; ++i) {
+            receivers[i] = testAccounts[i];
+        }
+
+        (, , uint256[] memory shareBalances) = _provisionRewardState(
+            gmxAmount,
+            receivers,
+            secondsElapsed
+        );
+
+        // Store current redemption values before the first compound trigger
+        for (uint256 i; i < testAccounts.length; ++i) {
+            assetBalances[i] = autoPxGmx.previewRedeem(shareBalances[i]);
+        }
+
+        for (uint256 i; i < testAccounts.length; ++i) {
+            uint256 initialShare = autoPxGmx.balanceOf(testAccounts[i]);
+
+            assertEq(shareBalances[i], initialShare);
+
+            uint256 initialSupply = autoPxGmx.totalSupply();
+
+            // Redeem from the vault and assert the updated assets
+            vm.prank(testAccounts[i]);
+
+            autoPxGmx.redeem(initialShare, testAccounts[i], testAccounts[i]);
+
+            // Redemption should still decrement the totalSupply and user shares
+            assertEq(initialSupply - initialShare, autoPxGmx.totalSupply());
+            assertEq(0, autoPxGmx.balanceOf(testAccounts[i]));
+
+            // Also check the actual redeemed pxGMX amount compared to the preview before the first compound
+            assertGt(pxGmx.balanceOf(testAccounts[i]), assetBalances[i]);
+        }
     }
 }
