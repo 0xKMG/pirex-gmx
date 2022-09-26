@@ -591,18 +591,28 @@ contract Helper is Test, HelperEvents, HelperState {
         uint256 amount,
         uint256 decimals
     ) internal view returns (uint256) {
+        // Perform identical formula with GMX Vault's due to potential rounding error issue
+        // and without slippage to get exact amount of expected GLP
         uint256[] memory info = _getVaultTokenInfo(token);
-        uint256 glpAmount = (amount * info[10]) / _getGlpPrice(true);
-        uint256 minGlp = (glpAmount *
+        uint256 afterFees = (amount *
             (BPS_DIVISOR - _getFees(amount, info, true))) / BPS_DIVISOR;
-        uint256 minGlpWithSlippage = (minGlp * (BPS_DIVISOR - SLIPPAGE)) /
-            BPS_DIVISOR;
+        uint256 usdgAfterFees = (afterFees * info[10]) / PRECISION;
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(FEE_STAKED_GLP);
+        uint256 aum = GLP_MANAGER.getAums()[0];
+        uint256 glpSupply = READER.getTokenBalancesWithSupplies(
+            address(0),
+            tokens
+        )[1];
+
+        uint256 minGlp = (usdgAfterFees * glpSupply) /
+            ((aum * 10**EXPANDED_GLP_DECIMALS) / PRECISION);
 
         // Expand min GLP amount decimals based on the input token's decimals
         return
             decimals == EXPANDED_GLP_DECIMALS
-                ? minGlpWithSlippage
-                : 10**(EXPANDED_GLP_DECIMALS - decimals) * minGlpWithSlippage;
+                ? minGlp
+                : 10**(EXPANDED_GLP_DECIMALS - decimals) * minGlp;
     }
 
     /**
@@ -636,10 +646,11 @@ contract Helper is Test, HelperEvents, HelperState {
         @return postFeeAmount   uint256  pxGLP minted for the receiver
         @return feeAmount       uint256  pxGLP distributed as fees
      */
-    function _depositGlpETHWithTimeSkip(uint256 etherAmount, address receiver, uint256 secondsElapsed)
-        internal
-        returns (uint256 postFeeAmount, uint256 feeAmount)
-    {
+    function _depositGlpETHWithTimeSkip(
+        uint256 etherAmount,
+        address receiver,
+        uint256 secondsElapsed
+    ) internal returns (uint256 postFeeAmount, uint256 feeAmount) {
         vm.deal(address(this), etherAmount);
 
         (, postFeeAmount, feeAmount) = pirexGmx.depositGlpETH{

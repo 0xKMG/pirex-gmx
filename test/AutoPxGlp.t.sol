@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 
 import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
+import {PirexGmx} from "src/PirexGmx.sol";
 import {PxGmxReward} from "src/vaults/PxGmxReward.sol";
 import {Common} from "src/Common.sol";
 import {Helper} from "./Helper.sol";
@@ -853,9 +854,10 @@ contract AutoPxGlpTest is Helper {
         for (uint256 i; i < testAccounts.length; ++i) {
             _depositToVault(testAccounts[i]);
 
-            (, uint256 pxGmxRewardState) = _provisionRewardState(
-                secondsElapsed
-            );
+            (
+                uint256 wethRewardState,
+                uint256 pxGmxRewardState
+            ) = _provisionRewardState(secondsElapsed);
 
             uint256 initialBalance = autoPxGlp.balanceOf(testAccounts[i]);
             uint256 initialRewardState = autoPxGlp.rewardState();
@@ -864,21 +866,30 @@ contract AutoPxGlpTest is Helper {
             uint256 expectedUserRewardState = _calculateUserRewards(
                 testAccounts[i]
             );
-            uint256 pxGmxRewardAfterFees = pxGmxRewardState -
-                (pxGmxRewardState * autoPxGlp.platformFee()) /
-                autoPxGlp.FEE_DENOMINATOR();
             uint256 initialPxGmxBalance = pxGmx.balanceOf(address(autoPxGlp));
+            uint256 expectedAdditionalGlp = _calculateMinGlpAmount(
+                address(WETH),
+                wethRewardState,
+                18
+            );
+            // Take into account fees
+            expectedAdditionalGlp -= (expectedAdditionalGlp * pirexGmx.fees(PirexGmx.Fees.Deposit)) / pirexGmx.FEE_DENOMINATOR();
+            expectedAdditionalGlp -= (expectedAdditionalGlp * autoPxGlp.platformFee()) / autoPxGlp.FEE_DENOMINATOR();
 
             // Withdraw from the vault and assert the updated pxGMX reward states
             vm.startPrank(testAccounts[i]);
 
+            // Take into account additional glp from compound and withdraw all
             uint256 shares = autoPxGlp.withdraw(
-                autoPxGlp.previewRedeem(initialBalance),
+                autoPxGlp.previewRedeem(initialBalance) + expectedAdditionalGlp,
                 testAccounts[i],
                 testAccounts[i]
             );
 
             vm.stopPrank();
+
+            // Since we withdraw the entire balance of the user, post-withdrawal should leave it with 0 share
+            assertEq(0, autoPxGlp.balanceOf(testAccounts[i]));
 
             // Assert pxGMX reward states
             _assertGlobalState(
@@ -893,7 +904,10 @@ contract AutoPxGlpTest is Helper {
                 expectedUserRewardState
             );
             assertEq(
-                initialRewardState + pxGmxRewardAfterFees,
+                initialRewardState +
+                    (pxGmxRewardState -
+                        (pxGmxRewardState * autoPxGlp.platformFee()) /
+                        autoPxGlp.FEE_DENOMINATOR()),
                 autoPxGlp.rewardState()
             );
 
@@ -906,7 +920,10 @@ contract AutoPxGlpTest is Helper {
 
             // Also check the updated pxGMX balance updated from compound call
             assertEq(
-                initialPxGmxBalance + pxGmxRewardAfterFees,
+                initialPxGmxBalance +
+                    (pxGmxRewardState -
+                        (pxGmxRewardState * autoPxGlp.platformFee()) /
+                        autoPxGlp.FEE_DENOMINATOR()),
                 pxGmx.balanceOf(address(autoPxGlp))
             );
         }
