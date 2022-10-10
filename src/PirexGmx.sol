@@ -784,7 +784,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         address receiver
     ) external onlyPirexRewards {
         if (token == address(0)) revert ZeroAddress();
-        if (amount == 0) return;
+        if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
         (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(
