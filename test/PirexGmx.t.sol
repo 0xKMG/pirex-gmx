@@ -72,6 +72,8 @@ contract PirexGmxTest is Test, Helper {
         address newContractAddress;
 
         // Use a conditional statement to set newContractAddress since no getter
+        if (c == PirexGmx.Contracts.PirexFees)
+            newContractAddress = address(pirexGmx.pirexFees());
         if (c == PirexGmx.Contracts.RewardRouterV2)
             newContractAddress = address(pirexGmx.gmxRewardRouterV2());
         if (c == PirexGmx.Contracts.RewardTrackerGmx)
@@ -186,6 +188,18 @@ contract PirexGmxTest is Test, Helper {
             PirexGmx.Contracts.RewardRouterV2,
             invalidContractAddress
         );
+    }
+
+    /**
+        @notice Test tx success: set pirexFees to a new contract address
+     */
+    function testSetContractPirexFees() external {
+        address currentContractAddress = address(pirexGmx.pirexFees());
+        address contractAddress = address(this);
+
+        assertFalse(currentContractAddress == contractAddress);
+
+        _setContract(PirexGmx.Contracts.PirexFees, contractAddress);
     }
 
     /**

@@ -28,6 +28,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
     // Configurable external contracts
     enum Contracts {
+        PirexFees,
         RewardRouterV2,
         RewardTrackerGmx,
         RewardTrackerGlp,
@@ -57,7 +58,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     PxERC20 public immutable pxGlp;
 
     // Pirex fee repository and distribution contract
-    PirexFees public immutable pirexFees;
+    PirexFees public pirexFees;
 
     // Pirex reward module contract
     address public immutable pirexRewards;
@@ -274,6 +275,11 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (contractAddress == address(0)) revert ZeroAddress();
 
         emit SetContract(c, contractAddress);
+
+        if (c == Contracts.PirexFees) {
+            pirexFees = PirexFees(contractAddress);
+            return;
+        }
 
         if (c == Contracts.RewardRouterV2) {
             gmxRewardRouterV2 = IRewardRouterV2(contractAddress);
