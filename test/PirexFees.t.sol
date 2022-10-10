@@ -31,8 +31,8 @@ contract PirexFeesTest is Helper {
     {
         expectedDistribution = (assets * feeNumerator) / feeDenominator;
         expectedTreasuryDistribution =
-            (expectedDistribution * treasuryPercent) /
-            percentDenominator;
+            (expectedDistribution * treasuryFeePercent) /
+            feePercentDenominator;
         expectedContributorsDistribution =
             expectedDistribution -
             expectedTreasuryDistribution;
@@ -121,14 +121,14 @@ contract PirexFeesTest is Helper {
         // Separately calculate the total aggregated expected fees for treasury
         // and contributors to avoid rounding issue
         totalExpectedTreasuryDistributionWeth =
-            (totalExpectedDistributionWeth * treasuryPercent) /
-            percentDenominator;
+            (totalExpectedDistributionWeth * treasuryFeePercent) /
+            feePercentDenominator;
         totalExpectedContributorsDistributionWeth =
             totalExpectedDistributionWeth -
             totalExpectedTreasuryDistributionWeth;
         totalExpectedTreasuryDistributionPxGmx =
-            (totalExpectedDistributionPxGmx * treasuryPercent) /
-            percentDenominator;
+            (totalExpectedDistributionPxGmx * treasuryFeePercent) /
+            feePercentDenominator;
         totalExpectedContributorsDistributionPxGmx =
             totalExpectedDistributionPxGmx -
             totalExpectedTreasuryDistributionPxGmx;
@@ -199,49 +199,50 @@ contract PirexFeesTest is Helper {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        setTreasuryPercent TESTS
+                    setTreasuryFeePercent TESTS
     //////////////////////////////////////////////////////////////*/
 
     /**
         @notice Test tx reversion: caller is not authorized
      */
-    function testCannotSetTreasuryPercentNotAuthorized() external {
-        assertEq(treasuryPercent, pirexFees.treasuryPercent());
+    function testCannotSetTreasuryFeePercentNotAuthorized() external {
+        address unauthorizedCaller = testAccounts[0];
+
+        assertTrue(unauthorizedCaller != pirexFees.owner());
 
         vm.expectRevert(UNAUTHORIZED_ERROR);
-        vm.prank(testAccounts[0]);
+        vm.prank(unauthorizedCaller);
 
-        pirexFees.setTreasuryPercent(maxTreasuryPercent);
+        pirexFees.setTreasuryFeePercent(maxTreasuryFeePercent);
     }
 
     /**
-        @notice Test tx reversion: treasury percent is invalid
+        @notice Test tx reversion: treasury fee percent is invalid
      */
-    function testCannotSetTreasuryPercentInvalidFeePercent() external {
-        assertEq(treasuryPercent, pirexFees.treasuryPercent());
+    function testCannotSetTreasuryFeePercentInvalidFeePercent() external {
+        // The invalid treasury fee percent is greater than the maximum
+        uint8 invalidTreasuryFeePercent = maxTreasuryFeePercent + 1;
 
-        // The percentage is invalid if > maxTreasuryPercent
+        assertGt(invalidTreasuryFeePercent, treasuryFeePercent);
+
         vm.expectRevert(PirexFees.InvalidFeePercent.selector);
 
-        pirexFees.setTreasuryPercent(maxTreasuryPercent + 1);
+        pirexFees.setTreasuryFeePercent(invalidTreasuryFeePercent);
     }
 
     /**
         @notice Test tx success: set treasury percent
         @param  percent  uint8  Treasury percent
      */
-    function testSetTreasuryPercent(uint8 percent) external {
-        vm.assume(percent <= maxTreasuryPercent);
+    function testSetTreasuryFeePercent(uint8 percent) external {
+        vm.assume(percent <= maxTreasuryFeePercent);
+        vm.expectEmit(false, false, false, true, address(pirexFees));
 
-        assertEq(treasuryPercent, pirexFees.treasuryPercent());
+        emit SetTreasuryFeePercent(percent);
 
-        vm.expectEmit(false, false, false, true);
+        pirexFees.setTreasuryFeePercent(percent);
 
-        emit SetTreasuryPercent(percent);
-
-        pirexFees.setTreasuryPercent(percent);
-
-        assertEq(pirexFees.treasuryPercent(), percent);
+        assertEq(percent, pirexFees.treasuryFeePercent());
     }
 
     /*//////////////////////////////////////////////////////////////

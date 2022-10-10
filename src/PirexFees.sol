@@ -14,17 +14,25 @@ contract PirexFees is Owned {
         Contributors
     }
 
-    uint8 public constant PERCENT_DENOMINATOR = 100;
+    // Denominator used when calculating the fee distribution percent
+    // E.g. if the treasuryFeePercent were set to 50, then the treasury's
+    // percent share of the fee distribution would be 50% (50 / 100)
+    uint8 public constant FEE_PERCENT_DENOMINATOR = 100;
 
-    // Configurable fee recipient percent-share
-    uint8 public treasuryPercent = 75;
+    // Maximum treasury fee percent
+    uint8 public constant MAX_TREASURY_FEE_PERCENT = 75;
+
+    // Configurable treasury percent share of fees (default is max)
+    // Currently, there are only two fee recipients, so we only need to
+    // store the percent of one recipient to derive the other
+    uint8 public treasuryFeePercent = MAX_TREASURY_FEE_PERCENT;
 
     // Configurable fee recipient addresses
     address public treasury;
     address public contributors;
 
     event SetFeeRecipient(FeeRecipient f, address recipient);
-    event SetTreasuryPercent(uint8 _treasuryPercent);
+    event SetTreasuryFeePercent(uint8 _treasuryFeePercent);
     event DistributeFees(
         ERC20 indexed token,
         uint256 distribution,
@@ -70,15 +78,19 @@ contract PirexFees is Owned {
 
     /**
         @notice Set treasury fee percent
-        @param  _treasuryPercent  uint8  Treasury fee percent
+        @param  _treasuryFeePercent  uint8  Treasury fee percent
      */
-    function setTreasuryPercent(uint8 _treasuryPercent) external onlyOwner {
-        // Treasury fee percent should never exceed 75
-        if (_treasuryPercent > 75) revert InvalidFeePercent();
+    function setTreasuryFeePercent(uint8 _treasuryFeePercent)
+        external
+        onlyOwner
+    {
+        // Treasury fee percent should never exceed the pre-configured max
+        if (_treasuryFeePercent > MAX_TREASURY_FEE_PERCENT)
+            revert InvalidFeePercent();
 
-        treasuryPercent = _treasuryPercent;
+        treasuryFeePercent = _treasuryFeePercent;
 
-        emit SetTreasuryPercent(_treasuryPercent);
+        emit SetTreasuryFeePercent(_treasuryFeePercent);
     }
 
     /**
@@ -87,8 +99,8 @@ contract PirexFees is Owned {
      */
     function distributeFees(ERC20 token) external {
         uint256 distribution = token.balanceOf(address(this));
-        uint256 treasuryDistribution = (distribution * treasuryPercent) /
-            PERCENT_DENOMINATOR;
+        uint256 treasuryDistribution = (distribution * treasuryFeePercent) /
+            FEE_PERCENT_DENOMINATOR;
         uint256 contributorsDistribution = distribution - treasuryDistribution;
 
         emit DistributeFees(
