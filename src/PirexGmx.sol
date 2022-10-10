@@ -316,10 +316,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
             return;
         }
 
-        if (c == Contracts.GlpManager) {
-            glpManager = contractAddress;
-            return;
-        }
+        glpManager = contractAddress;
     }
 
     /**
