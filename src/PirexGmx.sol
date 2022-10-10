@@ -323,7 +323,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         @notice Deposit GMX for pxGMX
         @param  assets    uint256  GMX amount
         @param  receiver  address  pxGMX receiver
-        @return           address  GMX deposited
+        @return           uint256  GMX deposited
         @return           uint256  pxGMX minted for the receiver
         @return           uint256  pxGMX distributed as fees
      */
@@ -367,7 +367,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         @notice Deposit fsGLP for pxGLP
         @param  assets    uint256  fsGLP amount
         @param  receiver  address  pxGLP receiver
-        @return           address  fsGLP deposited
+        @return           uint256  fsGLP deposited
         @return           uint256  pxGLP minted for the receiver
         @return           uint256  pxGLP distributed as fees
      */
