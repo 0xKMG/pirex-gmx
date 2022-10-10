@@ -6,7 +6,7 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IProducer} from "src/interfaces/IProducer.sol";
-import {Common} from "src/Common.sol";
+import {GlobalState, UserState} from "src/Common.sol";
 
 /**
     Originally inspired by Flywheel V2 (thank you Tribe team):
@@ -18,8 +18,8 @@ contract PirexRewards is OwnableUpgradeable {
 
     struct ProducerToken {
         ERC20[] rewardTokens;
-        Common.GlobalState globalState;
-        mapping(address => Common.UserState) userStates;
+        GlobalState globalState;
+        mapping(address => UserState) userStates;
         mapping(ERC20 => uint256) rewardStates;
         mapping(address => mapping(ERC20 => address)) rewardRecipients;
     }
@@ -213,8 +213,9 @@ contract PirexRewards is OwnableUpgradeable {
             uint256 rewards
         )
     {
-        Common.UserState memory userState = producerTokens[producerToken]
-            .userStates[user];
+        UserState memory userState = producerTokens[producerToken].userStates[
+            user
+        ];
 
         return (userState.lastUpdate, userState.lastBalance, userState.rewards);
     }
@@ -281,9 +282,7 @@ contract PirexRewards is OwnableUpgradeable {
         if (address(producerToken) == address(0)) revert ZeroAddress();
         if (user == address(0)) revert ZeroAddress();
 
-        Common.UserState storage u = producerTokens[producerToken].userStates[
-            user
-        ];
+        UserState storage u = producerTokens[producerToken].userStates[user];
         uint256 balance = producerToken.balanceOf(user);
 
         // Calculate the amount of rewards accrued by the user up to this call
@@ -300,13 +299,12 @@ contract PirexRewards is OwnableUpgradeable {
 
     /**
         @notice Update global accrual state
-        @param  globalState    Common.GlobalState  Global state of the producer token
-        @param  producerToken  ERC20               Producer token contract
+        @param  globalState    GlobalState  Global state of the producer token
+        @param  producerToken  ERC20        Producer token contract
     */
-    function _globalAccrue(
-        Common.GlobalState storage globalState,
-        ERC20 producerToken
-    ) internal {
+    function _globalAccrue(GlobalState storage globalState, ERC20 producerToken)
+        internal
+    {
         uint256 totalSupply = producerToken.totalSupply();
         uint256 lastUpdate = globalState.lastUpdate;
         uint256 lastSupply = globalState.lastSupply;

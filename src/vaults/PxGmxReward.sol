@@ -6,7 +6,7 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IAutoPxGlp} from "src/interfaces/IAutoPxGlp.sol";
-import {Common} from "src/Common.sol";
+import {GlobalState, UserState} from "src/Common.sol";
 
 contract PxGmxReward is Owned {
     using SafeTransferLib for ERC20;
@@ -14,9 +14,9 @@ contract PxGmxReward is Owned {
 
     ERC20 public pxGmx;
 
-    Common.GlobalState public globalState;
+    GlobalState public globalState;
     uint256 public rewardState;
-    mapping(address => Common.UserState) public userRewardStates;
+    mapping(address => UserState) public userRewardStates;
 
     event GlobalAccrue(uint256 lastUpdate, uint256 lastSupply, uint256 rewards);
     event UserAccrue(
@@ -68,7 +68,7 @@ contract PxGmxReward is Owned {
     function _userAccrue(address user) internal {
         if (user == address(0)) revert ZeroAddress();
 
-        Common.UserState storage u = userRewardStates[user];
+        UserState storage u = userRewardStates[user];
         uint256 balance = ERC20(address(this)).balanceOf(user);
 
         // Calculate the amount of rewards accrued by the user up to this call
