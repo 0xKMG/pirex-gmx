@@ -179,10 +179,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         uint256 maxAmount = type(uint256).max;
 
         // Max approve various token balances to be externally transferred on our behalf
-        WETH.safeApprove(_pirexFees, maxAmount);
         GMX.safeApprove(address(stakedGmx), maxAmount);
-        ERC20(pxGmx).safeApprove(_pirexFees, maxAmount);
-        ERC20(pxGlp).safeApprove(_pirexFees, maxAmount);
     }
 
     modifier onlyPirexRewards() {
