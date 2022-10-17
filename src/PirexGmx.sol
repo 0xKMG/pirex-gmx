@@ -28,6 +28,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
     // Configurable external contracts
     enum Contracts {
+        PirexFees,
         RewardRouterV2,
         RewardTrackerGmx,
         RewardTrackerGlp,
@@ -57,7 +58,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     PxERC20 public immutable pxGlp;
 
     // Pirex fee repository and distribution contract
-    PirexFees public immutable pirexFees;
+    PirexFees public pirexFees;
 
     // Pirex reward module contract
     address public immutable pirexRewards;
@@ -178,10 +179,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         uint256 maxAmount = type(uint256).max;
 
         // Max approve various token balances to be externally transferred on our behalf
-        WETH.safeApprove(_pirexFees, maxAmount);
         GMX.safeApprove(address(stakedGmx), maxAmount);
-        ERC20(pxGmx).safeApprove(_pirexFees, maxAmount);
-        ERC20(pxGlp).safeApprove(_pirexFees, maxAmount);
     }
 
     modifier onlyPirexRewards() {
@@ -274,6 +272,11 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (contractAddress == address(0)) revert ZeroAddress();
 
         emit SetContract(c, contractAddress);
+
+        if (c == Contracts.PirexFees) {
+            pirexFees = PirexFees(contractAddress);
+            return;
+        }
 
         if (c == Contracts.RewardRouterV2) {
             gmxRewardRouterV2 = IRewardRouterV2(contractAddress);
@@ -778,7 +781,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         address receiver
     ) external onlyPirexRewards {
         if (token == address(0)) revert ZeroAddress();
-        if (amount == 0) return;
+        if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
         (uint256 postFeeAmount, uint256 feeAmount) = _computeAssetAmounts(

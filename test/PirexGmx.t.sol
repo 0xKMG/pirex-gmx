@@ -72,6 +72,8 @@ contract PirexGmxTest is Test, Helper {
         address newContractAddress;
 
         // Use a conditional statement to set newContractAddress since no getter
+        if (c == PirexGmx.Contracts.PirexFees)
+            newContractAddress = address(pirexGmx.pirexFees());
         if (c == PirexGmx.Contracts.RewardRouterV2)
             newContractAddress = address(pirexGmx.gmxRewardRouterV2());
         if (c == PirexGmx.Contracts.RewardTrackerGmx)
@@ -186,6 +188,18 @@ contract PirexGmxTest is Test, Helper {
             PirexGmx.Contracts.RewardRouterV2,
             invalidContractAddress
         );
+    }
+
+    /**
+        @notice Test tx success: set pirexFees to a new contract address
+     */
+    function testSetContractPirexFees() external {
+        address currentContractAddress = address(pirexGmx.pirexFees());
+        address contractAddress = address(this);
+
+        assertFalse(currentContractAddress == contractAddress);
+
+        _setContract(PirexGmx.Contracts.PirexFees, contractAddress);
     }
 
     /**
@@ -1376,14 +1390,28 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: token is zero address
      */
     function testCannotClaimUserRewardTokenZeroAddress() external {
-        address token = address(0);
+        address invalidToken = address(0);
         uint256 amount = 1;
         address receiver = address(this);
 
         vm.expectRevert(PirexGmx.ZeroAddress.selector);
         vm.prank(address(pirexRewards));
 
-        pirexGmx.claimUserReward(token, amount, receiver);
+        pirexGmx.claimUserReward(invalidToken, amount, receiver);
+    }
+
+        /**
+        @notice Test tx reversion: amount is zero
+     */
+    function testCannotClaimUserRewardAmountZeroAmount() external {
+        address token = address(WETH);
+        uint256 invalidAmount = 0;
+        address receiver = address(this);
+
+        vm.expectRevert(PirexGmx.ZeroAmount.selector);
+        vm.prank(address(pirexRewards));
+
+        pirexGmx.claimUserReward(token, invalidAmount, receiver);
     }
 
     /**

@@ -169,10 +169,10 @@ contract Helper is Test, HelperEvents, HelperState {
         feeTypes[2] = PirexGmx.Fees.Reward;
         feeDenominator = pirexGmx.FEE_DENOMINATOR();
         delegationSpace = pirexGmx.delegationSpace();
-        percentDenominator = pirexFees.PERCENT_DENOMINATOR();
-        treasuryPercent = pirexFees.treasuryPercent();
+        feePercentDenominator = pirexFees.FEE_PERCENT_DENOMINATOR();
+        maxTreasuryFeePercent = pirexFees.MAX_TREASURY_FEE_PERCENT();
+        treasuryFeePercent = pirexFees.treasuryFeePercent();
         treasury = pirexFees.treasury();
-        maxTreasuryPercent = 75;
         contributors = pirexFees.contributors();
     }
 

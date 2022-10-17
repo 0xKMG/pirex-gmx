@@ -109,7 +109,7 @@ contract HelperEvents {
 
     // PirexFees events
     event SetFeeRecipient(PirexFees.FeeRecipient f, address recipient);
-    event SetTreasuryPercent(uint8 _treasuryPercent);
+    event SetTreasuryFeePercent(uint8 _treasuryFeePercent);
     event DistributeFees(
         ERC20 indexed token,
         uint256 distribution,
