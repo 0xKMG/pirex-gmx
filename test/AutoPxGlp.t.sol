@@ -6,7 +6,6 @@ import "forge-std/Test.sol";
 import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {PxGmxReward} from "src/vaults/PxGmxReward.sol";
-import {Common} from "src/Common.sol";
 import {Helper} from "./Helper.sol";
 
 contract AutoPxGlpTest is Helper {
@@ -873,8 +872,12 @@ contract AutoPxGlpTest is Helper {
                 18
             );
             // Take into account fees
-            expectedAdditionalGlp -= (expectedAdditionalGlp * pirexGmx.fees(PirexGmx.Fees.Deposit)) / pirexGmx.FEE_DENOMINATOR();
-            expectedAdditionalGlp -= (expectedAdditionalGlp * autoPxGlp.platformFee()) / autoPxGlp.FEE_DENOMINATOR();
+            expectedAdditionalGlp -=
+                (expectedAdditionalGlp * pirexGmx.fees(PirexGmx.Fees.Deposit)) /
+                pirexGmx.FEE_DENOMINATOR();
+            expectedAdditionalGlp -=
+                (expectedAdditionalGlp * autoPxGlp.platformFee()) /
+                autoPxGlp.FEE_DENOMINATOR();
 
             // Withdraw from the vault and assert the updated pxGMX reward states
             vm.startPrank(testAccounts[i]);

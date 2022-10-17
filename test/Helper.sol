@@ -12,7 +12,7 @@ import {PxGmx} from "src/PxGmx.sol";
 import {PxERC20} from "src/PxERC20.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {PirexFees} from "src/PirexFees.sol";
-import {Common} from "src/Common.sol";
+import {GlobalState} from "src/Common.sol";
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
 import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
@@ -824,7 +824,7 @@ contract Helper is Test, HelperEvents, HelperState {
             uint256 rewards
         )
     {
-        Common.GlobalState memory globalState = pirexRewards.producerTokens(
+        GlobalState memory globalState = pirexRewards.producerTokens(
             producerToken
         );
 
