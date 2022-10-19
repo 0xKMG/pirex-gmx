@@ -133,6 +133,9 @@ contract Helper is Test, HelperEvents, HelperState {
         );
         pirexFees = new PirexFees(treasuryAddress, contributorsAddress);
         pirexGmx = new PirexGmx(
+            address(WETH),
+            address(GMX),
+            address(ES_GMX),
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),

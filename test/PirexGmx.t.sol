@@ -1842,6 +1842,9 @@ contract PirexGmxTest is Test, Helper {
 
         // Deploy a test contract but not assign it as the migration target
         PirexGmx newPirexGmx = new PirexGmx(
+            address(WETH),
+            address(GMX),
+            address(ES_GMX),
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
@@ -1891,6 +1894,9 @@ contract PirexGmxTest is Test, Helper {
 
         // Deploy the new contract for migration tests
         PirexGmx newPirexGmx = new PirexGmx(
+            address(WETH),
+            address(GMX),
+            address(ES_GMX),
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
