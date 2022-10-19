@@ -15,10 +15,7 @@ import {IStakedGlp} from "src/interfaces/IStakedGlp.sol";
 import {IVault} from "src/interfaces/IVault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {IPirexRewards} from "src/interfaces/IPirexRewards.sol";
-
-interface IGlpManager {
-    function vault() external view returns (address);
-}
+import {IGlpManager} from "src/interfaces/IGlpManager.sol";
 
 contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
