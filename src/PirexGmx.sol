@@ -16,6 +16,10 @@ import {IVault} from "src/interfaces/IVault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {IPirexRewards} from "src/interfaces/IPirexRewards.sol";
 
+interface IGlpManager {
+    function vault() external view returns (address);
+}
+
 contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     using SafeTransferLib for ERC20;
 
@@ -64,21 +68,14 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     DelegateRegistry public immutable delegateRegistry;
 
     // GMX contracts
-    IRewardRouterV2 public gmxRewardRouterV2 =
-        IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
-    RewardTracker public rewardTrackerGmx =
-        RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
-    RewardTracker public rewardTrackerGlp =
-        RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
-    RewardTracker public feeStakedGlp =
-        RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
-    RewardTracker public stakedGmx =
-        RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
-    IStakedGlp public stakedGlp =
-        IStakedGlp(0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE);
-
-    IVault public gmxVault = IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
-    address public glpManager = 0x321F653eED006AD1C29D174e17d96351BDe22649;
+    IRewardRouterV2 public gmxRewardRouterV2;
+    RewardTracker public rewardTrackerGmx;
+    RewardTracker public rewardTrackerGlp;
+    RewardTracker public feeStakedGlp;
+    RewardTracker public stakedGmx;
+    IStakedGlp public stakedGlp;
+    address public glpManager;
+    IVault public gmxVault;
 
     // Snapshot space
     bytes32 public delegationSpace = bytes32("gmx.eth");
@@ -145,50 +142,55 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     error EmptyString();
 
     /**
-        @param  _weth              address  WETH token contract address
-        @param  _gmx               address  GMX token contract address
-        @param  _esGmx             address  esGMX token contract address
-        @param  _pxGmx             address  PxGmx contract address
-        @param  _pxGlp             address  PxGlp contract address
-        @param  _pirexFees         address  PirexFees contract address
-        @param  _pirexRewards      address  PirexRewards contract address
-        @param  _delegateRegistry  address  Delegation registry contract address
+        @param  _pxGmx              address  PxGmx contract address
+        @param  _pxGlp              address  PxGlp contract address
+        @param  _pirexFees          address  PirexFees contract address
+        @param  _pirexRewards       address  PirexRewards contract address
+        @param  _delegateRegistry   address  Delegation registry contract address
+        @param  _gmxRewardRouterV2  address  GMX Reward Router contract address
+        @param  _stakedGlp          address  Staked GLP token contract address
     */
     constructor(
-        address _weth,
-        address _gmx,
-        address _esGmx,
         address _pxGmx,
         address _pxGlp,
         address _pirexFees,
         address _pirexRewards,
-        address _delegateRegistry
+        address _delegateRegistry,
+        address _gmxRewardRouterV2,
+        address _stakedGlp
     ) Owned(msg.sender) {
         // Start the contract paused, to ensure contract set is properly configured
         _pause();
 
-        if (_weth == address(0)) revert ZeroAddress();
-        if (_gmx == address(0)) revert ZeroAddress();
-        if (_esGmx == address(0)) revert ZeroAddress();
         if (_pxGmx == address(0)) revert ZeroAddress();
         if (_pxGlp == address(0)) revert ZeroAddress();
         if (_pirexFees == address(0)) revert ZeroAddress();
         if (_pirexRewards == address(0)) revert ZeroAddress();
         if (_delegateRegistry == address(0)) revert ZeroAddress();
+        if (_gmxRewardRouterV2 == address(0)) revert ZeroAddress();
+        if (_stakedGlp == address(0)) revert ZeroAddress();
 
-        weth = ERC20(_weth);
-        gmx = ERC20(_gmx);
-        esGmx = ERC20(_esGmx);
         pxGmx = PxERC20(_pxGmx);
         pxGlp = PxERC20(_pxGlp);
         pirexFees = PirexFees(_pirexFees);
         pirexRewards = _pirexRewards;
         delegateRegistry = DelegateRegistry(_delegateRegistry);
+        gmxRewardRouterV2 = IRewardRouterV2(_gmxRewardRouterV2);
+        stakedGlp = IStakedGlp(_stakedGlp);
 
-        uint256 maxAmount = type(uint256).max;
+        // Variables which can be assigned by reading previously-set GMX contracts
+        weth = ERC20(gmxRewardRouterV2.weth());
+        gmx = ERC20(gmxRewardRouterV2.gmx());
+        esGmx = ERC20(gmxRewardRouterV2.esGmx());
+        rewardTrackerGmx = RewardTracker(gmxRewardRouterV2.feeGmxTracker());
+        rewardTrackerGlp = RewardTracker(gmxRewardRouterV2.feeGlpTracker());
+        feeStakedGlp = RewardTracker(gmxRewardRouterV2.stakedGlpTracker());
+        stakedGmx = RewardTracker(gmxRewardRouterV2.stakedGmxTracker());
+        glpManager = gmxRewardRouterV2.glpManager();
+        gmxVault = IVault(IGlpManager(glpManager).vault());
 
-        // Max approve various token balances to be externally transferred on our behalf
-        gmx.safeApprove(address(stakedGmx), maxAmount);
+        // Approve GMX to enable staking
+        gmx.safeApprove(address(stakedGmx), type(uint256).max);
     }
 
     modifier onlyPirexRewards() {

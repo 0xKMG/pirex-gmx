@@ -1842,14 +1842,13 @@ contract PirexGmxTest is Test, Helper {
 
         // Deploy a test contract but not assign it as the migration target
         PirexGmx newPirexGmx = new PirexGmx(
-            address(WETH),
-            address(GMX),
-            address(ES_GMX),
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
             address(pirexRewards),
-            address(delegateRegistry)
+            address(delegateRegistry),
+            address(REWARD_ROUTER_V2),
+            address(STAKED_GLP)
         );
 
         vm.expectRevert("RewardRouter: transfer not signalled");
@@ -1894,14 +1893,13 @@ contract PirexGmxTest is Test, Helper {
 
         // Deploy the new contract for migration tests
         PirexGmx newPirexGmx = new PirexGmx(
-            address(WETH),
-            address(GMX),
-            address(ES_GMX),
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
             address(pirexRewards),
-            address(delegateRegistry)
+            address(delegateRegistry),
+            address(REWARD_ROUTER_V2),
+            address(STAKED_GLP)
         );
 
         address newContract = address(newPirexGmx);
