@@ -6,4 +6,6 @@ interface IGlpManager {
     function getAums() external view returns (uint256[] memory);
 
     function vault() external view returns (address);
+
+    function usdg() external view returns (address);
 }

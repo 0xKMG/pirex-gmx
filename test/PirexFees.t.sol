@@ -86,14 +86,14 @@ contract PirexFeesTest is Helper {
     {
         // Claim and assert on all test accounts, while also calculating total expected fees
         for (uint256 i; i < testAccounts.length; ++i) {
-            assertEq(0, WETH.balanceOf(testAccounts[i]));
+            assertEq(0, weth.balanceOf(testAccounts[i]));
 
             (
                 uint256 expectedDistributionWeth,
                 ,
 
             ) = _calculateExpectedPirexFeeValues(
-                    _calculateClaimableUserReward(pxGmx, WETH, testAccounts[i]),
+                    _calculateClaimableUserReward(pxGmx, weth, testAccounts[i]),
                     feeNumerator
                 );
 
@@ -115,7 +115,7 @@ contract PirexFeesTest is Helper {
 
             pirexRewards.claim(pxGmx, testAccounts[i]);
 
-            assertGt(WETH.balanceOf(testAccounts[i]), 0);
+            assertGt(weth.balanceOf(testAccounts[i]), 0);
         }
 
         // Separately calculate the total aggregated expected fees for treasury
@@ -487,7 +487,7 @@ contract PirexFeesTest is Helper {
             pirexGmx.redeemPxGlpETH(
                 redemptionAmount,
                 _calculateMinOutAmount(
-                    address(WETH),
+                    address(weth),
                     redemptionAmount - expectedDistribution
                 ),
                 testAccounts[i]
@@ -570,10 +570,10 @@ contract PirexFeesTest is Helper {
             token.approve(address(pirexGmx), redemptionAmount);
 
             pirexGmx.redeemPxGlp(
-                address(WETH),
+                address(weth),
                 redemptionAmount,
                 _calculateMinOutAmount(
-                    address(WETH),
+                    address(weth),
                     redemptionAmount - expectedDistribution
                 ),
                 testAccounts[i]
@@ -625,7 +625,7 @@ contract PirexFeesTest is Helper {
 
         // Set up rewards state and accrual
         pirexRewards.addRewardToken(pxGmx, pxGmx);
-        pirexRewards.addRewardToken(pxGmx, WETH);
+        pirexRewards.addRewardToken(pxGmx, weth);
 
         // Mint pxGMX to accrue rewards and test fee distribution for all test accounts
         _depositGmxForTestAccounts(false, address(this), multiplier);
@@ -637,14 +637,14 @@ contract PirexFeesTest is Helper {
         // to prevent rounding error issue
         (, ERC20[] memory rewardTokens, ) = pirexRewards.harvest();
 
-        assertEq(address(WETH), address(rewardTokens[0]));
+        assertEq(address(weth), address(rewardTokens[0]));
         assertEq(address(pxGmx), address(rewardTokens[2]));
 
         pirexGmx.setFee(PirexGmx.Fees.Reward, rewardFee);
 
-        assertEq(0, WETH.balanceOf(address(pirexFees)));
-        assertEq(0, WETH.balanceOf(treasury));
-        assertEq(0, WETH.balanceOf(contributors));
+        assertEq(0, weth.balanceOf(address(pirexFees)));
+        assertEq(0, weth.balanceOf(treasury));
+        assertEq(0, weth.balanceOf(contributors));
 
         (
             uint256 totalExpectedDistributionWeth,
@@ -657,7 +657,7 @@ contract PirexFeesTest is Helper {
 
         assertEq(
             totalExpectedDistributionWeth,
-            WETH.balanceOf(address(pirexFees))
+            weth.balanceOf(address(pirexFees))
         );
         assertEq(
             totalExpectedDistributionPxGmx,
@@ -667,21 +667,21 @@ contract PirexFeesTest is Helper {
         vm.expectEmit(true, false, false, true, address(pirexFees));
 
         emit DistributeFees(
-            WETH,
+            weth,
             totalExpectedDistributionWeth,
             totalExpectedTreasuryDistributionWeth,
             totalExpectedContributorsDistributionWeth
         );
 
-        pirexFees.distributeFees(WETH);
+        pirexFees.distributeFees(weth);
 
         assertEq(
             totalExpectedTreasuryDistributionWeth,
-            WETH.balanceOf(pirexFees.treasury())
+            weth.balanceOf(pirexFees.treasury())
         );
         assertEq(
             totalExpectedContributorsDistributionWeth,
-            WETH.balanceOf(pirexFees.contributors())
+            weth.balanceOf(pirexFees.contributors())
         );
 
         vm.expectEmit(true, false, false, true, address(pirexFees));

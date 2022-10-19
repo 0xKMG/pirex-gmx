@@ -50,6 +50,8 @@ interface IRewardRouterV2 {
 
     function gmx() external view returns (address);
 
+    function bnGmx() external view returns (address);
+
     function esGmx() external view returns (address);
 
     function feeGmxTracker() external view returns (address);
@@ -59,6 +61,8 @@ interface IRewardRouterV2 {
     function stakedGlpTracker() external view returns (address);
 
     function stakedGmxTracker() external view returns (address);
+
+    function bonusGmxTracker() external view returns (address);
 
     function glpManager() external view returns (address);
 }
