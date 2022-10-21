@@ -27,6 +27,8 @@ import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {IStakedGlp} from "src/interfaces/IStakedGlp.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
+import {IVaultPriceFeed} from "src/interfaces/IVaultPriceFeed.sol";
+import {IBasePositionManager} from "src/interfaces/IBasePositionManager.sol";
 import {HelperEvents} from "./HelperEvents.sol";
 import {HelperState} from "./HelperState.sol";
 
@@ -35,12 +37,10 @@ contract Helper is Test, HelperEvents, HelperState {
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     IStakedGlp internal constant STAKED_GLP =
         IStakedGlp(0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE);
-    IVaultReader internal constant VAULT_READER =
-        IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
     IReader internal constant READER =
         IReader(0x22199a49A999c351eF7927602CFB187ec3cae489);
     address internal constant POSITION_ROUTER =
-        0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
+        0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868;
     IWBTC internal constant WBTC =
         IWBTC(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
     uint256 internal constant FEE_BPS = 25;
@@ -54,15 +54,15 @@ contract Helper is Test, HelperEvents, HelperState {
     bytes internal constant NOT_OWNER_ERROR =
         "Ownable: caller is not the owner";
     // Arbitrary addresses used for testing fees
-    address internal constant treasuryAddress =
+    address internal constant TREASURY_ADDRESS =
         0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
-    address internal constant contributorsAddress =
+    address internal constant CONTRIBUTORS_ADDRESS =
         0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
 
     // Used as admin on upgradable contracts
     // We should not use any of the testAccounts as they won't be able to be used on related tests
     // due to the limitation of admin role in these proxy contracts
-    address internal constant proxyAdmin =
+    address internal constant PROXY_ADMIN =
         0x37c80252Ce544Be11F5bc24B0722DB8d483D0a4d;
 
     RewardTracker internal immutable rewardTrackerGmx;
@@ -118,7 +118,7 @@ contract Helper is Test, HelperEvents, HelperState {
         PirexRewards pirexRewardsImplementation = new PirexRewards();
         TransparentUpgradeableProxy pirexRewardsProxy = new TransparentUpgradeableProxy(
             address(pirexRewardsImplementation),
-            proxyAdmin, // Admin address
+            PROXY_ADMIN, // Admin address
             abi.encodeWithSelector(PirexRewards.initialize.selector)
         );
         address pirexRewardsProxyAddr = address(pirexRewardsProxy);
@@ -131,7 +131,7 @@ contract Helper is Test, HelperEvents, HelperState {
             "pxGLP",
             18
         );
-        pirexFees = new PirexFees(treasuryAddress, contributorsAddress);
+        pirexFees = new PirexFees(TREASURY_ADDRESS, CONTRIBUTORS_ADDRESS);
         pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
@@ -494,25 +494,59 @@ contract Helper is Test, HelperEvents, HelperState {
 
     /**
         @notice Get minimum price for whitelisted token
-        @param  token  address    Token
-        @return        uint256[]  Vault token info for token
+        @param  _token   address    Token
+        @return amounts  uint256[]  Vault token info for token
      */
-    function _getVaultTokenInfo(address token)
+    function _getVaultTokenInfo(address _token)
         internal
         view
-        returns (uint256[] memory)
+        returns (uint256[] memory amounts)
     {
         address[] memory tokens = new address[](1);
-        tokens[0] = token;
+        tokens[0] = _token;
+        uint256 propsLength = 15;
+        IVaultPriceFeed priceFeed = IVaultPriceFeed(vault.priceFeed());
+        IBasePositionManager positionManager = IBasePositionManager(
+            POSITION_ROUTER
+        );
+        amounts = new uint256[](tokens.length * propsLength);
 
-        return
-            VAULT_READER.getVaultTokenInfoV4(
-                address(vault),
-                POSITION_ROUTER,
-                address(weth),
-                INFO_USDG_AMOUNT,
-                tokens
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokens[i];
+
+            if (token == address(0)) {
+                token = address(weth);
+            }
+
+            amounts[i * propsLength] = vault.poolAmounts(token);
+            amounts[i * propsLength + 1] = vault.reservedAmounts(token);
+            amounts[i * propsLength + 2] = vault.usdgAmounts(token);
+            amounts[i * propsLength + 3] = vault.getRedemptionAmount(
+                token,
+                INFO_USDG_AMOUNT
             );
+            amounts[i * propsLength + 4] = vault.tokenWeights(token);
+            amounts[i * propsLength + 5] = vault.bufferAmounts(token);
+            amounts[i * propsLength + 6] = vault.maxUsdgAmounts(token);
+            amounts[i * propsLength + 7] = vault.globalShortSizes(token);
+            amounts[i * propsLength + 8] = positionManager.maxGlobalShortSizes(
+                token
+            );
+            amounts[i * propsLength + 9] = positionManager.maxGlobalLongSizes(
+                token
+            );
+            amounts[i * propsLength + 10] = vault.getMinPrice(token);
+            amounts[i * propsLength + 11] = vault.getMaxPrice(token);
+            amounts[i * propsLength + 12] = vault.guaranteedUsd(token);
+            amounts[i * propsLength + 13] = priceFeed.getPrimaryPrice(
+                token,
+                false
+            );
+            amounts[i * propsLength + 14] = priceFeed.getPrimaryPrice(
+                token,
+                true
+            );
+        }
     }
 
     /**

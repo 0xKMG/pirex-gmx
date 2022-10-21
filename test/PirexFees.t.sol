@@ -321,7 +321,7 @@ contract PirexFeesTest is Helper {
         vm.assume(depositFee != 0);
         vm.assume(depositFee < pirexGmx.FEE_MAX());
         vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
+        vm.assume(ethAmount < 1000 ether);
 
         pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
 
@@ -448,7 +448,7 @@ contract PirexFeesTest is Helper {
         vm.assume(redemptionFee != 0);
         vm.assume(redemptionFee < pirexGmx.FEE_MAX());
         vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
+        vm.assume(ethAmount < 1000 ether);
         vm.assume(balanceDivisor != 0);
 
         pirexGmx.setFee(PirexGmx.Fees.Redemption, redemptionFee);
@@ -533,7 +533,7 @@ contract PirexFeesTest is Helper {
         vm.assume(redemptionFee != 0);
         vm.assume(redemptionFee < pirexGmx.FEE_MAX());
         vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
+        vm.assume(ethAmount < 1000 ether);
         vm.assume(balanceDivisor != 0);
 
         pirexGmx.setFee(PirexGmx.Fees.Redemption, redemptionFee);

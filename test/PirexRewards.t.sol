@@ -1768,7 +1768,7 @@ contract PirexRewardsTest is Helper {
             proxyAddress
         );
 
-        vm.prank(proxyAdmin);
+        vm.prank(PROXY_ADMIN);
 
         // Store the old (pre-upgrade) implementation address before upgrading
         address oldImplementation = proxy.implementation();
@@ -1798,7 +1798,7 @@ contract PirexRewardsTest is Helper {
         // Deploy and set a new implementation to the proxy as the admin
         PirexRewardsMock newImplementation = new PirexRewardsMock();
 
-        vm.startPrank(proxyAdmin);
+        vm.startPrank(PROXY_ADMIN);
 
         proxy.upgradeTo(address(newImplementation));
 
