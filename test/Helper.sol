@@ -16,9 +16,7 @@ import {GlobalState} from "src/Common.sol";
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
 import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
-import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
-import {IReader} from "src/interfaces/IReader.sol";
 import {IGMX} from "src/interfaces/IGMX.sol";
 import {ITimelock} from "src/interfaces/ITimelock.sol";
 import {IWBTC} from "src/interfaces/IWBTC.sol";
@@ -37,8 +35,6 @@ contract Helper is Test, HelperEvents, HelperState {
         IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
     IStakedGlp internal constant STAKED_GLP =
         IStakedGlp(0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE);
-    IReader internal constant READER =
-        IReader(0x22199a49A999c351eF7927602CFB187ec3cae489);
     address internal constant POSITION_ROUTER =
         0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868;
     IWBTC internal constant WBTC =
@@ -558,10 +554,9 @@ contract Helper is Test, HelperEvents, HelperState {
         address[] memory tokens = new address[](1);
         tokens[0] = address(feeStakedGlp);
         uint256 aum = glpManager.getAums()[minPrice ? 0 : 1];
-        uint256 glpSupply = READER.getTokenBalancesWithSupplies(
-            address(0),
-            tokens
-        )[1];
+        uint256 glpSupply = _getTokenBalancesWithSupplies(address(0), tokens)[
+            1
+        ];
 
         return (aum * 10**EXPANDED_GLP_DECIMALS) / glpSupply;
     }
@@ -636,10 +631,9 @@ contract Helper is Test, HelperEvents, HelperState {
         address[] memory tokens = new address[](1);
         tokens[0] = address(feeStakedGlp);
         uint256 aum = glpManager.getAums()[0];
-        uint256 glpSupply = READER.getTokenBalancesWithSupplies(
-            address(0),
-            tokens
-        )[1];
+        uint256 glpSupply = _getTokenBalancesWithSupplies(address(0), tokens)[
+            1
+        ];
 
         uint256 minGlp = (usdgAfterFees * glpSupply) /
             ((aum * 10**EXPANDED_GLP_DECIMALS) / PRECISION);
@@ -907,5 +901,27 @@ contract Helper is Test, HelperEvents, HelperState {
         ) = pirexRewards.getUserState(producerToken, user);
 
         return rewards + lastBalance * (block.timestamp - lastUpdate);
+    }
+
+    function _getTokenBalancesWithSupplies(
+        address _account,
+        address[] memory _tokens
+    ) internal view returns (uint256[] memory balances) {
+        uint256 propsLength = 2;
+        balances = new uint256[](_tokens.length * propsLength);
+
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            address token = _tokens[i];
+
+            if (token == address(0)) {
+                balances[i * propsLength] = _account.balance;
+                balances[i * propsLength + 1] = 0;
+
+                continue;
+            }
+
+            balances[i * propsLength] = IERC20(token).balanceOf(_account);
+            balances[i * propsLength + 1] = IERC20(token).totalSupply();
+        }
     }
 }
