@@ -13,9 +13,6 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
-    ERC20 public constant WETH =
-        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
-
     uint256 public constant MAX_WITHDRAWAL_PENALTY = 500;
     uint256 public constant MAX_PLATFORM_FEE = 2000;
     uint256 public constant FEE_DENOMINATOR = 10000;
@@ -29,6 +26,8 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
 
     // Address of the rewards module (ie. PirexRewards instance)
     address public immutable rewardsModule;
+
+    ERC20 public immutable weth;
 
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
@@ -52,6 +51,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     error InvalidParam();
 
     /**
+        @param  _weth           address  WETH token contract address
         @param  _asset          address  Asset address (vault asset, e.g. pxGLP)
         @param  _pxGmx          address  pxGMX address (as secondary reward)
         @param  _name           string   Asset name (e.g. Autocompounding pxGLP)
@@ -60,6 +60,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         @param  _rewardsModule  address  Rewards module address
      */
     constructor(
+        address _weth,
         address _asset,
         address _pxGmx,
         string memory _name,
@@ -67,17 +68,19 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         address _platform,
         address _rewardsModule
     ) PxGmxReward(_pxGmx) PirexERC4626(ERC20(_asset), _name, _symbol) {
+        if (_weth == address(0)) revert ZeroAddress();
         if (_asset == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
         if (bytes(_symbol).length == 0) revert InvalidAssetParam();
         if (_platform == address(0)) revert ZeroAddress();
         if (_rewardsModule == address(0)) revert ZeroAddress();
 
+        weth = ERC20(_weth);
         platform = _platform;
         rewardsModule = _rewardsModule;
 
         // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
-        WETH.safeApprove(address(_platform), type(uint256).max);
+        weth.safeApprove(address(_platform), type(uint256).max);
     }
 
     /**
@@ -226,12 +229,12 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         PirexRewards(rewardsModule).claim(pxGmx, address(this));
 
         // Track the amount of WETH received
-        wethAmountIn = WETH.balanceOf(address(this));
+        wethAmountIn = weth.balanceOf(address(this));
 
         if (wethAmountIn != 0) {
             // Deposit received WETH for pxGLP
             (, pxGlpAmountOut, ) = PirexGmx(platform).depositGlp(
-                address(WETH),
+                address(weth),
                 wethAmountIn,
                 minUsdg,
                 minGlp,

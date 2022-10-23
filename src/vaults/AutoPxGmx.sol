@@ -14,13 +14,8 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
-    ERC20 public constant WETH =
-        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
-    ERC20 public constant GMX =
-        ERC20(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
     IV3SwapRouter public constant SWAP_ROUTER =
         IV3SwapRouter(0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45);
-
     uint256 public constant MAX_WITHDRAWAL_PENALTY = 500;
     uint256 public constant MAX_PLATFORM_FEE = 2000;
     uint256 public constant FEE_DENOMINATOR = 10000;
@@ -36,6 +31,9 @@ contract AutoPxGmx is Owned, PirexERC4626 {
 
     // Address of the rewards module (ie. PirexRewards instance)
     address public immutable rewardsModule;
+
+    ERC20 public immutable weth;
+    ERC20 public immutable gmx;
 
     event PoolFeeUpdated(uint24 _poolFee);
     event WithdrawalPenaltyUpdated(uint256 penalty);
@@ -62,6 +60,8 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     error InvalidParam();
 
     /**
+        @param  _weth           address  WETH token contract address
+        @param  _gmx            address  GMX token contract address
         @param  _asset          address  Asset address (e.g. pxGMX)
         @param  _name           string   Asset name (e.g. Autocompounding pxGMX)
         @param  _symbol         string   Asset symbol (e.g. apxGMX)
@@ -69,24 +69,30 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         @param  _rewardsModule  address  Rewards module address
      */
     constructor(
+        address _weth,
+        address _gmx,
         address _asset,
         string memory _name,
         string memory _symbol,
         address _platform,
         address _rewardsModule
     ) Owned(msg.sender) PirexERC4626(ERC20(_asset), _name, _symbol) {
+        if (_weth == address(0)) revert ZeroAddress();
+        if (_gmx == address(0)) revert ZeroAddress();
         if (_asset == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
         if (bytes(_symbol).length == 0) revert InvalidAssetParam();
         if (_platform == address(0)) revert ZeroAddress();
         if (_rewardsModule == address(0)) revert ZeroAddress();
 
+        weth = ERC20(_weth);
+        gmx = ERC20(_gmx);
         platform = _platform;
         rewardsModule = _rewardsModule;
 
         // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
-        WETH.safeApprove(address(SWAP_ROUTER), type(uint256).max);
-        GMX.safeApprove(_platform, type(uint256).max);
+        weth.safeApprove(address(SWAP_ROUTER), type(uint256).max);
+        gmx.safeApprove(_platform, type(uint256).max);
     }
 
     /**
@@ -254,13 +260,13 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         PirexRewards(rewardsModule).claim(asset, address(this));
 
         // Swap entire WETH balance for GMX
-        wethAmountIn = WETH.balanceOf(address(this));
+        wethAmountIn = weth.balanceOf(address(this));
 
         if (wethAmountIn != 0) {
             gmxAmountOut = SWAP_ROUTER.exactInputSingle(
                 IV3SwapRouter.ExactInputSingleParams({
-                    tokenIn: address(WETH),
-                    tokenOut: address(GMX),
+                    tokenIn: address(weth),
+                    tokenOut: address(gmx),
                     fee: fee,
                     recipient: address(this),
                     amountIn: wethAmountIn,
@@ -271,7 +277,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
 
             // Deposit entire GMX balance for pxGMX, increasing the asset/share amount
             (, pxGmxMintAmount, ) = PirexGmx(platform).depositGmx(
-                GMX.balanceOf(address(this)),
+                gmx.balanceOf(address(this)),
                 address(this)
             );
         }

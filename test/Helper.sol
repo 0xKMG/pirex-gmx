@@ -49,6 +49,7 @@ contract Helper is Test, HelperEvents, HelperState {
     bytes internal constant UNAUTHORIZED_ERROR = "UNAUTHORIZED";
     bytes internal constant NOT_OWNER_ERROR =
         "Ownable: caller is not the owner";
+
     // Arbitrary addresses used for testing fees
     address internal constant TREASURY_ADDRESS =
         0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
@@ -134,10 +135,14 @@ contract Helper is Test, HelperEvents, HelperState {
             address(pirexFees),
             address(pirexRewardsProxyAddr),
             address(delegateRegistry),
+            // The `weth` variable is used on both Ethereum and Avalanche for the base rewards
+            REWARD_ROUTER_V2.weth(),
             address(REWARD_ROUTER_V2),
             address(STAKED_GLP)
         );
         autoPxGmx = new AutoPxGmx(
+            address(pirexGmx.gmxBaseReward()),
+            address(pirexGmx.gmx()),
             address(pxGmx),
             "Autocompounding pxGMX",
             "apxGMX",
@@ -145,6 +150,7 @@ contract Helper is Test, HelperEvents, HelperState {
             address(pirexRewardsProxyAddr)
         );
         autoPxGlp = new AutoPxGlp(
+            address(pirexGmx.gmxBaseReward()),
             address(pxGlp),
             address(pxGmx),
             "Autocompounding pxGLP",

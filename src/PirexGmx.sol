@@ -47,7 +47,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     uint256 public constant FEE_MAX = 200_000;
 
     // External token contracts
-    ERC20 public immutable weth;
+    ERC20 public immutable gmxBaseReward; // e.g. WETH (Ethereum)
     ERC20 public immutable gmx;
     ERC20 public immutable esGmx;
 
@@ -111,10 +111,10 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         uint256 feeAmount
     );
     event ClaimRewards(
-        uint256 wethRewards,
+        uint256 baseRewards,
         uint256 esGmxRewards,
-        uint256 gmxWethRewards,
-        uint256 glpWethRewards,
+        uint256 gmxBaseRewards,
+        uint256 glpBaseRewards,
         uint256 gmxEsGmxRewards,
         uint256 glpEsGmxRewards
     );
@@ -144,6 +144,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         @param  _pirexFees          address  PirexFees contract address
         @param  _pirexRewards       address  PirexRewards contract address
         @param  _delegateRegistry   address  Delegation registry contract address
+        @param  _gmxBaseReward      address  GMX base reward token contract address
         @param  _gmxRewardRouterV2  address  GMX Reward Router contract address
         @param  _stakedGlp          address  Staked GLP token contract address
     */
@@ -153,6 +154,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         address _pirexFees,
         address _pirexRewards,
         address _delegateRegistry,
+        address _gmxBaseReward,
         address _gmxRewardRouterV2,
         address _stakedGlp
     ) Owned(msg.sender) {
@@ -164,6 +166,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (_pirexFees == address(0)) revert ZeroAddress();
         if (_pirexRewards == address(0)) revert ZeroAddress();
         if (_delegateRegistry == address(0)) revert ZeroAddress();
+        if (_gmxBaseReward == address(0)) revert ZeroAddress();
         if (_gmxRewardRouterV2 == address(0)) revert ZeroAddress();
         if (_stakedGlp == address(0)) revert ZeroAddress();
 
@@ -172,11 +175,11 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         pirexFees = PirexFees(_pirexFees);
         pirexRewards = _pirexRewards;
         delegateRegistry = DelegateRegistry(_delegateRegistry);
+        gmxBaseReward = ERC20(_gmxBaseReward);
         gmxRewardRouterV2 = IRewardRouterV2(_gmxRewardRouterV2);
         stakedGlp = IStakedGlp(_stakedGlp);
 
         // Variables which can be assigned by reading previously-set GMX contracts
-        weth = ERC20(gmxRewardRouterV2.weth());
         gmx = ERC20(gmxRewardRouterV2.gmx());
         esGmx = ERC20(gmxRewardRouterV2.esGmx());
         rewardTrackerGmx = RewardTracker(gmxRewardRouterV2.feeGmxTracker());
@@ -214,19 +217,19 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     }
 
     /**
-        @notice Calculate the WETH/esGMX rewards for either GMX or GLP
-        @param  isWeth  bool     Whether to calculate WETH or esGMX rewards
-        @param  useGmx  bool     Whether the calculation should be for GMX
-        @return         uint256  Amount of WETH/esGMX rewards
+        @notice Calculate the base (e.g. WETH) or esGMX rewards for either GMX or GLP
+        @param  isBaseReward  bool     Whether to calculate base or esGMX rewards
+        @param  useGmx        bool     Whether the calculation should be for GMX
+        @return               uint256  Amount of WETH/esGMX rewards
      */
-    function _calculateRewards(bool isWeth, bool useGmx)
+    function _calculateRewards(bool isBaseReward, bool useGmx)
         internal
         view
         returns (uint256)
     {
         RewardTracker r;
 
-        if (isWeth) {
+        if (isBaseReward) {
             r = useGmx ? rewardTrackerGmx : rewardTrackerGlp;
         } else {
             r = useGmx ? stakedGmx : feeStakedGlp;
@@ -235,9 +238,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         address distributor = r.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
-        uint256 distributorBalance = (isWeth ? weth : esGmx).balanceOf(
-            distributor
-        );
+        uint256 distributorBalance = (isBaseReward ? gmxBaseReward : esGmx)
+            .balanceOf(distributor);
         uint256 blockReward = pendingRewards > distributorBalance
             ? distributorBalance
             : pendingRewards;
@@ -716,21 +718,21 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         producerTokens[1] = pxGlp;
         producerTokens[2] = pxGmx;
         producerTokens[3] = pxGlp;
-        rewardTokens[0] = weth;
-        rewardTokens[1] = weth;
+        rewardTokens[0] = gmxBaseReward;
+        rewardTokens[1] = gmxBaseReward;
         rewardTokens[2] = ERC20(pxGmx); // esGMX rewards distributed as pxGMX
         rewardTokens[3] = ERC20(pxGmx);
 
         // Get pre-reward claim reward token balances to calculate actual amount received
-        uint256 wethBeforeClaim = weth.balanceOf(address(this));
+        uint256 baseRewardBeforeClaim = gmxBaseReward.balanceOf(address(this));
         uint256 esGmxBeforeClaim = stakedGmx.depositBalances(
             address(this),
             address(esGmx)
         );
 
         // Calculate the unclaimed reward token amounts produced for each token type
-        uint256 gmxWethRewards = _calculateRewards(true, true);
-        uint256 glpWethRewards = _calculateRewards(true, false);
+        uint256 gmxBaseRewards = _calculateRewards(true, true);
+        uint256 glpBaseRewards = _calculateRewards(true, false);
         uint256 gmxEsGmxRewards = _calculateRewards(false, true);
         uint256 glpEsGmxRewards = _calculateRewards(false, false);
 
@@ -745,19 +747,20 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
             false
         );
 
-        uint256 wethRewards = weth.balanceOf(address(this)) - wethBeforeClaim;
+        uint256 baseRewards = gmxBaseReward.balanceOf(address(this)) -
+            baseRewardBeforeClaim;
         uint256 esGmxRewards = stakedGmx.depositBalances(
             address(this),
             address(esGmx)
         ) - esGmxBeforeClaim;
 
-        if (wethRewards != 0) {
+        if (baseRewards != 0) {
             // This may not be necessary and is more of a hedge against a discrepancy between
             // the actual rewards and the calculated amounts. Needs further consideration
             rewardAmounts[0] =
-                (gmxWethRewards * wethRewards) /
-                (gmxWethRewards + glpWethRewards);
-            rewardAmounts[1] = wethRewards - rewardAmounts[0];
+                (gmxBaseRewards * baseRewards) /
+                (gmxBaseRewards + glpBaseRewards);
+            rewardAmounts[1] = baseRewards - rewardAmounts[0];
         }
 
         if (esGmxRewards != 0) {
@@ -768,10 +771,10 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         }
 
         emit ClaimRewards(
-            wethRewards,
+            baseRewards,
             esGmxRewards,
-            gmxWethRewards,
-            glpWethRewards,
+            gmxBaseRewards,
+            glpBaseRewards,
             gmxEsGmxRewards,
             glpEsGmxRewards
         );
@@ -802,11 +805,11 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
             pxGmx.mint(receiver, postFeeAmount);
 
             if (feeAmount != 0) pxGmx.mint(address(pirexFees), feeAmount);
-        } else if (token == address(weth)) {
-            weth.safeTransfer(receiver, postFeeAmount);
+        } else if (token == address(gmxBaseReward)) {
+            gmxBaseReward.safeTransfer(receiver, postFeeAmount);
 
             if (feeAmount != 0)
-                weth.safeTransfer(address(pirexFees), feeAmount);
+                gmxBaseReward.safeTransfer(address(pirexFees), feeAmount);
         }
 
         emit ClaimUserReward(receiver, token, amount, postFeeAmount, feeAmount);

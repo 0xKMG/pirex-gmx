@@ -1847,6 +1847,7 @@ contract PirexGmxTest is Test, Helper {
             address(pirexFees),
             address(pirexRewards),
             address(delegateRegistry),
+            REWARD_ROUTER_V2.weth(),
             address(REWARD_ROUTER_V2),
             address(STAKED_GLP)
         );
@@ -1898,6 +1899,7 @@ contract PirexGmxTest is Test, Helper {
             address(pirexFees),
             address(pirexRewards),
             address(delegateRegistry),
+            REWARD_ROUTER_V2.weth(),
             address(REWARD_ROUTER_V2),
             address(STAKED_GLP)
         );
