@@ -31,12 +31,23 @@ import {HelperEvents} from "./HelperEvents.sol";
 import {HelperState} from "./HelperState.sol";
 
 contract Helper is Test, HelperEvents, HelperState {
-    IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
-        IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
-    IStakedGlp internal constant STAKED_GLP =
-        IStakedGlp(0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE);
-    address internal constant POSITION_ROUTER =
-        0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868;
+    uint256 internal constant AVAX_CHAIN_ID = 43114;
+    IRewardRouterV2 internal immutable REWARD_ROUTER_V2 =
+        IRewardRouterV2(
+            block.chainid == AVAX_CHAIN_ID
+                ? 0x82147C5A7E850eA4E28155DF107F2590fD4ba327
+                : 0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1
+        );
+    IStakedGlp internal immutable STAKED_GLP =
+        IStakedGlp(
+            block.chainid == AVAX_CHAIN_ID
+                ? 0x0b82a1aD2138E9f62454ac41b702B64e0b73d57b
+                : 0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE
+        );
+    address internal immutable POSITION_ROUTER =
+        block.chainid == AVAX_CHAIN_ID
+            ? 0xffF6D276Bc37c61A23f06410Dce4A400f66420f8
+            : 0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868;
     uint256 internal constant FEE_BPS = 25;
     uint256 internal constant TAX_BPS = 50;
     uint256 internal constant BPS_DIVISOR = 10_000;
