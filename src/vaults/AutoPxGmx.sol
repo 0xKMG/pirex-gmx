@@ -32,7 +32,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     // Address of the rewards module (ie. PirexRewards instance)
     address public immutable rewardsModule;
 
-    ERC20 public immutable weth;
+    ERC20 public immutable gmxBaseReward;
     ERC20 public immutable gmx;
 
     event PoolFeeUpdated(uint24 _poolFee);
@@ -45,7 +45,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         uint24 fee,
         uint256 amountOutMinimum,
         uint160 sqrtPriceLimitX96,
-        uint256 wethAmountIn,
+        uint256 gmxBaseRewardAmountIn,
         uint256 gmxAmountOut,
         uint256 pxGmxMintAmount,
         uint256 totalFee,
@@ -60,7 +60,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     error InvalidParam();
 
     /**
-        @param  _weth           address  WETH token contract address
+        @param  _gmxBaseReward  address  GMX reward token contract address
         @param  _gmx            address  GMX token contract address
         @param  _asset          address  Asset address (e.g. pxGMX)
         @param  _name           string   Asset name (e.g. Autocompounding pxGMX)
@@ -69,7 +69,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         @param  _rewardsModule  address  Rewards module address
      */
     constructor(
-        address _weth,
+        address _gmxBaseReward,
         address _gmx,
         address _asset,
         string memory _name,
@@ -77,7 +77,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         address _platform,
         address _rewardsModule
     ) Owned(msg.sender) PirexERC4626(ERC20(_asset), _name, _symbol) {
-        if (_weth == address(0)) revert ZeroAddress();
+        if (_gmxBaseReward == address(0)) revert ZeroAddress();
         if (_gmx == address(0)) revert ZeroAddress();
         if (_asset == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
@@ -85,13 +85,13 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         if (_platform == address(0)) revert ZeroAddress();
         if (_rewardsModule == address(0)) revert ZeroAddress();
 
-        weth = ERC20(_weth);
+        gmxBaseReward = ERC20(_gmxBaseReward);
         gmx = ERC20(_gmx);
         platform = _platform;
         rewardsModule = _rewardsModule;
 
-        // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
-        weth.safeApprove(address(SWAP_ROUTER), type(uint256).max);
+        // Approve the Uniswap V3 router to manage our base reward (inbound swap token)
+        gmxBaseReward.safeApprove(address(SWAP_ROUTER), type(uint256).max);
         gmx.safeApprove(_platform, type(uint256).max);
     }
 
@@ -227,15 +227,15 @@ contract AutoPxGmx is Owned, PirexERC4626 {
 
     /**
         @notice Compound pxGMX rewards
-        @param  fee                uint24   Uniswap pool tier fee
-        @param  amountOutMinimum   uint256  Outbound token swap amount
-        @param  sqrtPriceLimitX96  uint160  Swap price impact limit (optional)
-        @param  optOutIncentive    bool     Whether to opt out of the incentive
-        @return wethAmountIn       uint256  WETH inbound swap amount
-        @return gmxAmountOut       uint256  GMX outbound swap amount
-        @return pxGmxMintAmount    uint256  pxGMX minted when depositing GMX
-        @return totalFee           uint256  Total platform fee
-        @return incentive          uint256  Compound incentive
+        @param  fee                    uint24   Uniswap pool tier fee
+        @param  amountOutMinimum       uint256  Outbound token swap amount
+        @param  sqrtPriceLimitX96      uint160  Swap price impact limit (optional)
+        @param  optOutIncentive        bool     Whether to opt out of the incentive
+        @return gmxBaseRewardAmountIn  uint256  GMX base reward inbound swap amount
+        @return gmxAmountOut           uint256  GMX outbound swap amount
+        @return pxGmxMintAmount        uint256  pxGMX minted when depositing GMX
+        @return totalFee               uint256  Total platform fee
+        @return incentive              uint256  Compound incentive
      */
     function compound(
         uint24 fee,
@@ -245,7 +245,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
     )
         public
         returns (
-            uint256 wethAmountIn,
+            uint256 gmxBaseRewardAmountIn,
             uint256 gmxAmountOut,
             uint256 pxGmxMintAmount,
             uint256 totalFee,
@@ -259,17 +259,17 @@ contract AutoPxGmx is Owned, PirexERC4626 {
 
         PirexRewards(rewardsModule).claim(asset, address(this));
 
-        // Swap entire WETH balance for GMX
-        wethAmountIn = weth.balanceOf(address(this));
+        // Swap entire reward balance for GMX
+        gmxBaseRewardAmountIn = gmxBaseReward.balanceOf(address(this));
 
-        if (wethAmountIn != 0) {
+        if (gmxBaseRewardAmountIn != 0) {
             gmxAmountOut = SWAP_ROUTER.exactInputSingle(
                 IV3SwapRouter.ExactInputSingleParams({
-                    tokenIn: address(weth),
+                    tokenIn: address(gmxBaseReward),
                     tokenOut: address(gmx),
                     fee: fee,
                     recipient: address(this),
-                    amountIn: wethAmountIn,
+                    amountIn: gmxBaseRewardAmountIn,
                     amountOutMinimum: amountOutMinimum,
                     sqrtPriceLimitX96: sqrtPriceLimitX96
                 })
@@ -282,7 +282,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
             );
         }
 
-        // Only distribute fees if the amount of vault assets increased (i.e. WETH and/or pxGMX rewards were non-zero)
+        // Only distribute fees if the amount of vault assets increased
         if ((totalAssets() - assetsBeforeClaim) != 0) {
             totalFee =
                 ((asset.balanceOf(address(this)) - assetsBeforeClaim) *
@@ -302,7 +302,7 @@ contract AutoPxGmx is Owned, PirexERC4626 {
             fee,
             amountOutMinimum,
             sqrtPriceLimitX96,
-            wethAmountIn,
+            gmxBaseRewardAmountIn,
             gmxAmountOut,
             pxGmxMintAmount,
             totalFee,

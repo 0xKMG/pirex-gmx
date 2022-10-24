@@ -27,7 +27,8 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     // Address of the rewards module (ie. PirexRewards instance)
     address public immutable rewardsModule;
 
-    ERC20 public immutable weth;
+    // GMX protocol base reward (e.g. WETH)
+    ERC20 public immutable gmxBaseReward;
 
     event WithdrawalPenaltyUpdated(uint256 penalty);
     event PlatformFeeUpdated(uint256 fee);
@@ -36,7 +37,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     event Compounded(
         address indexed caller,
         uint256 minGlp,
-        uint256 wethAmount,
+        uint256 gmxBaseRewardAmount,
         uint256 pxGmxAmountOut,
         uint256 pxGlpAmountOut,
         uint256 totalPxGlpFee,
@@ -51,7 +52,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     error InvalidParam();
 
     /**
-        @param  _weth           address  WETH token contract address
+        @param  _gmxBaseReward  address  GMX reward token contract address
         @param  _asset          address  Asset address (vault asset, e.g. pxGLP)
         @param  _pxGmx          address  pxGMX address (as secondary reward)
         @param  _name           string   Asset name (e.g. Autocompounding pxGLP)
@@ -60,7 +61,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         @param  _rewardsModule  address  Rewards module address
      */
     constructor(
-        address _weth,
+        address _gmxBaseReward,
         address _asset,
         address _pxGmx,
         string memory _name,
@@ -68,19 +69,19 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         address _platform,
         address _rewardsModule
     ) PxGmxReward(_pxGmx) PirexERC4626(ERC20(_asset), _name, _symbol) {
-        if (_weth == address(0)) revert ZeroAddress();
+        if (_gmxBaseReward == address(0)) revert ZeroAddress();
         if (_asset == address(0)) revert ZeroAddress();
         if (bytes(_name).length == 0) revert InvalidAssetParam();
         if (bytes(_symbol).length == 0) revert InvalidAssetParam();
         if (_platform == address(0)) revert ZeroAddress();
         if (_rewardsModule == address(0)) revert ZeroAddress();
 
-        weth = ERC20(_weth);
+        gmxBaseReward = ERC20(_gmxBaseReward);
         platform = _platform;
         rewardsModule = _rewardsModule;
 
-        // Approve the Uniswap V3 router to manage our WETH (inbound swap token)
-        weth.safeApprove(address(_platform), type(uint256).max);
+        // Approve the Uniswap V3 router to manage our base reward (inbound swap token)
+        gmxBaseReward.safeApprove(address(_platform), type(uint256).max);
     }
 
     /**
@@ -192,16 +193,16 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
 
     /**
         @notice Compound pxGLP (and additionally pxGMX) rewards
-        @param  minUsdg          uint256  Minimum USDG amount used when minting GLP
-        @param  minGlp           uint256  Minimum GLP amount received from the WETH deposit
-        @param  optOutIncentive  bool     Whether to opt out of the incentive
-        @return wethAmountIn     uint256  WETH inbound amount
-        @return pxGmxAmountOut   uint256  pxGMX outbound amount
-        @return pxGlpAmountOut   uint256  pxGLP outbound amount
-        @return totalPxGlpFee    uint256  Total platform fee for pxGLP
-        @return totalPxGmxFee    uint256  Total platform fee for pxGMX
-        @return pxGlpIncentive   uint256  Compound incentive for pxGLP
-        @return pxGmxIncentive   uint256  Compound incentive for pxGMX
+        @param  minUsdg                uint256  Minimum USDG amount used when minting GLP
+        @param  minGlp                 uint256  Minimum GLP amount received from the WETH deposit
+        @param  optOutIncentive        bool     Whether to opt out of the incentive
+        @return gmxBaseRewardAmountIn  uint256  WETH inbound amount
+        @return pxGmxAmountOut         uint256  pxGMX outbound amount
+        @return pxGlpAmountOut         uint256  pxGLP outbound amount
+        @return totalPxGlpFee          uint256  Total platform fee for pxGLP
+        @return totalPxGmxFee          uint256  Total platform fee for pxGMX
+        @return pxGlpIncentive         uint256  Compound incentive for pxGLP
+        @return pxGmxIncentive         uint256  Compound incentive for pxGMX
      */
     function compound(
         uint256 minUsdg,
@@ -210,7 +211,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
     )
         public
         returns (
-            uint256 wethAmountIn,
+            uint256 gmxBaseRewardAmountIn,
             uint256 pxGmxAmountOut,
             uint256 pxGlpAmountOut,
             uint256 totalPxGlpFee,
@@ -228,14 +229,14 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         PirexRewards(rewardsModule).claim(asset, address(this));
         PirexRewards(rewardsModule).claim(pxGmx, address(this));
 
-        // Track the amount of WETH received
-        wethAmountIn = weth.balanceOf(address(this));
+        // Track the amount of rewards received
+        gmxBaseRewardAmountIn = gmxBaseReward.balanceOf(address(this));
 
-        if (wethAmountIn != 0) {
-            // Deposit received WETH for pxGLP
+        if (gmxBaseRewardAmountIn != 0) {
+            // Deposit received rewards for pxGLP
             (, pxGlpAmountOut, ) = PirexGmx(platform).depositGlp(
-                address(weth),
-                wethAmountIn,
+                address(gmxBaseReward),
+                gmxBaseRewardAmountIn,
                 minUsdg,
                 minGlp,
                 address(this)
@@ -281,7 +282,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
         emit Compounded(
             msg.sender,
             minGlp,
-            wethAmountIn,
+            gmxBaseRewardAmountIn,
             pxGmxAmountOut,
             pxGlpAmountOut,
             totalPxGlpFee,
