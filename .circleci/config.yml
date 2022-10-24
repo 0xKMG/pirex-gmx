@@ -58,8 +58,11 @@ jobs:
               # Install project dependencies
               $FOUNDRY_BIN_DIR/forge i
 
-              # Perform forge tests
+              # Perform forge tests on Arbitrum
               $FOUNDRY_BIN_DIR/forge test --fork-url $FORK_URL --fork-block-number $FORK_BLOCK_NUMBER
+
+              # Perform forge tests on Avalanche
+              $FOUNDRY_BIN_DIR/forge test --fork-url $FORK_URL_AVAX --fork-block-number $FORK_BLOCK_NUMBER_AVAX
       - run:
           name: setup-solc-select
           command: pip install solc-select && solc-select install 0.8.17 && solc-select use 0.8.17
