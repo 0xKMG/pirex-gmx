@@ -62,7 +62,7 @@ jobs:
               $FOUNDRY_BIN_DIR/forge test --fork-url $FORK_URL --fork-block-number $FORK_BLOCK_NUMBER
 
               # Perform forge tests on Avalanche
-              $FOUNDRY_BIN_DIR/forge test --fork-url $FORK_URL_AVAX --fork-block-number $FORK_BLOCK_NUMBER_AVAX
+              $FOUNDRY_BIN_DIR/forge test --fork-url $FORK_URL_AVAX --fork-block-number $FORK_BLOCK_NUMBER_AVAX --no-match-contract AutoPxGmx
       - run:
           name: setup-solc-select
           command: pip install solc-select && solc-select install 0.8.17 && solc-select use 0.8.17
