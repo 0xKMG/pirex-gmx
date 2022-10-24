@@ -491,13 +491,13 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx reversion: insufficient fsGLP balance
-        @param  ethAmount  uint80  ETH amount
+        @param  ethAmount  uint72  ETH amount
      */
-    function testCannotDepositFsGlpInsufficientBalance(uint80 ethAmount)
+    function testCannotDepositFsGlpInsufficientBalance(uint72 ethAmount)
         external
     {
         vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
+        vm.assume(ethAmount < 1000 ether);
 
         uint256 invalidAssets = _mintAndApproveFsGlp(ethAmount, address(this)) +
             1;
@@ -711,7 +711,7 @@ contract PirexGmxTest is Test, Helper {
     function testCannotDepositGlpPaused() external {
         _pauseContract();
 
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1;
         uint256 minUsdg = 1;
         uint256 minGlp = 1;
@@ -770,7 +770,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: token amount is zero
      */
     function testCannotDepositGlpTokenAmountZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 invalidTokenAmount = 0;
         uint256 minUsdg = 1;
         uint256 minGlp = 1;
@@ -791,7 +791,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minUsdg is zero
      */
     function testCannotDepositGlpMinUsdgZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1;
         uint256 invalidMinUsdg = 0;
         uint256 minGlp = 1;
@@ -812,7 +812,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minGlp is zero
      */
     function testCannotDepositGlpMinGlpZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1;
         uint256 minUsdg = 1;
         uint256 invalidMinGlp = 0;
@@ -833,7 +833,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: receiver is zero address
      */
     function testCannotDepositGlpReceiverZeroAddress() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1;
         uint256 minUsdg = 1;
         uint256 minGlp = 1;
@@ -854,15 +854,15 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minGlp is greater than output
      */
     function testCannotDepositGlpMinGlpInsufficientGlpOutput() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1e8;
         uint256 minUsdg = 1;
         uint256 invalidMinGlp = _calculateMinGlpAmount(token, tokenAmount, 8) *
             2;
         address receiver = address(this);
 
-        _mintWbtc(tokenAmount, address(this));
-        WBTC.approve(address(pirexGmx), tokenAmount);
+        _mintWrappedToken(tokenAmount, address(this));
+        weth.approve(address(pirexGmx), tokenAmount);
 
         vm.expectRevert(INSUFFICIENT_GLP_OUTPUT_ERROR);
 
@@ -1033,7 +1033,7 @@ contract PirexGmxTest is Test, Helper {
      */
     function testCannotRedeemPxGlpPaused() external {
         uint256 etherAmount = 1 ether;
-        address token = address(WBTC);
+        address token = address(weth);
         (uint256 postFeeAmount, uint256 feeAmount) = _depositGlpETH(
             etherAmount,
             address(this)
@@ -1084,7 +1084,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: assets is zero
      */
     function testCannotRedeemPxGlpAssetsZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 invalidAssets = 0;
         uint256 minOut = 1;
         address receiver = testAccounts[0];
@@ -1098,7 +1098,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minOut is zero
      */
     function testCannotRedeemPxGlpMinOutZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 assets = 1;
         uint256 invalidMinOut = 0;
         address receiver = testAccounts[0];
@@ -1112,7 +1112,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: receiver is zero address
      */
     function testCannotRedeemPxGlpReceiverZeroAddress() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 assets = 1;
         uint256 minOut = 1;
         address invalidReceiver = address(0);
@@ -1126,7 +1126,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minOut is greater than output amount
      */
     function testCannotRedeemPxGlpMinOutInsufficientOutput() external {
-        address token = address(WBTC);
+        address token = address(weth);
         (uint256 deposited, , ) = _depositGlp(1e8, address(this));
         uint256 invalidMinOut = _calculateMinOutAmount(token, deposited) * 2;
         address receiver = testAccounts[0];
@@ -1188,7 +1188,7 @@ contract PirexGmxTest is Test, Helper {
                 PirexGmx.Fees.Redemption,
                 depositAmount
             );
-            address token = useETH ? address(weth) : address(WBTC);
+            address token = address(weth);
 
             vm.startPrank(testAccount);
 
@@ -1199,7 +1199,7 @@ contract PirexGmxTest is Test, Helper {
             emit RedeemGlp(
                 testAccount,
                 testAccount,
-                useETH ? address(0) : address(WBTC),
+                useETH ? address(0) : token,
                 0,
                 _calculateMinOutAmount(token, postFeeAmount),
                 0,
@@ -1251,22 +1251,22 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx success: claim WETH, esGMX, and bnGMX/MP rewards
         @param  secondsElapsed  uint32  Seconds to forward timestamp
-        @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
+        @param  tokenAmount     uint72  Amount of wrapped token used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
      */
     function testClaimRewards(
         uint32 secondsElapsed,
-        uint40 wbtcAmount,
+        uint72 tokenAmount,
         uint80 gmxAmount
     ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
-        vm.assume(wbtcAmount > 1e5);
-        vm.assume(wbtcAmount < 100e8);
+        vm.assume(tokenAmount > 0.001 ether);
+        vm.assume(tokenAmount < 1000 ether);
         vm.assume(gmxAmount > 1e15);
         vm.assume(gmxAmount < 1000000e18);
 
-        _depositGlp(wbtcAmount, address(this));
+        _depositGlp(tokenAmount, address(this));
         _depositGmx(gmxAmount, address(this));
 
         vm.warp(block.timestamp + secondsElapsed);
@@ -1400,7 +1400,7 @@ contract PirexGmxTest is Test, Helper {
         pirexGmx.claimUserReward(invalidToken, amount, receiver);
     }
 
-        /**
+    /**
         @notice Test tx reversion: amount is zero
      */
     function testCannotClaimUserRewardAmountZeroAmount() external {
@@ -1430,14 +1430,14 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx success: claim user reward
-        @param  wethAmount   uint80  Amount of claimable WETH
+        @param  wethAmount   uint72  Amount of claimable WETH
         @param  pxGmxAmount  uint80  Amount of claimable pxGMX
      */
-    function testClaimUserReward(uint80 wethAmount, uint80 pxGmxAmount)
+    function testClaimUserReward(uint72 wethAmount, uint80 pxGmxAmount)
         external
     {
         vm.assume(wethAmount > 0.001 ether);
-        vm.assume(wethAmount < 1_000 ether);
+        vm.assume(wethAmount < 1000 ether);
         vm.assume(pxGmxAmount != 0);
         vm.assume(pxGmxAmount < 1000000e18);
 
@@ -1451,7 +1451,7 @@ contract PirexGmxTest is Test, Helper {
         // Mint and transfers tokens for user claim tests
         vm.deal(address(this), wethAmount);
 
-        IWETH(tokenWeth).depositTo{value: wethAmount}(address(pirexGmx));
+        _mintWrappedToken(wethAmount, address(pirexGmx));
 
         vm.prank(address(pirexGmx));
 

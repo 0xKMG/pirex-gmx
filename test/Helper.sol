@@ -19,7 +19,7 @@ import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
 import {IGMX} from "src/interfaces/IGMX.sol";
 import {ITimelock} from "src/interfaces/ITimelock.sol";
-import {IWBTC} from "src/interfaces/IWBTC.sol";
+import {IWETH} from "src/interfaces/IWETH.sol";
 import {IVault} from "src/interfaces/IVault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
@@ -37,8 +37,6 @@ contract Helper is Test, HelperEvents, HelperState {
         IStakedGlp(0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE);
     address internal constant POSITION_ROUTER =
         0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868;
-    IWBTC internal constant WBTC =
-        IWBTC(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
     uint256 internal constant FEE_BPS = 25;
     uint256 internal constant TAX_BPS = 50;
     uint256 internal constant BPS_DIVISOR = 10_000;
@@ -70,7 +68,10 @@ contract Helper is Test, HelperEvents, HelperState {
     IGlpManager internal immutable glpManager;
     IVault internal immutable vault;
     IGMX internal immutable gmx;
+
+    // GMX's contracts use this variable name for other wrapped native tokens (e.g. WAVAX)
     ERC20 internal immutable weth;
+
     IERC20 internal immutable usdg;
     address internal immutable bnGmx;
     address internal immutable esGmx;
@@ -181,19 +182,14 @@ contract Helper is Test, HelperEvents, HelperState {
     }
 
     /**
-        @notice Mint WBTC for testing ERC20 GLP minting
-        @param  amount    uint256  WBTC amount
-        @param  receiver  address  WBTC receiver
+        @notice Mint GMX-whitelisted wrapped token for testing ERC20 GLP minting
+        @param  amount    uint256  Amount
+        @param  receiver  address  Receiver
      */
-    function _mintWbtc(uint256 amount, address receiver) internal {
-        // Set self to l2Gateway
-        vm.store(
-            address(WBTC),
-            bytes32(uint256(204)),
-            bytes32(uint256(uint160(address(this))))
-        );
+    function _mintWrappedToken(uint256 amount, address receiver) internal {
+        IWETH(address(weth)).deposit{value: amount}();
 
-        WBTC.bridgeMint(receiver, amount);
+        weth.transfer(receiver, amount);
     }
 
     /**
@@ -324,7 +320,10 @@ contract Helper is Test, HelperEvents, HelperState {
 
         // Only used locally to track token amounts used to mint GLP
         uint256[] memory tokenAmounts = new uint256[](tLen);
-
+        tokenAmounts[0] = 1 ether * multiplier;
+        tokenAmounts[1] = 2 ether * multiplier;
+        tokenAmounts[2] = 3 ether * multiplier;
+        uint256 total = tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2];
         depositAmounts = new uint256[](tLen);
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
@@ -335,15 +334,8 @@ contract Helper is Test, HelperEvents, HelperState {
             uint256 depositPostFeeAmount;
             uint256 depositFeeAmount;
 
-            // Conditionally set ETH or WBTC amounts and call the appropriate method for acquiring
+            // Conditionally set ETH or wrapped amounts and call the appropriate method for acquiring
             if (useETH) {
-                tokenAmounts[0] = 1 ether * multiplier;
-                tokenAmounts[1] = 2 ether * multiplier;
-                tokenAmounts[2] = 3 ether * multiplier;
-                uint256 total = tokenAmounts[0] +
-                    tokenAmounts[1] +
-                    tokenAmounts[2];
-
                 vm.deal(caller, total);
                 vm.prank(caller);
                 vm.expectEmit(true, true, true, false, address(pirexGmx));
@@ -363,18 +355,11 @@ contract Helper is Test, HelperEvents, HelperState {
                 (deposited, depositPostFeeAmount, depositFeeAmount) = pirexGmx
                     .depositGlpETH{value: total}(1, 1, testAccount);
             } else {
-                tokenAmounts[0] = 1e8 * multiplier;
-                tokenAmounts[1] = 2e8 * multiplier;
-                tokenAmounts[2] = 3e8 * multiplier;
-                uint256 wBtcTotalAmount = tokenAmounts[0] +
-                    tokenAmounts[1] +
-                    tokenAmounts[2];
-
-                _mintWbtc(wBtcTotalAmount, caller);
+                _mintWrappedToken(total, caller);
 
                 vm.prank(caller);
 
-                WBTC.approve(address(pirexGmx), wBtcTotalAmount);
+                weth.approve(address(pirexGmx), total);
 
                 vm.prank(caller);
                 vm.expectEmit(true, true, true, false, address(pirexGmx));
@@ -382,8 +367,8 @@ contract Helper is Test, HelperEvents, HelperState {
                 emit DepositGlp(
                     caller,
                     testAccount,
-                    address(WBTC),
-                    wBtcTotalAmount,
+                    address(weth),
+                    total,
                     1,
                     1,
                     0,
@@ -392,13 +377,7 @@ contract Helper is Test, HelperEvents, HelperState {
                 );
 
                 (deposited, depositPostFeeAmount, depositFeeAmount) = pirexGmx
-                    .depositGlp(
-                        address(WBTC),
-                        wBtcTotalAmount,
-                        1,
-                        1,
-                        testAccount
-                    );
+                    .depositGlp(address(weth), total, 1, 1, testAccount);
             }
 
             depositAmounts[i] = deposited;
@@ -712,7 +691,7 @@ contract Helper is Test, HelperEvents, HelperState {
     }
 
     /**
-        @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
+        @notice Deposit ERC20 wrapped native token for pxGLP for testing purposes
         @param  tokenAmount    uint256  Amount of token
         @param  receiver       address  Receiver of pxGLP
         @return deposited      uint256  GLP deposited
@@ -727,11 +706,11 @@ contract Helper is Test, HelperEvents, HelperState {
             uint256 feeAmount
         )
     {
-        _mintWbtc(tokenAmount, address(this));
-        WBTC.approve(address(pirexGmx), tokenAmount);
+        _mintWrappedToken(tokenAmount, address(this));
+        weth.approve(address(pirexGmx), tokenAmount);
 
         (deposited, postFeeAmount, feeAmount) = pirexGmx.depositGlp(
-            address(WBTC),
+            address(weth),
             tokenAmount,
             1,
             1,

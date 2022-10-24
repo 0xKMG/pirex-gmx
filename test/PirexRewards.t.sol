@@ -848,7 +848,12 @@ contract PirexRewardsTest is Helper {
             // Perform additional deposits before the next harvest at randomly chosen index
             if (i == additionalDeposit) {
                 _depositGmxForTestAccounts(true, address(this), multiplier);
-                _depositGlpForTestAccounts(true, address(this),multiplier, useETH);
+                _depositGlpForTestAccounts(
+                    true,
+                    address(this),
+                    multiplier,
+                    useETH
+                );
             }
 
             // Time skip to accrue rewards for each round
@@ -1262,7 +1267,7 @@ contract PirexRewardsTest is Helper {
 
         ERC20 producerToken = pxGlp;
         address rewardToken1 = address(weth);
-        address rewardToken2 = address(WBTC);
+        address rewardToken2 = address(this);
 
         ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
             producerToken
