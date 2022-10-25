@@ -45,4 +45,24 @@ interface IRewardRouterV2 {
     function acceptTransfer(address _sender) external;
 
     function pendingReceivers(address _sender) external returns (address);
+
+    function weth() external view returns (address);
+
+    function gmx() external view returns (address);
+
+    function bnGmx() external view returns (address);
+
+    function esGmx() external view returns (address);
+
+    function feeGmxTracker() external view returns (address);
+
+    function feeGlpTracker() external view returns (address);
+
+    function stakedGlpTracker() external view returns (address);
+
+    function stakedGmxTracker() external view returns (address);
+
+    function bonusGmxTracker() external view returns (address);
+
+    function glpManager() external view returns (address);
 }

@@ -112,9 +112,9 @@ contract AutoPxGlpTest is Helper {
         @param  multiplier  uint8  Multiplied with fixed token amounts for randomness
      */
     function _setupRewardsAndTestAccounts(uint8 multiplier) internal {
-        pirexRewards.addRewardToken(pxGmx, WETH);
+        pirexRewards.addRewardToken(pxGmx, weth);
         pirexRewards.addRewardToken(pxGmx, pxGmx);
-        pirexRewards.addRewardToken(pxGlp, WETH);
+        pirexRewards.addRewardToken(pxGlp, weth);
         pirexRewards.addRewardToken(pxGlp, pxGmx);
 
         _depositGlpForTestAccounts(true, address(this), multiplier, true);
@@ -185,12 +185,12 @@ contract AutoPxGlpTest is Helper {
 
         wethRewardState =
             _calculateVaultReward(
-                pirexRewards.getRewardState(pxGmx, WETH),
+                pirexRewards.getRewardState(pxGmx, weth),
                 pxGmxVaultRewards,
                 pxGmxGlobalRewards
             ) +
             _calculateVaultReward(
-                pirexRewards.getRewardState(pxGlp, WETH),
+                pirexRewards.getRewardState(pxGlp, weth),
                 pxGlpVaultRewards,
                 pxGlpGlobalRewards
             );
@@ -867,7 +867,7 @@ contract AutoPxGlpTest is Helper {
             );
             uint256 initialPxGmxBalance = pxGmx.balanceOf(address(autoPxGlp));
             uint256 expectedAdditionalGlp = _calculateMinGlpAmount(
-                address(WETH),
+                address(weth),
                 wethRewardState,
                 18
             );

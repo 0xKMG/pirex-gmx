@@ -86,14 +86,14 @@ contract PirexFeesTest is Helper {
     {
         // Claim and assert on all test accounts, while also calculating total expected fees
         for (uint256 i; i < testAccounts.length; ++i) {
-            assertEq(0, WETH.balanceOf(testAccounts[i]));
+            assertEq(0, weth.balanceOf(testAccounts[i]));
 
             (
                 uint256 expectedDistributionWeth,
                 ,
 
             ) = _calculateExpectedPirexFeeValues(
-                    _calculateClaimableUserReward(pxGmx, WETH, testAccounts[i]),
+                    _calculateClaimableUserReward(pxGmx, weth, testAccounts[i]),
                     feeNumerator
                 );
 
@@ -115,7 +115,7 @@ contract PirexFeesTest is Helper {
 
             pirexRewards.claim(pxGmx, testAccounts[i]);
 
-            assertGt(WETH.balanceOf(testAccounts[i]), 0);
+            assertGt(weth.balanceOf(testAccounts[i]), 0);
         }
 
         // Separately calculate the total aggregated expected fees for treasury
@@ -258,7 +258,7 @@ contract PirexFeesTest is Helper {
         external
     {
         vm.assume(depositFee != 0);
-        vm.assume(depositFee < pirexGmx.FEE_MAX());
+        vm.assume(depositFee < feeMax);
         vm.assume(gmxAmount != 0);
         vm.assume(gmxAmount < 100000e18);
 
@@ -312,16 +312,16 @@ contract PirexFeesTest is Helper {
     /**
         @notice Test tx success: distribute fees for depositGlpETH
         @param  depositFee  uint24  Deposit fee
-        @param  ethAmount   uint96  ETH amount
+        @param  ethAmount   uint72  ETH amount
      */
     function testDistributeFeesDepositGlpETH(
         uint24 depositFee,
-        uint96 ethAmount
+        uint72 ethAmount
     ) external {
         vm.assume(depositFee != 0);
-        vm.assume(depositFee < pirexGmx.FEE_MAX());
+        vm.assume(depositFee < feeMax);
         vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
+        vm.assume(ethAmount < 1000 ether);
 
         pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
 
@@ -378,16 +378,16 @@ contract PirexFeesTest is Helper {
 
     /**
         @notice Test tx success: distribute fees for depositGlp
-        @param  depositFee  uint24  Deposit fee
-        @param  wbtcAmount  uint40  WBTC amount
+        @param  depositFee   uint24  Deposit fee
+        @param  tokenAmount  uint72  Amount
      */
-    function testDistributeFeesDepositGlp(uint24 depositFee, uint40 wbtcAmount)
+    function testDistributeFeesDepositGlp(uint24 depositFee, uint72 tokenAmount)
         external
     {
         vm.assume(depositFee != 0);
-        vm.assume(depositFee < pirexGmx.FEE_MAX());
-        vm.assume(wbtcAmount > 1e5);
-        vm.assume(wbtcAmount < 100e8);
+        vm.assume(depositFee < feeMax);
+        vm.assume(tokenAmount > 0.001 ether);
+        vm.assume(tokenAmount < 1000 ether);
 
         pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
 
@@ -397,9 +397,9 @@ contract PirexFeesTest is Helper {
         uint256 totalExpectedTreasuryDistribution;
         uint256 totalExpectedContributorsDistribution;
 
-        // Perform pxGLP deposit using WBTC (ERC20) for all test accounts and assert fees
+        // Perform pxGLP deposit using wrapped token (ERC20) for all test accounts and assert fees
         for (uint256 i; i < testAccounts.length; ++i) {
-            (uint256 deposited, , ) = _depositGlp(wbtcAmount, testAccounts[i]);
+            (uint256 deposited, , ) = _depositGlp(tokenAmount, testAccounts[i]);
 
             (
                 uint256 expectedDistribution,
@@ -437,18 +437,18 @@ contract PirexFeesTest is Helper {
     /**
         @notice Test tx success: distribute fees for redeemPxGlpETH
         @param  redemptionFee   uint24  Redemption fee
-        @param  ethAmount       uint96  ETH amount
+        @param  ethAmount       uint72  ETH amount
         @param  balanceDivisor  uint8   Divides balance to vary redemption amount
      */
     function testDistributeFeesRedeemPxGlpETH(
         uint24 redemptionFee,
-        uint96 ethAmount,
+        uint72 ethAmount,
         uint8 balanceDivisor
     ) external {
         vm.assume(redemptionFee != 0);
-        vm.assume(redemptionFee < pirexGmx.FEE_MAX());
+        vm.assume(redemptionFee < feeMax);
         vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
+        vm.assume(ethAmount < 1000 ether);
         vm.assume(balanceDivisor != 0);
 
         pirexGmx.setFee(PirexGmx.Fees.Redemption, redemptionFee);
@@ -487,7 +487,7 @@ contract PirexFeesTest is Helper {
             pirexGmx.redeemPxGlpETH(
                 redemptionAmount,
                 _calculateMinOutAmount(
-                    address(WETH),
+                    address(weth),
                     redemptionAmount - expectedDistribution
                 ),
                 testAccounts[i]
@@ -522,18 +522,18 @@ contract PirexFeesTest is Helper {
     /**
         @notice Test tx success: distribute fees for redeemPxGlp
         @param  redemptionFee   uint24  Redemption fee
-        @param  ethAmount       uint96  ETH amount
+        @param  ethAmount       uint72  ETH amount
         @param  balanceDivisor  uint8   Divides balance to vary redemption amount
      */
     function testDistributeFeesRedeemPxGlp(
         uint24 redemptionFee,
-        uint96 ethAmount,
+        uint72 ethAmount,
         uint8 balanceDivisor
     ) external {
         vm.assume(redemptionFee != 0);
-        vm.assume(redemptionFee < pirexGmx.FEE_MAX());
+        vm.assume(redemptionFee < feeMax);
         vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
+        vm.assume(ethAmount < 1000 ether);
         vm.assume(balanceDivisor != 0);
 
         pirexGmx.setFee(PirexGmx.Fees.Redemption, redemptionFee);
@@ -570,10 +570,10 @@ contract PirexFeesTest is Helper {
             token.approve(address(pirexGmx), redemptionAmount);
 
             pirexGmx.redeemPxGlp(
-                address(WETH),
+                address(weth),
                 redemptionAmount,
                 _calculateMinOutAmount(
-                    address(WETH),
+                    address(weth),
                     redemptionAmount - expectedDistribution
                 ),
                 testAccounts[i]
@@ -617,7 +617,7 @@ contract PirexFeesTest is Helper {
         uint8 multiplier
     ) external {
         vm.assume(rewardFee != 0);
-        vm.assume(rewardFee < pirexGmx.FEE_MAX());
+        vm.assume(rewardFee < feeMax);
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
         vm.assume(multiplier != 0);
@@ -625,7 +625,7 @@ contract PirexFeesTest is Helper {
 
         // Set up rewards state and accrual
         pirexRewards.addRewardToken(pxGmx, pxGmx);
-        pirexRewards.addRewardToken(pxGmx, WETH);
+        pirexRewards.addRewardToken(pxGmx, weth);
 
         // Mint pxGMX to accrue rewards and test fee distribution for all test accounts
         _depositGmxForTestAccounts(false, address(this), multiplier);
@@ -637,14 +637,14 @@ contract PirexFeesTest is Helper {
         // to prevent rounding error issue
         (, ERC20[] memory rewardTokens, ) = pirexRewards.harvest();
 
-        assertEq(address(WETH), address(rewardTokens[0]));
+        assertEq(address(weth), address(rewardTokens[0]));
         assertEq(address(pxGmx), address(rewardTokens[2]));
 
         pirexGmx.setFee(PirexGmx.Fees.Reward, rewardFee);
 
-        assertEq(0, WETH.balanceOf(address(pirexFees)));
-        assertEq(0, WETH.balanceOf(treasury));
-        assertEq(0, WETH.balanceOf(contributors));
+        assertEq(0, weth.balanceOf(address(pirexFees)));
+        assertEq(0, weth.balanceOf(treasury));
+        assertEq(0, weth.balanceOf(contributors));
 
         (
             uint256 totalExpectedDistributionWeth,
@@ -657,7 +657,7 @@ contract PirexFeesTest is Helper {
 
         assertEq(
             totalExpectedDistributionWeth,
-            WETH.balanceOf(address(pirexFees))
+            weth.balanceOf(address(pirexFees))
         );
         assertEq(
             totalExpectedDistributionPxGmx,
@@ -667,21 +667,21 @@ contract PirexFeesTest is Helper {
         vm.expectEmit(true, false, false, true, address(pirexFees));
 
         emit DistributeFees(
-            WETH,
+            weth,
             totalExpectedDistributionWeth,
             totalExpectedTreasuryDistributionWeth,
             totalExpectedContributorsDistributionWeth
         );
 
-        pirexFees.distributeFees(WETH);
+        pirexFees.distributeFees(weth);
 
         assertEq(
             totalExpectedTreasuryDistributionWeth,
-            WETH.balanceOf(pirexFees.treasury())
+            weth.balanceOf(pirexFees.treasury())
         );
         assertEq(
             totalExpectedContributorsDistributionWeth,
-            WETH.balanceOf(pirexFees.contributors())
+            weth.balanceOf(pirexFees.contributors())
         );
 
         vm.expectEmit(true, false, false, true, address(pirexFees));

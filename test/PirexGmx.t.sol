@@ -261,7 +261,7 @@ contract PirexGmxTest is Test, Helper {
         assertFalse(contractAddress == currentContractAddress);
         assertEq(
             currentContractAddressAllowance,
-            GMX.allowance(address(pirexGmx), currentContractAddress)
+            gmx.allowance(address(pirexGmx), currentContractAddress)
         );
 
         uint256 expectedCurrentContractAllowance = 0;
@@ -275,11 +275,11 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedCurrentContractAllowance,
-            GMX.allowance(address(pirexGmx), currentContractAddress)
+            gmx.allowance(address(pirexGmx), currentContractAddress)
         );
         assertEq(
             expectedContractAddressAllowance,
-            GMX.allowance(address(pirexGmx), contractAddress)
+            gmx.allowance(address(pirexGmx), contractAddress)
         );
     }
 
@@ -409,7 +409,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedPreDepositGmxBalancePirexGmx,
-            REWARD_TRACKER_GMX.balanceOf(address(pirexGmx))
+            rewardTrackerGmx.balanceOf(address(pirexGmx))
         );
         assertEq(expectedPreDepositPxGmxSupply, pxGmx.totalSupply());
 
@@ -442,7 +442,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedPostDepositGmxBalancePirexGmx,
-            REWARD_TRACKER_GMX.balanceOf(address(pirexGmx))
+            rewardTrackerGmx.balanceOf(address(pirexGmx))
         );
         assertEq(expectedPostDepositPxGmxSupply, pxGmx.totalSupply());
     }
@@ -491,13 +491,13 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx reversion: insufficient fsGLP balance
-        @param  ethAmount  uint80  ETH amount
+        @param  ethAmount  uint72  ETH amount
      */
-    function testCannotDepositFsGlpInsufficientBalance(uint80 ethAmount)
+    function testCannotDepositFsGlpInsufficientBalance(uint72 ethAmount)
         external
     {
         vm.assume(ethAmount > 0.001 ether);
-        vm.assume(ethAmount < 10000 ether);
+        vm.assume(ethAmount < 1000 ether);
 
         uint256 invalidAssets = _mintAndApproveFsGlp(ethAmount, address(this)) +
             1;
@@ -531,7 +531,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedPreDepositGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+            feeStakedGlp.balanceOf(address(pirexGmx))
         );
         assertEq(expectedPreDepositPxGlpSupply, pxGlp.totalSupply());
 
@@ -572,7 +572,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedPostDepositGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+            feeStakedGlp.balanceOf(address(pirexGmx))
         );
         assertEq(expectedPostDepositPxGlpSupply, pxGlp.totalSupply());
     }
@@ -711,7 +711,7 @@ contract PirexGmxTest is Test, Helper {
     function testCannotDepositGlpPaused() external {
         _pauseContract();
 
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1;
         uint256 minUsdg = 1;
         uint256 minGlp = 1;
@@ -770,7 +770,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: token amount is zero
      */
     function testCannotDepositGlpTokenAmountZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 invalidTokenAmount = 0;
         uint256 minUsdg = 1;
         uint256 minGlp = 1;
@@ -791,7 +791,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minUsdg is zero
      */
     function testCannotDepositGlpMinUsdgZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1;
         uint256 invalidMinUsdg = 0;
         uint256 minGlp = 1;
@@ -812,7 +812,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minGlp is zero
      */
     function testCannotDepositGlpMinGlpZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1;
         uint256 minUsdg = 1;
         uint256 invalidMinGlp = 0;
@@ -833,7 +833,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: receiver is zero address
      */
     function testCannotDepositGlpReceiverZeroAddress() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1;
         uint256 minUsdg = 1;
         uint256 minGlp = 1;
@@ -854,15 +854,15 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minGlp is greater than output
      */
     function testCannotDepositGlpMinGlpInsufficientGlpOutput() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 tokenAmount = 1e8;
         uint256 minUsdg = 1;
         uint256 invalidMinGlp = _calculateMinGlpAmount(token, tokenAmount, 8) *
             2;
         address receiver = address(this);
 
-        _mintWbtc(tokenAmount, address(this));
-        WBTC.approve(address(pirexGmx), tokenAmount);
+        _mintWrappedToken(tokenAmount, address(this));
+        weth.approve(address(pirexGmx), tokenAmount);
 
         vm.expectRevert(INSUFFICIENT_GLP_OUTPUT_ERROR);
 
@@ -899,7 +899,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedPreDepositGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+            feeStakedGlp.balanceOf(address(pirexGmx))
         );
         assertEq(expectedPreDepositPxGlpSupply, pxGlp.totalSupply());
 
@@ -933,7 +933,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedPostDepositGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+            feeStakedGlp.balanceOf(address(pirexGmx))
         );
         assertEq(expectedPostDepositPxGlpSupply, pxGlp.totalSupply());
     }
@@ -951,7 +951,7 @@ contract PirexGmxTest is Test, Helper {
             address(this)
         );
         uint256 assets = postFeeAmount + feeAmount;
-        uint256 minOut = _calculateMinOutAmount(address(WETH), assets);
+        uint256 minOut = _calculateMinOutAmount(address(weth), assets);
         address receiver = testAccounts[0];
 
         // Pause after deposit
@@ -1010,7 +1010,7 @@ contract PirexGmxTest is Test, Helper {
             address(this)
         );
         uint256 assets = postFeeAmount + feeAmount;
-        uint256 invalidMinOut = _calculateMinOutAmount(address(WETH), assets) *
+        uint256 invalidMinOut = _calculateMinOutAmount(address(weth), assets) *
             2;
         address receiver = testAccounts[0];
 
@@ -1033,7 +1033,7 @@ contract PirexGmxTest is Test, Helper {
      */
     function testCannotRedeemPxGlpPaused() external {
         uint256 etherAmount = 1 ether;
-        address token = address(WBTC);
+        address token = address(weth);
         (uint256 postFeeAmount, uint256 feeAmount) = _depositGlpETH(
             etherAmount,
             address(this)
@@ -1084,7 +1084,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: assets is zero
      */
     function testCannotRedeemPxGlpAssetsZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 invalidAssets = 0;
         uint256 minOut = 1;
         address receiver = testAccounts[0];
@@ -1098,7 +1098,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minOut is zero
      */
     function testCannotRedeemPxGlpMinOutZeroAmount() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 assets = 1;
         uint256 invalidMinOut = 0;
         address receiver = testAccounts[0];
@@ -1112,7 +1112,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: receiver is zero address
      */
     function testCannotRedeemPxGlpReceiverZeroAddress() external {
-        address token = address(WBTC);
+        address token = address(weth);
         uint256 assets = 1;
         uint256 minOut = 1;
         address invalidReceiver = address(0);
@@ -1126,7 +1126,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: minOut is greater than output amount
      */
     function testCannotRedeemPxGlpMinOutInsufficientOutput() external {
-        address token = address(WBTC);
+        address token = address(weth);
         (uint256 deposited, , ) = _depositGlp(1e8, address(this));
         uint256 invalidMinOut = _calculateMinOutAmount(token, deposited) * 2;
         address receiver = testAccounts[0];
@@ -1174,7 +1174,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedPreRedeemGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+            feeStakedGlp.balanceOf(address(pirexGmx))
         );
         assertEq(expectedPreRedeemGlpBalancePirexGmx, pxGlp.totalSupply());
 
@@ -1188,7 +1188,7 @@ contract PirexGmxTest is Test, Helper {
                 PirexGmx.Fees.Redemption,
                 depositAmount
             );
-            address token = useETH ? address(WETH) : address(WBTC);
+            address token = address(weth);
 
             vm.startPrank(testAccount);
 
@@ -1199,7 +1199,7 @@ contract PirexGmxTest is Test, Helper {
             emit RedeemGlp(
                 testAccount,
                 testAccount,
-                useETH ? address(0) : address(WBTC),
+                useETH ? address(0) : token,
                 0,
                 _calculateMinOutAmount(token, postFeeAmount),
                 0,
@@ -1228,7 +1228,7 @@ contract PirexGmxTest is Test, Helper {
 
         assertEq(
             expectedPostRedeemGlpBalancePirexGmx,
-            FEE_STAKED_GLP.balanceOf(address(pirexGmx))
+            feeStakedGlp.balanceOf(address(pirexGmx))
         );
         assertEq(expectedPostRedeemPxGlpSupply, pxGlp.totalSupply());
     }
@@ -1251,22 +1251,22 @@ contract PirexGmxTest is Test, Helper {
     /**
         @notice Test tx success: claim WETH, esGMX, and bnGMX/MP rewards
         @param  secondsElapsed  uint32  Seconds to forward timestamp
-        @param  wbtcAmount      uint40  Amount of WBTC used for minting GLP
+        @param  tokenAmount     uint72  Amount of wrapped token used for minting GLP
         @param  gmxAmount       uint80  Amount of GMX to mint and deposit
      */
     function testClaimRewards(
         uint32 secondsElapsed,
-        uint40 wbtcAmount,
+        uint72 tokenAmount,
         uint80 gmxAmount
     ) external {
         vm.assume(secondsElapsed > 10);
         vm.assume(secondsElapsed < 365 days);
-        vm.assume(wbtcAmount > 1e5);
-        vm.assume(wbtcAmount < 100e8);
+        vm.assume(tokenAmount > 0.001 ether);
+        vm.assume(tokenAmount < 1000 ether);
         vm.assume(gmxAmount > 1e15);
         vm.assume(gmxAmount < 1000000e18);
 
-        _depositGlp(wbtcAmount, address(this));
+        _depositGlp(tokenAmount, address(this));
         _depositGmx(gmxAmount, address(this));
 
         vm.warp(block.timestamp + secondsElapsed);
@@ -1275,10 +1275,10 @@ contract PirexGmxTest is Test, Helper {
         // uint256 expectedWethBalanceBeforeClaim = 0;
         // uint256 expectedEsGmxBalanceBeforeClaim = 0;
 
-        assertEq(0, WETH.balanceOf(address(pirexGmx)));
-        assertEq(0, STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX));
+        assertEq(0, weth.balanceOf(address(pirexGmx)));
+        assertEq(0, stakedGmx.depositBalances(address(pirexGmx), esGmx));
 
-        uint256 previousStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(
+        uint256 previousStakedGmxBalance = rewardTrackerGmx.balanceOf(
             address(pirexGmx)
         );
         uint256 expectedWETHRewardsGmx = _calculateRewards(
@@ -1332,8 +1332,8 @@ contract PirexGmxTest is Test, Helper {
         assertEq(address(pxGlp), address(producerTokens[1]));
         assertEq(address(pxGmx), address(producerTokens[2]));
         assertEq(address(pxGlp), address(producerTokens[3]));
-        assertEq(address(WETH), address(rewardTokens[0]));
-        assertEq(address(WETH), address(rewardTokens[1]));
+        assertEq(address(weth), address(rewardTokens[0]));
+        assertEq(address(weth), address(rewardTokens[1]));
         assertEq(address(pxGmx), address(rewardTokens[2]));
         assertEq(address(pxGmx), address(rewardTokens[3]));
         assertEq(expectedWETHRewardsGmx, rewardAmounts[0]);
@@ -1345,10 +1345,10 @@ contract PirexGmxTest is Test, Helper {
         // uint256 expectedWethBalanceAfterClaim = expectedWETHRewards;
         // uint256 expectedEsGmxBalanceAfterClaim = expectedEsGmxRewards;
 
-        assertEq(expectedWETHRewards, WETH.balanceOf(address(pirexGmx)));
+        assertEq(expectedWETHRewards, weth.balanceOf(address(pirexGmx)));
         assertEq(
             expectedEsGmxRewards,
-            STAKED_GMX.depositBalances(address(pirexGmx), ES_GMX)
+            stakedGmx.depositBalances(address(pirexGmx), esGmx)
         );
 
         // Claimable reward amounts should all be zero post-claim
@@ -1363,7 +1363,7 @@ contract PirexGmxTest is Test, Helper {
             previousStakedGmxBalance +
                 expectedEsGmxRewards +
                 expectedBnGmxRewards,
-            REWARD_TRACKER_GMX.balanceOf(address(pirexGmx))
+            rewardTrackerGmx.balanceOf(address(pirexGmx))
         );
     }
 
@@ -1375,7 +1375,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: caller is not pirexRewards
      */
     function testCannotClaimUserRewardNotPirexRewards() external {
-        address token = address(WETH);
+        address token = address(weth);
         uint256 amount = 1;
         address receiver = address(this);
 
@@ -1400,11 +1400,11 @@ contract PirexGmxTest is Test, Helper {
         pirexGmx.claimUserReward(invalidToken, amount, receiver);
     }
 
-        /**
+    /**
         @notice Test tx reversion: amount is zero
      */
     function testCannotClaimUserRewardAmountZeroAmount() external {
-        address token = address(WETH);
+        address token = address(weth);
         uint256 invalidAmount = 0;
         address receiver = address(this);
 
@@ -1418,7 +1418,7 @@ contract PirexGmxTest is Test, Helper {
         @notice Test tx reversion: receiver is zero address
      */
     function testCannotClaimUserRewardRecipientZeroAddress() external {
-        address token = address(WETH);
+        address token = address(weth);
         uint256 amount = 1;
         address invalidReceiver = address(0);
 
@@ -1430,28 +1430,28 @@ contract PirexGmxTest is Test, Helper {
 
     /**
         @notice Test tx success: claim user reward
-        @param  wethAmount   uint80  Amount of claimable WETH
+        @param  wethAmount   uint72  Amount of claimable WETH
         @param  pxGmxAmount  uint80  Amount of claimable pxGMX
      */
-    function testClaimUserReward(uint80 wethAmount, uint80 pxGmxAmount)
+    function testClaimUserReward(uint72 wethAmount, uint80 pxGmxAmount)
         external
     {
         vm.assume(wethAmount > 0.001 ether);
-        vm.assume(wethAmount < 1_000 ether);
+        vm.assume(wethAmount < 1000 ether);
         vm.assume(pxGmxAmount != 0);
         vm.assume(pxGmxAmount < 1000000e18);
 
-        address tokenWeth = address(WETH);
+        address tokenWeth = address(weth);
         address tokenPxGmx = address(pxGmx);
         address receiver = address(this);
 
-        assertEq(0, WETH.balanceOf(receiver));
+        assertEq(0, weth.balanceOf(receiver));
         assertEq(0, pxGmx.balanceOf(receiver));
 
         // Mint and transfers tokens for user claim tests
         vm.deal(address(this), wethAmount);
 
-        IWETH(tokenWeth).depositTo{value: wethAmount}(address(pirexGmx));
+        _mintWrappedToken(wethAmount, address(pirexGmx));
 
         vm.prank(address(pirexGmx));
 
@@ -1465,7 +1465,7 @@ contract PirexGmxTest is Test, Helper {
 
         vm.stopPrank();
 
-        assertEq(WETH.balanceOf(receiver), wethAmount);
+        assertEq(weth.balanceOf(receiver), wethAmount);
         assertEq(pxGmx.balanceOf(receiver), pxGmxAmount);
     }
 
@@ -1846,7 +1846,10 @@ contract PirexGmxTest is Test, Helper {
             address(pxGlp),
             address(pirexFees),
             address(pirexRewards),
-            address(delegateRegistry)
+            address(delegateRegistry),
+            REWARD_ROUTER_V2.weth(),
+            address(REWARD_ROUTER_V2),
+            address(STAKED_GLP)
         );
 
         vm.expectRevert("RewardRouter: transfer not signalled");
@@ -1877,14 +1880,14 @@ contract PirexGmxTest is Test, Helper {
         vm.warp(block.timestamp + 1 days);
 
         // Store the staked balances for later validations
-        uint256 oldStakedGmxBalance = REWARD_TRACKER_GMX.balanceOf(oldContract);
-        uint256 oldStakedGlpBalance = FEE_STAKED_GLP.balanceOf(oldContract);
+        uint256 oldStakedGmxBalance = rewardTrackerGmx.balanceOf(oldContract);
+        uint256 oldStakedGlpBalance = feeStakedGlp.balanceOf(oldContract);
         uint256 oldEsGmxClaimable = _calculateRewards(
             address(pirexGmx),
             false,
             true
         ) + _calculateRewards(address(pirexGmx), false, false);
-        uint256 oldMpBalance = REWARD_TRACKER_MP.claimable(oldContract);
+        uint256 oldMpBalance = rewardTrackerMp.claimable(oldContract);
 
         // Pause the contract before proceeding
         _pauseContract();
@@ -1895,7 +1898,10 @@ contract PirexGmxTest is Test, Helper {
             address(pxGlp),
             address(pirexFees),
             address(pirexRewards),
-            address(delegateRegistry)
+            address(delegateRegistry),
+            REWARD_ROUTER_V2.weth(),
+            address(REWARD_ROUTER_V2),
+            address(STAKED_GLP)
         );
 
         address newContract = address(newPirexGmx);
@@ -1918,19 +1924,19 @@ contract PirexGmxTest is Test, Helper {
         assertEq(REWARD_ROUTER_V2.pendingReceivers(oldContract), address(0));
 
         // Confirm that the token balances and claimables for old contract are correct
-        assertEq(0, REWARD_TRACKER_GMX.balanceOf(oldContract));
-        assertEq(0, FEE_STAKED_GLP.balanceOf(oldContract));
-        assertEq(0, STAKED_GMX.claimable(oldContract));
-        assertEq(0, FEE_STAKED_GLP.claimable(oldContract));
-        assertEq(0, REWARD_TRACKER_MP.claimable(oldContract));
+        assertEq(0, rewardTrackerGmx.balanceOf(oldContract));
+        assertEq(0, feeStakedGlp.balanceOf(oldContract));
+        assertEq(0, stakedGmx.claimable(oldContract));
+        assertEq(0, feeStakedGlp.claimable(oldContract));
+        assertEq(0, rewardTrackerMp.claimable(oldContract));
 
         // Confirm that the staked token balances for new contract are correct
         // For Staked GMX balance, due to compounding in the migration,
         // all pending claimable esGMX and MP are automatically staked
         assertEq(
             oldStakedGmxBalance + oldEsGmxClaimable + oldMpBalance,
-            REWARD_TRACKER_GMX.balanceOf(newContract)
+            rewardTrackerGmx.balanceOf(newContract)
         );
-        assertEq(oldStakedGlpBalance, FEE_STAKED_GLP.balanceOf(newContract));
+        assertEq(oldStakedGlpBalance, feeStakedGlp.balanceOf(newContract));
     }
 }

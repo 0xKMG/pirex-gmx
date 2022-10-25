@@ -838,8 +838,8 @@ contract PirexRewardsTest is Helper {
         expectedProducerTokens[1] = pxGlp;
         expectedProducerTokens[2] = pxGmx;
         expectedProducerTokens[3] = pxGlp;
-        expectedRewardTokens[0] = WETH;
-        expectedRewardTokens[1] = WETH;
+        expectedRewardTokens[0] = weth;
+        expectedRewardTokens[1] = weth;
         expectedRewardTokens[2] = ERC20(pxGmx); // esGMX rewards are distributed as pxGMX
         expectedRewardTokens[3] = ERC20(pxGmx);
 
@@ -848,7 +848,12 @@ contract PirexRewardsTest is Helper {
             // Perform additional deposits before the next harvest at randomly chosen index
             if (i == additionalDeposit) {
                 _depositGmxForTestAccounts(true, address(this), multiplier);
-                _depositGlpForTestAccounts(true, address(this),multiplier, useETH);
+                _depositGlpForTestAccounts(
+                    true,
+                    address(this),
+                    multiplier,
+                    useETH
+                );
             }
 
             // Time skip to accrue rewards for each round
@@ -931,7 +936,7 @@ contract PirexRewardsTest is Helper {
      */
     function testCannotSetRewardRecipientProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address recipient = address(this);
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
@@ -965,7 +970,7 @@ contract PirexRewardsTest is Helper {
      */
     function testCannotSetRewardRecipientRecipientZeroAddress() external {
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address invalidRecipient = address(0);
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
@@ -982,7 +987,7 @@ contract PirexRewardsTest is Helper {
      */
     function testSetRewardRecipient() external {
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address recipient = address(this);
         address oldRecipient = pirexRewards.getRewardRecipient(
             address(this),
@@ -1023,7 +1028,7 @@ contract PirexRewardsTest is Helper {
      */
     function testCannotUnsetRewardRecipientProducerTokenZeroAddress() external {
         ERC20 invalidProducerToken = ERC20(address(0));
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
@@ -1047,7 +1052,7 @@ contract PirexRewardsTest is Helper {
      */
     function testUnsetRewardRecipient() external {
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address recipient = address(this);
 
         assertEq(
@@ -1096,7 +1101,7 @@ contract PirexRewardsTest is Helper {
      */
     function testCannotAddRewardTokenNotAuthorized() external {
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
 
         vm.expectRevert(NOT_OWNER_ERROR);
 
@@ -1134,7 +1139,7 @@ contract PirexRewardsTest is Helper {
      */
     function testCannotAddRewardTokenAlreadyAdded() external {
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
 
         // Add a record before attempting to add the same token again
         pirexRewards.addRewardToken(producerToken, rewardToken);
@@ -1157,7 +1162,7 @@ contract PirexRewardsTest is Helper {
      */
     function testAddRewardToken() external {
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
             producerToken
         );
@@ -1233,7 +1238,7 @@ contract PirexRewardsTest is Helper {
      */
     function testCannotRemoveRewardTokenIndexOutOfBounds() external {
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         uint256 invalidRemovalIndex = 2;
 
         // Add a record then attempt to remove using larger index
@@ -1261,8 +1266,8 @@ contract PirexRewardsTest is Helper {
         vm.assume(removalIndex < 2);
 
         ERC20 producerToken = pxGlp;
-        address rewardToken1 = address(WETH);
-        address rewardToken2 = address(WBTC);
+        address rewardToken1 = address(weth);
+        address rewardToken2 = address(this);
 
         ERC20[] memory rewardTokensBeforePush = pirexRewards.getRewardTokens(
             producerToken
@@ -1351,8 +1356,8 @@ contract PirexRewardsTest is Helper {
         vm.warp(block.timestamp + secondsElapsed);
 
         // Add reward token and harvest rewards from Pirex contract
-        pirexRewards.addRewardToken(pxGmx, WETH);
-        pirexRewards.addRewardToken(pxGlp, WETH);
+        pirexRewards.addRewardToken(pxGmx, weth);
+        pirexRewards.addRewardToken(pxGlp, weth);
         pirexRewards.harvest();
 
         for (uint256 i; i < testAccounts.length; ++i) {
@@ -1363,12 +1368,12 @@ contract PirexRewardsTest is Helper {
             if (forwardRewards) {
                 vm.startPrank(testAccounts[i]);
 
-                pirexRewards.setRewardRecipient(pxGmx, WETH, address(this));
-                pirexRewards.setRewardRecipient(pxGlp, WETH, address(this));
+                pirexRewards.setRewardRecipient(pxGmx, weth, address(this));
+                pirexRewards.setRewardRecipient(pxGlp, weth, address(this));
 
                 vm.stopPrank();
             } else {
-                assertEq(0, WETH.balanceOf(testAccounts[i]));
+                assertEq(0, weth.balanceOf(testAccounts[i]));
             }
 
             pirexRewards.userAccrue(pxGmx, testAccounts[i]);
@@ -1388,16 +1393,16 @@ contract PirexRewardsTest is Helper {
             // Sum of reward amounts that the user/recipient is entitled to
             uint256 expectedClaimAmount = ((pirexRewards.getRewardState(
                 pxGmx,
-                WETH
+                weth
             ) * _calculateUserRewards(pxGmx, testAccounts[i])) /
                 _calculateGlobalRewards(pxGmx)) +
-                ((pirexRewards.getRewardState(pxGlp, WETH) *
+                ((pirexRewards.getRewardState(pxGlp, weth) *
                     _calculateUserRewards(pxGlp, testAccounts[i])) /
                     _calculateGlobalRewards(pxGlp));
 
             // Deduct previous balance if rewards are forwarded
             uint256 recipientBalanceDeduction = forwardRewards
-                ? WETH.balanceOf(recipient)
+                ? weth.balanceOf(recipient)
                 : 0;
 
             vm.expectEmit(true, true, false, true, address(pirexRewards));
@@ -1431,7 +1436,7 @@ contract PirexRewardsTest is Helper {
             assertEq(0, userRewardsAfterClaimPxGlp);
             assertEq(
                 expectedClaimAmount,
-                WETH.balanceOf(recipient) - recipientBalanceDeduction
+                weth.balanceOf(recipient) - recipientBalanceDeduction
             );
         }
     }
@@ -1446,7 +1451,7 @@ contract PirexRewardsTest is Helper {
     function testCannotSetRewardRecipientPrivilegedNotAuthorized() external {
         address lpContract = address(this);
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address recipient = address(this);
 
         vm.expectRevert(NOT_OWNER_ERROR);
@@ -1471,7 +1476,7 @@ contract PirexRewardsTest is Helper {
         address invalidLpContract = testAccounts[0];
 
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address recipient = address(this);
 
         vm.expectRevert(PirexRewards.NotContract.selector);
@@ -1504,7 +1509,7 @@ contract PirexRewardsTest is Helper {
     {
         address lpContract = address(this);
         ERC20 invalidProducerToken = ERC20(address(0));
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address recipient = address(this);
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
@@ -1546,7 +1551,7 @@ contract PirexRewardsTest is Helper {
     {
         address lpContract = address(this);
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address invalidRecipient = address(0);
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
@@ -1565,7 +1570,7 @@ contract PirexRewardsTest is Helper {
     function testSetRewardRecipientPrivileged() external {
         address lpContract = address(this);
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
         address recipient = address(this);
 
         assertEq(
@@ -1613,7 +1618,7 @@ contract PirexRewardsTest is Helper {
     function testCannotUnsetRewardRecipientPrivilegedNotAuthorized() external {
         address lpContract = address(this);
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
 
         vm.expectRevert(NOT_OWNER_ERROR);
 
@@ -1634,7 +1639,7 @@ contract PirexRewardsTest is Helper {
     {
         address invalidLpContract = testAccounts[0];
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
 
         vm.expectRevert(PirexRewards.NotContract.selector);
 
@@ -1663,7 +1668,7 @@ contract PirexRewardsTest is Helper {
     {
         address lpContract = address(this);
         ERC20 invalidProducerToken = ERC20(address(0));
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
 
         vm.expectRevert(PirexRewards.ZeroAddress.selector);
 
@@ -1699,7 +1704,7 @@ contract PirexRewardsTest is Helper {
     function testUnsetRewardRecipientPrivileged() external {
         address lpContract = address(this);
         ERC20 producerToken = pxGlp;
-        ERC20 rewardToken = WETH;
+        ERC20 rewardToken = weth;
 
         // Assert initial recipient
         assertEq(
@@ -1768,7 +1773,7 @@ contract PirexRewardsTest is Helper {
             proxyAddress
         );
 
-        vm.prank(proxyAdmin);
+        vm.prank(PROXY_ADMIN);
 
         // Store the old (pre-upgrade) implementation address before upgrading
         address oldImplementation = proxy.implementation();
@@ -1790,7 +1795,7 @@ contract PirexRewardsTest is Helper {
 
         uint256 oldMethodResult = pirexRewards.getRewardState(
             ERC20(address(pxGmx)),
-            WETH
+            weth
         );
 
         assertGt(oldMethodResult, 0);
@@ -1798,7 +1803,7 @@ contract PirexRewardsTest is Helper {
         // Deploy and set a new implementation to the proxy as the admin
         PirexRewardsMock newImplementation = new PirexRewardsMock();
 
-        vm.startPrank(proxyAdmin);
+        vm.startPrank(PROXY_ADMIN);
 
         proxy.upgradeTo(address(newImplementation));
 
@@ -1814,7 +1819,7 @@ contract PirexRewardsTest is Helper {
             oldMethodResult * 2,
             PirexRewardsMock(proxyAddress).getRewardStateMock(
                 ERC20(address(pxGmx)),
-                WETH
+                weth
             )
         );
 

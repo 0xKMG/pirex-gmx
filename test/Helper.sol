@@ -16,58 +16,38 @@ import {GlobalState} from "src/Common.sol";
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
 import {AutoPxGlp} from "src/vaults/AutoPxGlp.sol";
 import {IRewardRouterV2} from "src/interfaces/IRewardRouterV2.sol";
-import {IVaultReader} from "src/interfaces/IVaultReader.sol";
 import {IGlpManager} from "src/interfaces/IGlpManager.sol";
-import {IReader} from "src/interfaces/IReader.sol";
 import {IGMX} from "src/interfaces/IGMX.sol";
 import {ITimelock} from "src/interfaces/ITimelock.sol";
-import {IWBTC} from "src/interfaces/IWBTC.sol";
+import {IWETH} from "src/interfaces/IWETH.sol";
 import {IVault} from "src/interfaces/IVault.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {RewardTracker} from "src/external/RewardTracker.sol";
 import {IStakedGlp} from "src/interfaces/IStakedGlp.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
+import {IVaultPriceFeed} from "src/interfaces/IVaultPriceFeed.sol";
+import {IBasePositionManager} from "src/interfaces/IBasePositionManager.sol";
 import {HelperEvents} from "./HelperEvents.sol";
 import {HelperState} from "./HelperState.sol";
 
 contract Helper is Test, HelperEvents, HelperState {
-    IRewardRouterV2 internal constant REWARD_ROUTER_V2 =
-        IRewardRouterV2(0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1);
-    RewardTracker public constant REWARD_TRACKER_GMX =
-        RewardTracker(0xd2D1162512F927a7e282Ef43a362659E4F2a728F);
-    RewardTracker public constant REWARD_TRACKER_GLP =
-        RewardTracker(0x4e971a87900b931fF39d1Aad67697F49835400b6);
-    RewardTracker public constant REWARD_TRACKER_MP =
-        RewardTracker(0x4d268a7d4C16ceB5a606c173Bd974984343fea13);
-    RewardTracker internal constant FEE_STAKED_GLP =
-        RewardTracker(0x1aDDD80E6039594eE970E5872D247bf0414C8903);
-    RewardTracker internal constant STAKED_GMX =
-        RewardTracker(0x908C4D94D34924765f1eDc22A1DD098397c59dD4);
-    IStakedGlp internal constant STAKED_GLP =
-        IStakedGlp(0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE);
-    IVaultReader internal constant VAULT_READER =
-        IVaultReader(0xfebB9f4CAC4cD523598fE1C5771181440143F24A);
-    IGlpManager internal constant GLP_MANAGER =
-        IGlpManager(0x321F653eED006AD1C29D174e17d96351BDe22649);
-    IReader internal constant READER =
-        IReader(0x22199a49A999c351eF7927602CFB187ec3cae489);
-    IVault internal constant VAULT =
-        IVault(0x489ee077994B6658eAfA855C308275EAd8097C4A);
-    IGMX internal constant GMX =
-        IGMX(0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a);
-    IERC20 internal constant USDG =
-        IERC20(0x45096e7aA921f27590f8F19e457794EB09678141);
-    IWBTC internal constant WBTC =
-        IWBTC(0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f);
-    ERC20 internal constant WETH =
-        ERC20(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
-
-    address internal constant BN_GMX =
-        0x35247165119B69A40edD5304969560D0ef486921;
-    address internal constant ES_GMX =
-        0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA;
-    address internal constant POSITION_ROUTER =
-        0x3D6bA331e3D9702C5e8A8d254e5d8a285F223aba;
+    uint256 internal constant AVAX_CHAIN_ID = 43114;
+    IRewardRouterV2 internal immutable REWARD_ROUTER_V2 =
+        IRewardRouterV2(
+            block.chainid == AVAX_CHAIN_ID
+                ? 0x82147C5A7E850eA4E28155DF107F2590fD4ba327
+                : 0xA906F338CB21815cBc4Bc87ace9e68c87eF8d8F1
+        );
+    IStakedGlp internal immutable STAKED_GLP =
+        IStakedGlp(
+            block.chainid == AVAX_CHAIN_ID
+                ? 0x0b82a1aD2138E9f62454ac41b702B64e0b73d57b
+                : 0x2F546AD4eDD93B956C8999Be404cdCAFde3E89AE
+        );
+    address internal immutable POSITION_ROUTER =
+        block.chainid == AVAX_CHAIN_ID
+            ? 0xffF6D276Bc37c61A23f06410Dce4A400f66420f8
+            : 0xb87a436B93fFE9D75c5cFA7bAcFff96430b09868;
     uint256 internal constant FEE_BPS = 25;
     uint256 internal constant TAX_BPS = 50;
     uint256 internal constant BPS_DIVISOR = 10_000;
@@ -79,6 +59,33 @@ contract Helper is Test, HelperEvents, HelperState {
     bytes internal constant NOT_OWNER_ERROR =
         "Ownable: caller is not the owner";
 
+    // Arbitrary addresses used for testing fees
+    address internal constant TREASURY_ADDRESS =
+        0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
+    address internal constant CONTRIBUTORS_ADDRESS =
+        0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
+
+    // Used as admin on upgradable contracts
+    // We should not use any of the testAccounts as they won't be able to be used on related tests
+    // due to the limitation of admin role in these proxy contracts
+    address internal constant PROXY_ADMIN =
+        0x37c80252Ce544Be11F5bc24B0722DB8d483D0a4d;
+
+    RewardTracker internal immutable rewardTrackerGmx;
+    RewardTracker internal immutable rewardTrackerGlp;
+    RewardTracker internal immutable rewardTrackerMp;
+    RewardTracker internal immutable feeStakedGlp;
+    RewardTracker internal immutable stakedGmx;
+    IGlpManager internal immutable glpManager;
+    IVault internal immutable vault;
+    IGMX internal immutable gmx;
+
+    // GMX's contracts use this variable name for other wrapped native tokens (e.g. WAVAX)
+    ERC20 internal immutable weth;
+
+    IERC20 internal immutable usdg;
+    address internal immutable bnGmx;
+    address internal immutable esGmx;
     PirexGmx internal immutable pirexGmx;
     PxGmx internal immutable pxGmx;
     AutoPxGmx internal immutable autoPxGmx;
@@ -94,17 +101,6 @@ contract Helper is Test, HelperEvents, HelperState {
         0xE834EC434DABA538cd1b9Fe1582052B880BD7e63
     ];
 
-    // Arbitrary addresses used for testing fees
-    address internal treasuryAddress =
-        0xfCd72e7a92dE3a8D7611a17c85fff70d1BF44daD;
-    address internal contributorsAddress =
-        0xdEe242Fd5355D26ab571AE8efB9A6BB92f7c1a07;
-
-    // Used as admin on upgradable contracts
-    // We should not use any of the testAccounts as they won't be able to be used on related tests
-    // due to the limitation of admin role in these proxy contracts
-    address internal proxyAdmin = 0x37c80252Ce544Be11F5bc24B0722DB8d483D0a4d;
-
     // For testing ETH transfers
     receive() external payable {}
 
@@ -112,13 +108,26 @@ contract Helper is Test, HelperEvents, HelperState {
         // Deploying our own delegateRegistry since no official one exists yet in Arbitrum
         delegateRegistry = new DelegateRegistry();
 
+        rewardTrackerGmx = RewardTracker(REWARD_ROUTER_V2.feeGmxTracker());
+        rewardTrackerGlp = RewardTracker(REWARD_ROUTER_V2.feeGlpTracker());
+        rewardTrackerMp = RewardTracker(REWARD_ROUTER_V2.bonusGmxTracker());
+        feeStakedGlp = RewardTracker(REWARD_ROUTER_V2.stakedGlpTracker());
+        stakedGmx = RewardTracker(REWARD_ROUTER_V2.stakedGmxTracker());
+        glpManager = IGlpManager(REWARD_ROUTER_V2.glpManager());
+        gmx = IGMX(REWARD_ROUTER_V2.gmx());
+        weth = ERC20(REWARD_ROUTER_V2.weth());
+        bnGmx = REWARD_ROUTER_V2.bnGmx();
+        esGmx = REWARD_ROUTER_V2.esGmx();
+        vault = IVault(glpManager.vault());
+        usdg = IERC20(glpManager.usdg());
+
         // Deploy the upgradable pirexRewards contract instance
         // Note that we are using special address as admin so that less prank calls are needed
         // to call methods in most PirexRewards tests (as admin can't fallback on the proxy impl. methods)
         PirexRewards pirexRewardsImplementation = new PirexRewards();
         TransparentUpgradeableProxy pirexRewardsProxy = new TransparentUpgradeableProxy(
             address(pirexRewardsImplementation),
-            proxyAdmin, // Admin address
+            PROXY_ADMIN, // Admin address
             abi.encodeWithSelector(PirexRewards.initialize.selector)
         );
         address pirexRewardsProxyAddr = address(pirexRewardsProxy);
@@ -131,15 +140,21 @@ contract Helper is Test, HelperEvents, HelperState {
             "pxGLP",
             18
         );
-        pirexFees = new PirexFees(treasuryAddress, contributorsAddress);
+        pirexFees = new PirexFees(TREASURY_ADDRESS, CONTRIBUTORS_ADDRESS);
         pirexGmx = new PirexGmx(
             address(pxGmx),
             address(pxGlp),
             address(pirexFees),
             address(pirexRewardsProxyAddr),
-            address(delegateRegistry)
+            address(delegateRegistry),
+            // The `weth` variable is used on both Ethereum and Avalanche for the base rewards
+            REWARD_ROUTER_V2.weth(),
+            address(REWARD_ROUTER_V2),
+            address(STAKED_GLP)
         );
         autoPxGmx = new AutoPxGmx(
+            address(pirexGmx.gmxBaseReward()),
+            address(pirexGmx.gmx()),
             address(pxGmx),
             "Autocompounding pxGMX",
             "apxGMX",
@@ -147,6 +162,7 @@ contract Helper is Test, HelperEvents, HelperState {
             address(pirexRewardsProxyAddr)
         );
         autoPxGlp = new AutoPxGlp(
+            address(pirexGmx.gmxBaseReward()),
             address(pxGlp),
             address(pxGmx),
             "Autocompounding pxGLP",
@@ -177,19 +193,14 @@ contract Helper is Test, HelperEvents, HelperState {
     }
 
     /**
-        @notice Mint WBTC for testing ERC20 GLP minting
-        @param  amount    uint256  WBTC amount
-        @param  receiver  address  WBTC receiver
+        @notice Mint GMX-whitelisted wrapped token for testing ERC20 GLP minting
+        @param  amount    uint256  Amount
+        @param  receiver  address  Receiver
      */
-    function _mintWbtc(uint256 amount, address receiver) internal {
-        // Set self to l2Gateway
-        vm.store(
-            address(WBTC),
-            bytes32(uint256(204)),
-            bytes32(uint256(uint160(address(this))))
-        );
+    function _mintWrappedToken(uint256 amount, address receiver) internal {
+        IWETH(address(weth)).deposit{value: amount}();
 
-        WBTC.bridgeMint(receiver, amount);
+        weth.transfer(receiver, amount);
     }
 
     /**
@@ -320,7 +331,10 @@ contract Helper is Test, HelperEvents, HelperState {
 
         // Only used locally to track token amounts used to mint GLP
         uint256[] memory tokenAmounts = new uint256[](tLen);
-
+        tokenAmounts[0] = 1 ether * multiplier;
+        tokenAmounts[1] = 2 ether * multiplier;
+        tokenAmounts[2] = 3 ether * multiplier;
+        uint256 total = tokenAmounts[0] + tokenAmounts[1] + tokenAmounts[2];
         depositAmounts = new uint256[](tLen);
 
         // Iterate over test accounts and mint pxGLP for each to kick off reward accrual
@@ -331,15 +345,8 @@ contract Helper is Test, HelperEvents, HelperState {
             uint256 depositPostFeeAmount;
             uint256 depositFeeAmount;
 
-            // Conditionally set ETH or WBTC amounts and call the appropriate method for acquiring
+            // Conditionally set ETH or wrapped amounts and call the appropriate method for acquiring
             if (useETH) {
-                tokenAmounts[0] = 1 ether * multiplier;
-                tokenAmounts[1] = 2 ether * multiplier;
-                tokenAmounts[2] = 3 ether * multiplier;
-                uint256 total = tokenAmounts[0] +
-                    tokenAmounts[1] +
-                    tokenAmounts[2];
-
                 vm.deal(caller, total);
                 vm.prank(caller);
                 vm.expectEmit(true, true, true, false, address(pirexGmx));
@@ -359,18 +366,11 @@ contract Helper is Test, HelperEvents, HelperState {
                 (deposited, depositPostFeeAmount, depositFeeAmount) = pirexGmx
                     .depositGlpETH{value: total}(1, 1, testAccount);
             } else {
-                tokenAmounts[0] = 1e8 * multiplier;
-                tokenAmounts[1] = 2e8 * multiplier;
-                tokenAmounts[2] = 3e8 * multiplier;
-                uint256 wBtcTotalAmount = tokenAmounts[0] +
-                    tokenAmounts[1] +
-                    tokenAmounts[2];
-
-                _mintWbtc(wBtcTotalAmount, caller);
+                _mintWrappedToken(total, caller);
 
                 vm.prank(caller);
 
-                WBTC.approve(address(pirexGmx), wBtcTotalAmount);
+                weth.approve(address(pirexGmx), total);
 
                 vm.prank(caller);
                 vm.expectEmit(true, true, true, false, address(pirexGmx));
@@ -378,8 +378,8 @@ contract Helper is Test, HelperEvents, HelperState {
                 emit DepositGlp(
                     caller,
                     testAccount,
-                    address(WBTC),
-                    wBtcTotalAmount,
+                    address(weth),
+                    total,
                     1,
                     1,
                     0,
@@ -388,13 +388,7 @@ contract Helper is Test, HelperEvents, HelperState {
                 );
 
                 (deposited, depositPostFeeAmount, depositFeeAmount) = pirexGmx
-                    .depositGlp(
-                        address(WBTC),
-                        wBtcTotalAmount,
-                        1,
-                        1,
-                        testAccount
-                    );
+                    .depositGlp(address(weth), total, 1, 1, testAccount);
             }
 
             depositAmounts[i] = deposited;
@@ -424,20 +418,20 @@ contract Helper is Test, HelperEvents, HelperState {
     ) internal {
         vm.prank(receiver);
 
-        GMX.approve(spender, spenderAllowance);
+        gmx.approve(spender, spenderAllowance);
 
         // Simulate minting for GMX by impersonating the admin in the timelock contract
         // Using the current values as they do change based on which block is pinned for tests
-        ITimelock gmxTimeLock = ITimelock(GMX.gov());
+        ITimelock gmxTimeLock = ITimelock(gmx.gov());
         address timelockAdmin = gmxTimeLock.admin();
 
         vm.startPrank(timelockAdmin);
 
-        gmxTimeLock.signalMint(address(GMX), receiver, amount);
+        gmxTimeLock.signalMint(address(gmx), receiver, amount);
 
         vm.warp(block.timestamp + gmxTimeLock.buffer() + 1 hours);
 
-        gmxTimeLock.processMint(address(GMX), receiver, amount);
+        gmxTimeLock.processMint(address(gmx), receiver, amount);
 
         vm.stopPrank();
     }
@@ -452,7 +446,7 @@ contract Helper is Test, HelperEvents, HelperState {
         internal
         returns (uint256 fsGlp)
     {
-        assertEq(0, FEE_STAKED_GLP.balanceOf(receiver));
+        assertEq(0, feeStakedGlp.balanceOf(receiver));
 
         vm.deal(receiver, ethAmount);
         vm.startPrank(receiver);
@@ -465,7 +459,7 @@ contract Helper is Test, HelperEvents, HelperState {
 
         vm.stopPrank();
 
-        assertEq(fsGlp, FEE_STAKED_GLP.balanceOf(receiver));
+        assertEq(fsGlp, feeStakedGlp.balanceOf(receiver));
     }
 
     /**
@@ -492,25 +486,59 @@ contract Helper is Test, HelperEvents, HelperState {
 
     /**
         @notice Get minimum price for whitelisted token
-        @param  token  address    Token
-        @return        uint256[]  Vault token info for token
+        @param  _token   address    Token
+        @return amounts  uint256[]  Vault token info for token
      */
-    function _getVaultTokenInfo(address token)
+    function _getVaultTokenInfo(address _token)
         internal
         view
-        returns (uint256[] memory)
+        returns (uint256[] memory amounts)
     {
         address[] memory tokens = new address[](1);
-        tokens[0] = token;
+        tokens[0] = _token;
+        uint256 propsLength = 15;
+        IVaultPriceFeed priceFeed = IVaultPriceFeed(vault.priceFeed());
+        IBasePositionManager positionManager = IBasePositionManager(
+            POSITION_ROUTER
+        );
+        amounts = new uint256[](tokens.length * propsLength);
 
-        return
-            VAULT_READER.getVaultTokenInfoV4(
-                address(VAULT),
-                POSITION_ROUTER,
-                address(WETH),
-                INFO_USDG_AMOUNT,
-                tokens
+        for (uint256 i = 0; i < tokens.length; i++) {
+            address token = tokens[i];
+
+            if (token == address(0)) {
+                token = address(weth);
+            }
+
+            amounts[i * propsLength] = vault.poolAmounts(token);
+            amounts[i * propsLength + 1] = vault.reservedAmounts(token);
+            amounts[i * propsLength + 2] = vault.usdgAmounts(token);
+            amounts[i * propsLength + 3] = vault.getRedemptionAmount(
+                token,
+                INFO_USDG_AMOUNT
             );
+            amounts[i * propsLength + 4] = vault.tokenWeights(token);
+            amounts[i * propsLength + 5] = vault.bufferAmounts(token);
+            amounts[i * propsLength + 6] = vault.maxUsdgAmounts(token);
+            amounts[i * propsLength + 7] = vault.globalShortSizes(token);
+            amounts[i * propsLength + 8] = positionManager.maxGlobalShortSizes(
+                token
+            );
+            amounts[i * propsLength + 9] = positionManager.maxGlobalLongSizes(
+                token
+            );
+            amounts[i * propsLength + 10] = vault.getMinPrice(token);
+            amounts[i * propsLength + 11] = vault.getMaxPrice(token);
+            amounts[i * propsLength + 12] = vault.guaranteedUsd(token);
+            amounts[i * propsLength + 13] = priceFeed.getPrimaryPrice(
+                token,
+                false
+            );
+            amounts[i * propsLength + 14] = priceFeed.getPrimaryPrice(
+                token,
+                true
+            );
+        }
     }
 
     /**
@@ -520,12 +548,11 @@ contract Helper is Test, HelperEvents, HelperState {
      */
     function _getGlpPrice(bool minPrice) internal view returns (uint256) {
         address[] memory tokens = new address[](1);
-        tokens[0] = address(FEE_STAKED_GLP);
-        uint256 aum = GLP_MANAGER.getAums()[minPrice ? 0 : 1];
-        uint256 glpSupply = READER.getTokenBalancesWithSupplies(
-            address(0),
-            tokens
-        )[1];
+        tokens[0] = address(feeStakedGlp);
+        uint256 aum = glpManager.getAums()[minPrice ? 0 : 1];
+        uint256 glpSupply = _getTokenBalancesWithSupplies(address(0), tokens)[
+            1
+        ];
 
         return (aum * 10**EXPANDED_GLP_DECIMALS) / glpSupply;
     }
@@ -550,8 +577,8 @@ contract Helper is Test, HelperEvents, HelperState {
                 ? 0
                 : initialAmount - usdgDelta;
         }
-        uint256 targetAmount = (info[4] * USDG.totalSupply()) /
-            VAULT.totalTokenWeights();
+        uint256 targetAmount = (info[4] * usdg.totalSupply()) /
+            vault.totalTokenWeights();
 
         if (targetAmount == 0) {
             return FEE_BPS;
@@ -598,12 +625,11 @@ contract Helper is Test, HelperEvents, HelperState {
             (BPS_DIVISOR - _getFees(amount, info, true))) / BPS_DIVISOR;
         uint256 usdgAfterFees = (afterFees * info[10]) / PRECISION;
         address[] memory tokens = new address[](1);
-        tokens[0] = address(FEE_STAKED_GLP);
-        uint256 aum = GLP_MANAGER.getAums()[0];
-        uint256 glpSupply = READER.getTokenBalancesWithSupplies(
-            address(0),
-            tokens
-        )[1];
+        tokens[0] = address(feeStakedGlp);
+        uint256 aum = glpManager.getAums()[0];
+        uint256 glpSupply = _getTokenBalancesWithSupplies(address(0), tokens)[
+            1
+        ];
 
         uint256 minGlp = (usdgAfterFees * glpSupply) /
             ((aum * 10**EXPANDED_GLP_DECIMALS) / PRECISION);
@@ -628,7 +654,7 @@ contract Helper is Test, HelperEvents, HelperState {
     {
         uint256[] memory info = _getVaultTokenInfo(token);
         uint256 usdgAmount = (amount * _getGlpPrice(false)) / PRECISION;
-        uint256 redemptionAmount = VAULT.getRedemptionAmount(token, usdgAmount);
+        uint256 redemptionAmount = vault.getRedemptionAmount(token, usdgAmount);
         uint256 minToken = (redemptionAmount *
             (BPS_DIVISOR - _getFees(redemptionAmount, info, false))) /
             BPS_DIVISOR;
@@ -676,7 +702,7 @@ contract Helper is Test, HelperEvents, HelperState {
     }
 
     /**
-        @notice Deposit ERC20 token (WBTC) for pxGLP for testing purposes
+        @notice Deposit ERC20 wrapped native token for pxGLP for testing purposes
         @param  tokenAmount    uint256  Amount of token
         @param  receiver       address  Receiver of pxGLP
         @return deposited      uint256  GLP deposited
@@ -691,11 +717,11 @@ contract Helper is Test, HelperEvents, HelperState {
             uint256 feeAmount
         )
     {
-        _mintWbtc(tokenAmount, address(this));
-        WBTC.approve(address(pirexGmx), tokenAmount);
+        _mintWrappedToken(tokenAmount, address(this));
+        weth.approve(address(pirexGmx), tokenAmount);
 
         (deposited, postFeeAmount, feeAmount) = pirexGmx.depositGlp(
-            address(WBTC),
+            address(weth),
             tokenAmount,
             1,
             1,
@@ -731,27 +757,26 @@ contract Helper is Test, HelperEvents, HelperState {
         view
         returns (uint256)
     {
-        address distributor = REWARD_TRACKER_MP.distributor();
+        address distributor = rewardTrackerMp.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
-        uint256 distributorBalance = ERC20(BN_GMX).balanceOf(distributor);
+        uint256 distributorBalance = ERC20(bnGmx).balanceOf(distributor);
         uint256 blockReward = pendingRewards > distributorBalance
             ? distributorBalance
             : pendingRewards;
-        uint256 precision = REWARD_TRACKER_MP.PRECISION();
-        uint256 cumulativeRewardPerToken = REWARD_TRACKER_MP
+        uint256 precision = rewardTrackerMp.PRECISION();
+        uint256 cumulativeRewardPerToken = rewardTrackerMp
             .cumulativeRewardPerToken() +
-            ((blockReward * precision) / REWARD_TRACKER_MP.totalSupply());
+            ((blockReward * precision) / rewardTrackerMp.totalSupply());
 
         if (cumulativeRewardPerToken == 0) return 0;
 
         return
-            REWARD_TRACKER_MP.claimableReward(account) +
-            ((REWARD_TRACKER_MP.stakedAmounts(account) *
+            rewardTrackerMp.claimableReward(account) +
+            ((rewardTrackerMp.stakedAmounts(account) *
                 (cumulativeRewardPerToken -
-                    REWARD_TRACKER_MP.previousCumulatedRewardPerToken(
-                        account
-                    ))) / precision);
+                    rewardTrackerMp.previousCumulatedRewardPerToken(account))) /
+                precision);
     }
 
     /**
@@ -785,15 +810,15 @@ contract Helper is Test, HelperEvents, HelperState {
         RewardTracker r;
 
         if (isWeth) {
-            r = useGmx ? REWARD_TRACKER_GMX : REWARD_TRACKER_GLP;
+            r = useGmx ? rewardTrackerGmx : rewardTrackerGlp;
         } else {
-            r = useGmx ? STAKED_GMX : FEE_STAKED_GLP;
+            r = useGmx ? stakedGmx : feeStakedGlp;
         }
 
         address distributor = r.distributor();
         uint256 pendingRewards = IRewardDistributor(distributor)
             .pendingRewards();
-        uint256 distributorBalance = (isWeth ? WETH : ERC20(ES_GMX)).balanceOf(
+        uint256 distributorBalance = (isWeth ? weth : ERC20(esGmx)).balanceOf(
             distributor
         );
         uint256 blockReward = pendingRewards > distributorBalance
@@ -872,5 +897,27 @@ contract Helper is Test, HelperEvents, HelperState {
         ) = pirexRewards.getUserState(producerToken, user);
 
         return rewards + lastBalance * (block.timestamp - lastUpdate);
+    }
+
+    function _getTokenBalancesWithSupplies(
+        address _account,
+        address[] memory _tokens
+    ) internal view returns (uint256[] memory balances) {
+        uint256 propsLength = 2;
+        balances = new uint256[](_tokens.length * propsLength);
+
+        for (uint256 i = 0; i < _tokens.length; i++) {
+            address token = _tokens[i];
+
+            if (token == address(0)) {
+                balances[i * propsLength] = _account.balance;
+                balances[i * propsLength + 1] = 0;
+
+                continue;
+            }
+
+            balances[i * propsLength] = IERC20(token).balanceOf(_account);
+            balances[i * propsLength + 1] = IERC20(token).totalSupply();
+        }
     }
 }
