@@ -150,6 +150,7 @@ contract PirexGmxTest is Test, Helper {
         assertEq(address(0), address(freshPirexGmx.stakedGmx()));
         assertEq(address(0), address(freshPirexGmx.glpManager()));
         assertEq(address(0), address(freshPirexGmx.gmxVault()));
+        assertEq(0, gmx.allowance(address(freshPirexGmx), address(stakedGmx)));
 
         IVault gmxVault = IVault(IGlpManager(glpManager).vault());
 
@@ -179,6 +180,7 @@ contract PirexGmxTest is Test, Helper {
         assertEq(address(stakedGmx), address(freshPirexGmx.stakedGmx()));
         assertEq(address(glpManager), address(freshPirexGmx.glpManager()));
         assertEq(address(gmxVault), address(freshPirexGmx.gmxVault()));
+        assertEq(type(uint256).max, gmx.allowance(address(freshPirexGmx), address(stakedGmx)));
     }
 
     /*//////////////////////////////////////////////////////////////
