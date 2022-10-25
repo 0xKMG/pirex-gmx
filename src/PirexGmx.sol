@@ -80,6 +80,15 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     // Fees (e.g. 5000 / 1000000 = 0.5%)
     mapping(Fees => uint256) public fees;
 
+    event ConfigureGmxState(
+        address indexed caller,
+        RewardTracker rewardTrackerGmx,
+        RewardTracker rewardTrackerGlp,
+        RewardTracker feeStakedGlp,
+        RewardTracker stakedGmx,
+        address glpManager,
+        IVault gmxVault
+    );
     event SetFee(Fees indexed f, uint256 fee);
     event SetContract(Contracts indexed c, address contractAddress);
     event DepositGmx(
@@ -145,6 +154,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         @param  _pirexRewards       address  PirexRewards contract address
         @param  _delegateRegistry   address  Delegation registry contract address
         @param  _gmxBaseReward      address  GMX base reward token contract address
+        @param  _gmx                address  GMX token contract address
+        @param  _esGmx              address  esGMX token contract address
         @param  _gmxRewardRouterV2  address  GMX Reward Router contract address
         @param  _stakedGlp          address  Staked GLP token contract address
     */
@@ -155,6 +166,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         address _pirexRewards,
         address _delegateRegistry,
         address _gmxBaseReward,
+        address _gmx,
+        address _esGmx,
         address _gmxRewardRouterV2,
         address _stakedGlp
     ) Owned(msg.sender) {
@@ -167,6 +180,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         if (_pirexRewards == address(0)) revert ZeroAddress();
         if (_delegateRegistry == address(0)) revert ZeroAddress();
         if (_gmxBaseReward == address(0)) revert ZeroAddress();
+        if (_gmx == address(0)) revert ZeroAddress();
+        if (_esGmx == address(0)) revert ZeroAddress();
         if (_gmxRewardRouterV2 == address(0)) revert ZeroAddress();
         if (_stakedGlp == address(0)) revert ZeroAddress();
 
@@ -176,21 +191,10 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         pirexRewards = _pirexRewards;
         delegateRegistry = DelegateRegistry(_delegateRegistry);
         gmxBaseReward = ERC20(_gmxBaseReward);
+        gmx = ERC20(_gmx);
+        esGmx = ERC20(_esGmx);
         gmxRewardRouterV2 = IRewardRouterV2(_gmxRewardRouterV2);
         stakedGlp = IStakedGlp(_stakedGlp);
-
-        // Variables which can be assigned by reading previously-set GMX contracts
-        gmx = ERC20(gmxRewardRouterV2.gmx());
-        esGmx = ERC20(gmxRewardRouterV2.esGmx());
-        rewardTrackerGmx = RewardTracker(gmxRewardRouterV2.feeGmxTracker());
-        rewardTrackerGlp = RewardTracker(gmxRewardRouterV2.feeGlpTracker());
-        feeStakedGlp = RewardTracker(gmxRewardRouterV2.stakedGlpTracker());
-        stakedGmx = RewardTracker(gmxRewardRouterV2.stakedGmxTracker());
-        glpManager = gmxRewardRouterV2.glpManager();
-        gmxVault = IVault(IGlpManager(glpManager).vault());
-
-        // Approve GMX to enable staking
-        gmx.safeApprove(address(stakedGmx), type(uint256).max);
     }
 
     modifier onlyPirexRewards() {
@@ -255,6 +259,32 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
                 (cumulativeRewardPerToken -
                     r.previousCumulatedRewardPerToken(address(this)))) /
                 precision);
+    }
+
+    /**
+        @notice Configure GMX contract state
+     */
+    function configureGmxState() external onlyOwner whenPaused {
+        // Variables which can be assigned by reading previously-set GMX contracts
+        rewardTrackerGmx = RewardTracker(gmxRewardRouterV2.feeGmxTracker());
+        rewardTrackerGlp = RewardTracker(gmxRewardRouterV2.feeGlpTracker());
+        feeStakedGlp = RewardTracker(gmxRewardRouterV2.stakedGlpTracker());
+        stakedGmx = RewardTracker(gmxRewardRouterV2.stakedGmxTracker());
+        glpManager = gmxRewardRouterV2.glpManager();
+        gmxVault = IVault(IGlpManager(glpManager).vault());
+
+        emit ConfigureGmxState(
+            msg.sender,
+            rewardTrackerGmx,
+            rewardTrackerGlp,
+            feeStakedGlp,
+            stakedGmx,
+            glpManager,
+            gmxVault
+        );
+
+        // Approve GMX to enable staking
+        gmx.safeApprove(address(stakedGmx), type(uint256).max);
     }
 
     /**

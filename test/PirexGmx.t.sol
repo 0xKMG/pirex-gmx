@@ -8,6 +8,9 @@ import {PirexGmx} from "src/PirexGmx.sol";
 import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 import {IWETH} from "src/interfaces/IWETH.sol";
 import {DelegateRegistry} from "src/external/DelegateRegistry.sol";
+import {RewardTracker} from "src/external/RewardTracker.sol";
+import {IGlpManager} from "src/interfaces/IGlpManager.sol";
+import {IVault} from "src/interfaces/IVault.sol";
 import {Helper} from "./Helper.sol";
 
 contract PirexGmxTest is Test, Helper {
@@ -92,6 +95,90 @@ contract PirexGmxTest is Test, Helper {
             newContractAddress = address(pirexGmx.glpManager());
 
         assertEq(contractAddress, newContractAddress);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            configureGmxState TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: caller is unauthorized
+     */
+    function testCannotConfigureGmxStateUnauthorized() external {
+        address unauthorizedCaller = _getUnauthorizedCaller();
+
+        vm.expectRevert(UNAUTHORIZED_ERROR);
+        vm.prank(unauthorizedCaller);
+
+        pirexGmx.configureGmxState();
+    }
+
+    /**
+        @notice Test tx reversion: contract is not paused
+     */
+    function testCannotConfigureGmxStateNotPaused() external {
+        assertEq(false, pirexGmx.paused());
+
+        vm.expectRevert(NOT_PAUSED_ERROR);
+
+        pirexGmx.configureGmxState();
+    }
+
+    /**
+        @notice Test tx success: configure GMX state
+     */
+    function testConfigureGmxState() external {
+        PirexGmx freshPirexGmx = new PirexGmx(
+            address(pxGmx),
+            address(pxGlp),
+            address(pirexFees),
+            address(pirexRewards),
+            address(delegateRegistry),
+            // The `weth` variable is used on both Ethereum and Avalanche for the base rewards
+            REWARD_ROUTER_V2.weth(),
+            REWARD_ROUTER_V2.gmx(),
+            REWARD_ROUTER_V2.esGmx(),
+            address(REWARD_ROUTER_V2),
+            address(STAKED_GLP)
+        );
+
+        assertEq(address(this), freshPirexGmx.owner());
+        assertEq(true, freshPirexGmx.paused());
+        assertEq(address(0), address(freshPirexGmx.rewardTrackerGmx()));
+        assertEq(address(0), address(freshPirexGmx.rewardTrackerGlp()));
+        assertEq(address(0), address(freshPirexGmx.feeStakedGlp()));
+        assertEq(address(0), address(freshPirexGmx.stakedGmx()));
+        assertEq(address(0), address(freshPirexGmx.glpManager()));
+        assertEq(address(0), address(freshPirexGmx.gmxVault()));
+
+        IVault gmxVault = IVault(IGlpManager(glpManager).vault());
+
+        vm.expectEmit(true, false, false, true, address(freshPirexGmx));
+
+        emit ConfigureGmxState(
+            address(this),
+            rewardTrackerGmx,
+            rewardTrackerGlp,
+            feeStakedGlp,
+            stakedGmx,
+            address(glpManager),
+            gmxVault
+        );
+
+        freshPirexGmx.configureGmxState();
+
+        assertEq(
+            address(rewardTrackerGmx),
+            address(freshPirexGmx.rewardTrackerGmx())
+        );
+        assertEq(
+            address(rewardTrackerGlp),
+            address(freshPirexGmx.rewardTrackerGlp())
+        );
+        assertEq(address(feeStakedGlp), address(freshPirexGmx.feeStakedGlp()));
+        assertEq(address(stakedGmx), address(freshPirexGmx.stakedGmx()));
+        assertEq(address(glpManager), address(freshPirexGmx.glpManager()));
+        assertEq(address(gmxVault), address(freshPirexGmx.gmxVault()));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1848,6 +1935,8 @@ contract PirexGmxTest is Test, Helper {
             address(pirexRewards),
             address(delegateRegistry),
             REWARD_ROUTER_V2.weth(),
+            REWARD_ROUTER_V2.gmx(),
+            REWARD_ROUTER_V2.esGmx(),
             address(REWARD_ROUTER_V2),
             address(STAKED_GLP)
         );
@@ -1900,6 +1989,8 @@ contract PirexGmxTest is Test, Helper {
             address(pirexRewards),
             address(delegateRegistry),
             REWARD_ROUTER_V2.weth(),
+            REWARD_ROUTER_V2.gmx(),
+            REWARD_ROUTER_V2.esGmx(),
             address(REWARD_ROUTER_V2),
             address(STAKED_GLP)
         );
