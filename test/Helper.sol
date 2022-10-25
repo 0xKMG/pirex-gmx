@@ -149,6 +149,8 @@ contract Helper is Test, HelperEvents, HelperState {
             address(delegateRegistry),
             // The `weth` variable is used on both Ethereum and Avalanche for the base rewards
             REWARD_ROUTER_V2.weth(),
+            REWARD_ROUTER_V2.gmx(),
+            REWARD_ROUTER_V2.esGmx(),
             address(REWARD_ROUTER_V2),
             address(STAKED_GLP)
         );
@@ -176,7 +178,8 @@ contract Helper is Test, HelperEvents, HelperState {
         pxGlp.grantRole(pxGlp.BURNER_ROLE(), address(pirexGmx));
         pirexRewards.setProducer(address(pirexGmx));
 
-        // Unpause after completing the setup
+        // Configure GMX state and unpause
+        pirexGmx.configureGmxState();
         pirexGmx.setPauseState(false);
 
         feeMax = pirexGmx.FEE_MAX();

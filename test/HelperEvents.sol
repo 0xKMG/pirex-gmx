@@ -4,9 +4,20 @@ pragma solidity 0.8.17;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {PirexFees} from "src/PirexFees.sol";
+import {RewardTracker} from "src/external/RewardTracker.sol";
+import {IVault} from "src/interfaces/IVault.sol";
 
 contract HelperEvents {
     // PirexGmx events
+    event ConfigureGmxState(
+        address indexed caller,
+        RewardTracker rewardTrackerGmx,
+        RewardTracker rewardTrackerGlp,
+        RewardTracker feeStakedGlp,
+        RewardTracker stakedGmx,
+        address glpManager,
+        IVault gmxVault
+    );
     event SetFee(PirexGmx.Fees indexed f, uint256 fee);
     event SetContract(PirexGmx.Contracts indexed c, address contractAddress);
     event DepositGmx(
