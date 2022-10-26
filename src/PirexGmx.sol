@@ -74,6 +74,9 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     address public glpManager;
     IVault public gmxVault;
 
+    // Migration related address
+    address public migratedTo;
+
     // Snapshot space
     bytes32 public delegationSpace = bytes32("gmx.eth");
 
@@ -146,6 +149,8 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     error NotPirexRewards();
     error InvalidFee();
     error EmptyString();
+    error NotMigratedTo();
+    error PendingMigration();
 
     /**
         @param  _pxGmx              address  PxGmx contract address
@@ -924,7 +929,24 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         // full account transfer to the specified new contract
         gmxRewardRouterV2.signalTransfer(newContract);
 
+        migratedTo = newContract;
+
         emit InitiateMigration(newContract);
+    }
+
+    /**
+        @notice Migrate remaining (base) reward to the new contract after completing migration
+    */
+    function migrateReward() external whenPaused {
+        if (msg.sender != migratedTo) revert NotMigratedTo();
+        if (gmxRewardRouterV2.pendingReceivers(address(this)) != address(0))
+            revert PendingMigration();
+
+        // Transfer out any remaining base reward (ie. WETH) to the new contract
+        gmxBaseReward.safeTransfer(
+            migratedTo,
+            gmxBaseReward.balanceOf(address(this))
+        );
     }
 
     /**
@@ -943,6 +965,9 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
 
         // Complete the full account transfer process
         gmxRewardRouterV2.acceptTransfer(oldContract);
+
+        // Perform reward token transfer from the old contract to the new one
+        PirexGmx(oldContract).migrateReward();
 
         emit CompleteMigration(oldContract);
     }

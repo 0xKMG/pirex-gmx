@@ -1869,6 +1869,93 @@ contract PirexGmxTest is Test, Helper {
             expectedPendingReceiverAfterInitation,
             REWARD_ROUTER_V2.pendingReceivers(oldContract)
         );
+
+        // Should also set the migratedTo state variable
+        assertEq(expectedPendingReceiverAfterInitation, pirexGmx.migratedTo());
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        migrateReward TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: contract is not paused
+     */
+    function testCannotMigrateRewardNotPaused() external {
+        assertEq(false, pirexGmx.paused());
+
+        vm.expectRevert(NOT_PAUSED_ERROR);
+
+        pirexGmx.migrateReward();
+    }
+
+    /**
+        @notice Test tx reversion: caller is not the migration target
+     */
+    function testCannotMigrateRewardNotMigratedTo() external {
+        _pauseContract();
+
+        vm.expectRevert(PirexGmx.NotMigratedTo.selector);
+
+        pirexGmx.migrateReward();
+    }
+
+    /**
+        @notice Test tx reversion: pending migration exists
+     */
+    function testCannotMigrateRewardPendingMigration() external {
+        _pauseContract();
+
+        uint96 rewardAmount = 1 ether;
+        address oldContract = address(pirexGmx);
+        address newContract = address(this);
+
+        // Test with WETH as the base reward token
+        _mintWrappedToken(rewardAmount, oldContract);
+
+        pirexGmx.initiateMigration(newContract);
+
+        vm.expectRevert(PirexGmx.PendingMigration.selector);
+
+        vm.prank(newContract);
+
+        // Should revert since the method should only be done after full migration
+        pirexGmx.migrateReward();
+    }
+
+    /**
+        @notice Test tx success: migrate base reward
+        @param  rewardAmount  uint96  Reward amount
+     */
+    function testMigrateReward(uint96 rewardAmount) external {
+        vm.assume(rewardAmount != 0);
+        vm.assume(rewardAmount < 1000 ether);
+
+        _pauseContract();
+
+        address oldContract = address(pirexGmx);
+        address newContract = address(this);
+
+        // Test with WETH as the base reward token
+        _mintWrappedToken(rewardAmount, oldContract);
+
+        pirexGmx.initiateMigration(newContract);
+
+        // Simulate full migration without triggering migrateReward
+        // so we can test it separately
+        vm.startPrank(newContract);
+
+        pirexRewards.harvest();
+
+        REWARD_ROUTER_V2.acceptTransfer(oldContract);
+
+        pirexGmx.migrateReward();
+
+        vm.stopPrank();
+
+        // Confirm the base reward balances for both contracts
+        assertEq(0, weth.balanceOf(oldContract));
+        assertEq(rewardAmount, weth.balanceOf(newContract));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1949,7 +2036,7 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test completing migration
+        @notice Test tx success: completing migration
      */
     function testCompleteMigration() external {
         // Perform GMX deposit for balance tests after migration
@@ -1970,15 +2057,20 @@ contract PirexGmxTest is Test, Helper {
         // Time skip to bypass the cooldown duration
         vm.warp(block.timestamp + 1 days);
 
-        // Store the staked balances for later validations
+        // Store the staked balances and rewards for later validations
         uint256 oldStakedGmxBalance = rewardTrackerGmx.balanceOf(oldContract);
         uint256 oldStakedGlpBalance = feeStakedGlp.balanceOf(oldContract);
         uint256 oldEsGmxClaimable = _calculateRewards(
-            address(pirexGmx),
+            oldContract,
             false,
             true
-        ) + _calculateRewards(address(pirexGmx), false, false);
+        ) + _calculateRewards(oldContract, false, false);
         uint256 oldMpBalance = rewardTrackerMp.claimable(oldContract);
+        uint256 oldBaseRewardClaimable = _calculateRewards(
+            oldContract,
+            true,
+            true
+        ) + _calculateRewards(oldContract, true, false);
 
         // Pause the contract before proceeding
         _pauseContract();
@@ -2031,5 +2123,12 @@ contract PirexGmxTest is Test, Helper {
             rewardTrackerGmx.balanceOf(newContract)
         );
         assertEq(oldStakedGlpBalance, feeStakedGlp.balanceOf(newContract));
+
+        // Confirm that the remaining base reward has also been migrated
+        assertEq(0, pirexGmx.gmxBaseReward().balanceOf(oldContract));
+        assertEq(
+            oldBaseRewardClaimable,
+            pirexGmx.gmxBaseReward().balanceOf(newContract)
+        );
     }
 }
