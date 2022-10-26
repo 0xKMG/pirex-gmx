@@ -1816,6 +1816,9 @@ contract PirexGmxTest is Test, Helper {
         @param  rewardAmount  uint96  Reward amount
      */
     function testMigrateReward(uint96 rewardAmount) external {
+        vm.assume(rewardAmount != 0);
+        vm.assume(rewardAmount < 1000 ether);
+
         _pauseContract();
 
         address oldContract = address(pirexGmx);
