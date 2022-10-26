@@ -1801,12 +1801,12 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
-        @notice Test tx reversion: caller is not the new contract
+        @notice Test tx reversion: caller is not the migration target
      */
-    function testCannotMigrateRewardInvalidAccess() external {
+    function testCannotMigrateRewardNotMigratedTo() external {
         _pauseContract();
 
-        vm.expectRevert(PirexGmx.InvalidAccess.selector);
+        vm.expectRevert(PirexGmx.NotMigratedTo.selector);
 
         pirexGmx.migrateReward();
     }

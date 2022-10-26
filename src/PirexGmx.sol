@@ -140,7 +140,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
     error NotPirexRewards();
     error InvalidFee();
     error EmptyString();
-    error InvalidAccess();
+    error NotMigratedTo();
 
     /**
         @param  _pxGmx              address  PxGmx contract address
@@ -907,7 +907,7 @@ contract PirexGmx is ReentrancyGuard, Owned, Pausable {
         @notice Migrate remaining (base) reward to the new contract after completing migration
     */
     function migrateReward() external whenPaused {
-        if (msg.sender != migratedTo) revert InvalidAccess();
+        if (msg.sender != migratedTo) revert NotMigratedTo();
 
         // Transfer out any remaining base reward (ie. WETH) to the new contract
         gmxBaseReward.safeTransfer(
