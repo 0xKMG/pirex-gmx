@@ -1812,6 +1812,29 @@ contract PirexGmxTest is Test, Helper {
     }
 
     /**
+        @notice Test tx reversion: pending migration exists
+     */
+    function testCannotMigrateRewardPendingMigration() external {
+        _pauseContract();
+
+        uint96 rewardAmount = 1 ether;
+        address oldContract = address(pirexGmx);
+        address newContract = address(this);
+
+        // Test with WETH as the base reward token
+        _mintWrappedToken(rewardAmount, oldContract);
+
+        pirexGmx.initiateMigration(newContract);
+
+        vm.expectRevert(PirexGmx.PendingMigration.selector);
+
+        vm.prank(newContract);
+
+        // Should revert since the method should only be done after full migration
+        pirexGmx.migrateReward();
+    }
+
+    /**
         @notice Test tx success: migrate base reward
         @param  rewardAmount  uint96  Reward amount
      */
@@ -1829,9 +1852,17 @@ contract PirexGmxTest is Test, Helper {
 
         pirexGmx.initiateMigration(newContract);
 
-        vm.prank(newContract);
+        // Simulate full migration without triggering migrateReward
+        // so we can test it separately
+        vm.startPrank(newContract);
+
+        pirexRewards.harvest();
+
+        REWARD_ROUTER_V2.acceptTransfer(oldContract);
 
         pirexGmx.migrateReward();
+
+        vm.stopPrank();
 
         // Confirm the base reward balances for both contracts
         assertEq(0, weth.balanceOf(oldContract));
