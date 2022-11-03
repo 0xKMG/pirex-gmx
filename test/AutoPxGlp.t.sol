@@ -825,6 +825,17 @@ contract AutoPxGlpTest is Helper {
             );
 
             uint256 initialBalance = autoPxGlp.balanceOf(testAccounts[i]);
+
+            // Make sure that the actual minted shares is correct
+            assertEq(
+                initialBalance,
+                autoPxGlp.previewDeposit(
+                    fsGlpBalance -
+                        (fsGlpBalance * pirexGmx.fees(PirexGmx.Fees.Deposit)) /
+                        pirexGmx.FEE_DENOMINATOR()
+                )
+            );
+
             uint256 initialRewardState = autoPxGlp.rewardState();
             uint256 supply = autoPxGlp.totalSupply();
             uint256 expectedGlobalRewards = _calculateGlobalRewards();
