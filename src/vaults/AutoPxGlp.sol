@@ -52,6 +52,7 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward, ReentrancyGuard {
     error InvalidAssetParam();
     error ExceedsMax();
     error InvalidParam();
+    error ZeroShares();
 
     /**
         @param  _gmxBaseReward  address  GMX reward token contract address
@@ -304,10 +305,14 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward, ReentrancyGuard {
         internal
         returns (uint256 shares)
     {
-        if (totalAssets() != 0) beforeDeposit(receiver, assets, shares);
-
         // Check for rounding error since we round down in previewDeposit.
-        require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
+        uint256 supply = totalSupply;
+
+        if (
+            (shares = supply == 0
+                ? assets
+                : assets.mulDivDown(supply, totalAssets() - assets)) == 0
+        ) revert ZeroShares();
 
         _mint(receiver, shares);
 
@@ -329,6 +334,8 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward, ReentrancyGuard {
     {
         if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
+
+        if (totalAssets() != 0) beforeDeposit(address(0), 0, 0);
 
         ERC20 stakedGlp = ERC20(address(PirexGmx(platform).stakedGlp()));
 
@@ -370,6 +377,8 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward, ReentrancyGuard {
         if (minGlp == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
+        if (totalAssets() != 0) beforeDeposit(address(0), 0, 0);
+
         // PirexGmx will do the check whether the token is whitelisted or not
         ERC20 erc20Token = ERC20(token);
 
@@ -410,6 +419,8 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward, ReentrancyGuard {
         if (minUsdg == 0) revert ZeroAmount();
         if (minGlp == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
+
+        if (totalAssets() != 0) beforeDeposit(address(0), 0, 0);
 
         (, uint256 assets, ) = PirexGmx(platform).depositGlpETH{
             value: msg.value
