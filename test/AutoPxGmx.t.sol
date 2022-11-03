@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 
 import {AutoPxGmx} from "src/vaults/AutoPxGmx.sol";
+import {PirexGmx} from "src/PirexGmx.sol";
 import {Helper} from "./Helper.sol";
 
 contract AutoPxGmxTest is Helper {
@@ -18,6 +19,12 @@ contract AutoPxGmxTest is Helper {
         uint256 pxGmxMintAmount,
         uint256 totalFee,
         uint256 incentive
+    );
+    event Deposit(
+        address indexed caller,
+        address indexed owner,
+        uint256 assets,
+        uint256 shares
     );
 
     /**
@@ -570,5 +577,59 @@ contract AutoPxGmxTest is Helper {
             // Also check the actual redeemed pxGMX amount compared to the preview before the first compound
             assertGt(pxGmx.balanceOf(testAccounts[i]), assetBalances[i]);
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        depositGmx TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+        @notice Test tx reversion: amount is zero
+     */
+    function testCannotDepositGmxAmountZeroAmount() external {
+        uint256 invalidAmount = 0;
+        address receiver = address(this);
+
+        vm.expectRevert(AutoPxGmx.ZeroAmount.selector);
+
+        autoPxGmx.depositGmx(invalidAmount, receiver);
+    }
+
+    /**
+        @notice Test tx reversion: receiver is the zero address
+     */
+    function testCannotDepositGmxReceiverZeroAddress() external {
+        uint256 amount = 1;
+        address invalidReceiver = address(0);
+
+        vm.expectRevert(AutoPxGmx.ZeroAddress.selector);
+
+        autoPxGmx.depositGmx(amount, invalidReceiver);
+    }
+
+    /**
+        @notice Test tx success: deposit GMX for apxGMX
+     */
+    function testDepositGmx() external {
+        uint256 amount = 1e18;
+        address receiver = address(this);
+        uint256 depositFee = 10000;
+
+        pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
+
+        // Expected values checked in the `Deposit` event emission comparison
+        (uint256 expectedAssets, ) = _computeAssetAmounts(
+            PirexGmx.Fees.Deposit,
+            amount
+        );
+        uint256 expectedShares = autoPxGmx.previewDeposit(expectedAssets);
+
+        _mintApproveGmx(amount, address(this), address(autoPxGmx), amount);
+
+        vm.expectEmit(true, true, false, false, address(autoPxGmx));
+
+        emit Deposit(receiver, receiver, expectedAssets, expectedShares);
+
+        autoPxGmx.depositGmx(amount, receiver);
     }
 }
