@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {Owned} from "solmate/auth/Owned.sol";
 import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
@@ -10,7 +11,7 @@ import {PirexGmx} from "src/PirexGmx.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 import {IV3SwapRouter} from "src/interfaces/IV3SwapRouter.sol";
 
-contract AutoPxGmx is Owned, PirexERC4626 {
+contract AutoPxGmx is ReentrancyGuard, Owned, PirexERC4626 {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
@@ -357,5 +358,41 @@ contract AutoPxGmx is Owned, PirexERC4626 {
         emit Withdraw(msg.sender, receiver, owner, assets, shares);
 
         asset.safeTransfer(receiver, assets);
+    }
+
+    /**
+        @notice Deposit GMX for apxGMX
+        @param  amount    uint256  GMX amount
+        @param  receiver  address  apxGMX receiver
+        @return shares    uint256  Vault shares (i.e. apxGMX)
+     */
+    function depositGmx(uint256 amount, address receiver)
+        external
+        nonReentrant
+        returns (uint256 shares)
+    {
+        if (amount == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // Intake sender GMX
+        gmx.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Convert sender GMX into pxGMX and get the post-fee amount (i.e. assets)
+        (, uint256 assets, ) = PirexGmx(platform).depositGmx(
+            amount,
+            address(this)
+        );
+
+        // NOTE: preserved `deposit` logic below sans the `safeTransferFrom` call
+        // since the vault received custody of the pxGMX in the logic directly above
+        if (totalAssets() != 0) beforeDeposit(receiver, assets, shares);
+
+        require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
+
+        _mint(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+
+        afterDeposit(receiver, assets, shares);
     }
 }

@@ -796,6 +796,8 @@ contract Helper is Test, HelperEvents, HelperState {
     {
         feeAmount = (assets * pirexGmx.fees(f)) / pirexGmx.FEE_DENOMINATOR();
         postFeeAmount = assets - feeAmount;
+
+        assert(feeAmount + postFeeAmount == assets);
     }
 
     /**
