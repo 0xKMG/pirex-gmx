@@ -617,7 +617,6 @@ contract AutoPxGmxTest is Helper {
 
         pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
 
-        // Expected values checked in the `Deposit` event emission comparison
         (uint256 expectedAssets, ) = _computeAssetAmounts(
             PirexGmx.Fees.Deposit,
             amount
@@ -626,10 +625,73 @@ contract AutoPxGmxTest is Helper {
 
         _mintApproveGmx(amount, address(this), address(autoPxGmx), amount);
 
+        assertTrue(amount == gmx.balanceOf(address(this)));
+        assertTrue(0 == autoPxGmx.totalAssets());
+        assertTrue(0 == autoPxGmx.totalSupply());
+
         vm.expectEmit(true, true, false, false, address(autoPxGmx));
 
         emit Deposit(receiver, receiver, expectedAssets, expectedShares);
 
         autoPxGmx.depositGmx(amount, receiver);
+
+        assertTrue(0 == gmx.balanceOf(address(this)));
+        assertTrue(expectedAssets == autoPxGmx.totalAssets());
+        assertTrue(expectedShares == autoPxGmx.totalSupply());
+    }
+
+    /**
+        @notice Test tx success: deposit GMX for apxGMX (fuzz)
+     */
+    function testDepositGmxFuzz(
+        uint80 amount,
+        uint24 depositFee,
+        bool separateCaller,
+        uint8 multiplier
+    ) external {
+        vm.assume(amount > 1e15);
+        vm.assume(amount < 10000e18);
+        vm.assume(depositFee != 0);
+        vm.assume(depositFee <= feeMax);
+        vm.assume(multiplier != 0);
+        vm.assume(multiplier < 10);
+
+        pirexGmx.setFee(PirexGmx.Fees.Deposit, depositFee);
+
+        uint256 expectedTotalAssets;
+        uint256 expectedTotalSupply;
+
+        for (uint256 i; i < testAccounts.length; ++i) {
+            address receiver = testAccounts[i];
+            address caller = separateCaller ? address(this) : receiver;
+            uint256 amountWithMultiplier = uint256(amount) *
+                uint256(multiplier);
+            (uint256 expectedAssets, ) = _computeAssetAmounts(
+                PirexGmx.Fees.Deposit,
+                amountWithMultiplier
+            );
+            uint256 expectedShares = autoPxGmx.previewDeposit(expectedAssets);
+
+            expectedTotalAssets += expectedAssets;
+            expectedTotalSupply += expectedShares;
+
+            _mintApproveGmx(
+                amountWithMultiplier,
+                caller,
+                address(autoPxGmx),
+                amountWithMultiplier
+            );
+
+            vm.prank(caller);
+            vm.expectEmit(true, true, false, false, address(autoPxGmx));
+
+            emit Deposit(caller, receiver, expectedAssets, expectedShares);
+
+            autoPxGmx.depositGmx(amountWithMultiplier, receiver);
+
+            assertTrue(expectedShares == autoPxGmx.balanceOf(receiver));
+            assertTrue(expectedTotalAssets == autoPxGmx.totalAssets());
+            assertTrue(expectedTotalSupply == autoPxGmx.totalSupply());
+        }
     }
 }
