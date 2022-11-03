@@ -59,6 +59,7 @@ contract AutoPxGmx is ReentrancyGuard, Owned, PirexERC4626 {
     error ExceedsMax();
     error AlreadySet();
     error InvalidParam();
+    error ZeroShares();
 
     /**
         @param  _gmxBaseReward  address  GMX reward token contract address
@@ -374,6 +375,9 @@ contract AutoPxGmx is ReentrancyGuard, Owned, PirexERC4626 {
         if (amount == 0) revert ZeroAmount();
         if (receiver == address(0)) revert ZeroAddress();
 
+        // Handle compounding of rewards before deposit (arguments are not used by `beforeDeposit` hook)
+        if (totalAssets() != 0) beforeDeposit(address(0), 0, 0);
+
         // Intake sender GMX
         gmx.safeTransferFrom(msg.sender, address(this), amount);
 
@@ -383,16 +387,18 @@ contract AutoPxGmx is ReentrancyGuard, Owned, PirexERC4626 {
             address(this)
         );
 
-        // NOTE: preserved `deposit` logic below sans the `safeTransferFrom` call
-        // since the vault received custody of the pxGMX in the logic directly above
-        if (totalAssets() != 0) beforeDeposit(receiver, assets, shares);
+        // NOTE: Modified `convertToShares` logic to consider assets already being in the vault
+        // and handle it by deducting the recently-deposited assets from the total
+        uint256 supply = totalSupply;
 
-        require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
+        if (
+            (shares = supply == 0
+                ? assets
+                : assets.mulDivDown(supply, totalAssets() - assets)) == 0
+        ) revert ZeroShares();
 
         _mint(receiver, shares);
 
         emit Deposit(msg.sender, receiver, assets, shares);
-
-        afterDeposit(receiver, assets, shares);
     }
 }
