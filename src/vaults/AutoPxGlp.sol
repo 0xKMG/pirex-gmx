@@ -4,12 +4,14 @@ pragma solidity 0.8.17;
 import {PirexERC4626} from "src/vaults/PirexERC4626.sol";
 import {PxGmxReward} from "src/vaults/PxGmxReward.sol";
 import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
+import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {PirexGmx} from "src/PirexGmx.sol";
 import {PirexRewards} from "src/PirexRewards.sol";
 
-contract AutoPxGlp is PirexERC4626, PxGmxReward {
+contract AutoPxGlp is PirexERC4626, PxGmxReward, ReentrancyGuard {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
 
@@ -290,6 +292,131 @@ contract AutoPxGlp is PirexERC4626, PxGmxReward {
             pxGlpIncentive,
             pxGmxIncentive
         );
+    }
+
+    /**
+        @notice Internal deposit handler
+        @param  assets    uint256  pxGLP amount
+        @param  receiver  address  apxGLP receiver
+        @return shares    uint256  Vault shares (i.e. apxGLP)
+     */
+    function _deposit(uint256 assets, address receiver)
+        internal
+        returns (uint256 shares)
+    {
+        if (totalAssets() != 0) beforeDeposit(receiver, assets, shares);
+
+        // Check for rounding error since we round down in previewDeposit.
+        require((shares = previewDeposit(assets)) != 0, "ZERO_SHARES");
+
+        _mint(receiver, shares);
+
+        emit Deposit(msg.sender, receiver, assets, shares);
+
+        afterDeposit(receiver, assets, shares);
+    }
+
+    /**
+        @notice Deposit fsGLP for apxGLP
+        @param  amount    uint256  fsGLP amount
+        @param  receiver  address  apxGLP receiver
+        @return           uint256  Vault shares (i.e. apxGLP)
+     */
+    function depositFsGlp(uint256 amount, address receiver)
+        external
+        nonReentrant
+        returns (uint256)
+    {
+        if (amount == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        ERC20 stakedGlp = ERC20(address(PirexGmx(platform).stakedGlp()));
+
+        // Transfer fsGLP from the caller to the vault
+        // before approving PirexGmx to proceed with the deposit
+        stakedGlp.safeTransferFrom(msg.sender, address(this), amount);
+
+        // Approve as needed here since the stakedGlp address is mutable in PirexGmx
+        stakedGlp.safeApprove(platform, amount);
+
+        (, uint256 assets, ) = PirexGmx(platform).depositFsGlp(
+            amount,
+            address(this)
+        );
+
+        // Handle vault deposit after minting pxGLP
+        return _deposit(assets, receiver);
+    }
+
+    /**
+        @notice Deposit GLP (minted with ERC20 tokens) for apxGLP
+        @param  token        address  GMX-whitelisted token for minting GLP
+        @param  tokenAmount  uint256  Whitelisted token amount
+        @param  minUsdg      uint256  Minimum USDG purchased and used to mint GLP
+        @param  minGlp       uint256  Minimum GLP amount minted from ERC20 tokens
+        @param  receiver     address  apxGLP receiver
+        @return              uint256  Vault shares (i.e. apxGLP)
+     */
+    function depositGlp(
+        address token,
+        uint256 tokenAmount,
+        uint256 minUsdg,
+        uint256 minGlp,
+        address receiver
+    ) external nonReentrant returns (uint256) {
+        if (token == address(0)) revert ZeroAddress();
+        if (tokenAmount == 0) revert ZeroAmount();
+        if (minUsdg == 0) revert ZeroAmount();
+        if (minGlp == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        // PirexGmx will do the check whether the token is whitelisted or not
+        ERC20 erc20Token = ERC20(token);
+
+        // Transfer token from the caller to the vault
+        // before approving PirexGmx to proceed with the deposit
+        erc20Token.safeTransferFrom(msg.sender, address(this), tokenAmount);
+
+        // Approve as needed here since it can be a new whitelisted token (unless it's the baseReward)
+        if (erc20Token != gmxBaseReward) {
+            erc20Token.safeApprove(platform, tokenAmount);
+        }
+
+        (, uint256 assets, ) = PirexGmx(platform).depositGlp(
+            token,
+            tokenAmount,
+            minUsdg,
+            minGlp,
+            address(this)
+        );
+
+        // Handle vault deposit after minting pxGLP
+        return _deposit(assets, receiver);
+    }
+
+    /**
+        @notice Deposit GLP (minted with ETH) for apxGLP
+        @param  minUsdg   uint256  Minimum USDG purchased and used to mint GLP
+        @param  minGlp    uint256  Minimum GLP amount minted from ETH
+        @param  receiver  address  apxGLP receiver
+        @return           uint256  Vault shares (i.e. apxGLP)
+     */
+    function depositGlpETH(
+        uint256 minUsdg,
+        uint256 minGlp,
+        address receiver
+    ) external payable nonReentrant returns (uint256) {
+        if (msg.value == 0) revert ZeroAmount();
+        if (minUsdg == 0) revert ZeroAmount();
+        if (minGlp == 0) revert ZeroAmount();
+        if (receiver == address(0)) revert ZeroAddress();
+
+        (, uint256 assets, ) = PirexGmx(platform).depositGlpETH{
+            value: msg.value
+        }(minUsdg, minGlp, address(this));
+
+        // Handle vault deposit after minting pxGLP
+        return _deposit(assets, receiver);
     }
 
     /**
