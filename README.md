@@ -14,7 +14,7 @@ From inside the project directory:
     3b. Define the values within the newly-created file in 3a
     3c. Run the test helper script `scripts/forgeTest.sh` (along with any `forge test` arguments, flags, options, etc.)
 
-### Core Contracts
+### Core Contract Overview
 
 **PirexGmx.sol**
 - Intakes GMX-based tokens (GMX and fsGLP) and mints their synthetic counterparts in return (pxGMX and pxGLP)
@@ -38,3 +38,9 @@ From inside the project directory:
 - Is a derivative of the PxERC20 contract
 - Represents GMX and esGMX tokens (calls the PxERC20 constructor, which it is derived from, with fixed values that is consistent with this goal)
 - Overwrites the `burn` method of PxERC20 (pxGMX cannot be redeemed for GMX or esGMX)
+
+### Contract Diagram: Deposit GMX
+
+[Contract Diagram: Deposit GMX](https://i.imgur.com/5qEKj8q.png)
+
+_<p align="center">Protocol contract interactions for a GMX deposit</p>_
