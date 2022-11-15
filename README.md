@@ -39,6 +39,10 @@ From inside the project directory:
 - Represents GMX and esGMX tokens (calls the PxERC20 constructor, which it is derived from, with fixed values that is consistent with this goal)
 - Overwrites the `burn` method of PxERC20 (pxGMX cannot be redeemed for GMX or esGMX)
 
-### Contract Diagram: Deposit GMX
+### Contract Diagram: Deposit GMX, Receive pxGMX
 
-![Contract Diagram: Deposit GMX](https://i.imgur.com/5qEKj8q.png)
+![Contract Diagram: Deposit GMX, Receive pxGMX](https://i.imgur.com/5qEKj8q.png)
+
+### Contract Diagram: Claim pxGMX/pxGLP Rewards
+
+![Contract Diagram: Claim pxGMX/pxGLP Rewards](https://i.imgur.com/NqaxI2P.png)
