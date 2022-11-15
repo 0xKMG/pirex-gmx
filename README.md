@@ -37,7 +37,7 @@ Hard Mode (Coming Soon): Stake your pxGMX or pxGLP and mint tokens representing 
 - Intakes GMX-based tokens (GMX and fsGLP) and mints their synthetic counterparts in return (pxGMX and pxGLP)
 - Allows users to redeem their pxGLP for GLP constituent assets (same assets which GMX allows GLP to be traded for, e.g. USDC, WBTC, etc.)
 - Interacts with the GMX contracts to stake and mint assets, claim rewards, perform asset migrations (only if necessary, as a result of a contract upgrade), and more
-- Custodies GMX rewards until they are claimed and distributed via a call from the
+- Custodies GMX rewards until they are claimed and distributed via a call from the PirexRewards contract
 
 **PirexRewards.sol**
 - Tracks perpetually accrued/continuously streamed GMX rewards across multiple scopes: global, different reward tokens, and individual users
