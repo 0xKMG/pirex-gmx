@@ -87,6 +87,10 @@ Hard Mode (Coming Soon): Stake your pxGMX or pxGLP and mint tokens representing 
 - Compounds pxGLP WETH rewards into more pxGLP, and tracks esGMX-backed pxGMX rewards earned by vault users
 - Provides a series of permissioned methods that enables the Pirex multisig to configure fees, incentives, and Uniswap V3 pool fee
 
+### Contract Diagram
+
+Below are visualizations of how Pirex-GMX contracts interact with one another as well as with external contracts (e.g. GMX's contracts) as a result of different user interactions. Please note that the diagrams do not cover every single user action for the purpose of avoiding redundancy (e.g. the diagram for depositing GMX and acquiring pxGMX is more or less the same as depositing GLP or GLP constituent assets and acquiring pxGLP).
+
 ### Contract Diagram: Deposit GMX, Receive pxGMX
 
 ![Contract Diagram: Deposit GMX, Receive pxGMX](https://i.imgur.com/5qEKj8q.png)
@@ -94,3 +98,7 @@ Hard Mode (Coming Soon): Stake your pxGMX or pxGLP and mint tokens representing 
 ### Contract Diagram: Claim pxGMX/pxGLP Rewards
 
 ![Contract Diagram: Claim pxGMX/pxGLP Rewards](https://i.imgur.com/NqaxI2P.png)
+
+### Contract Diagram: Auto-compound pxGMX Rewards
+
+![Contract Diagram: Auto-compound pxGMX Rewards](https://i.imgur.com/raWbR1z.png)
